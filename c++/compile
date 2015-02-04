@@ -1,0 +1,1 @@
+g++ -c -std=c++11 -o bpmf.o  `pkg-config --cflags eigen3` bpmf.cpp 

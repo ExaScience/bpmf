@@ -1,6 +1,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
+#include <iostream>
 #include <fstream>
 #include <string>
 #include <algorithm>
@@ -19,6 +20,7 @@ const int burnin = 5;
 double mean_rating;
 
 typedef Matrix<double, Dynamic, Dynamic> MatrixD;
+typedef SparseMatrix<double> SparseMatrixD;
 
 
 SparseMatrix<double> loadChemo()
@@ -47,7 +49,7 @@ SparseMatrix<double> loadChemo()
 }
 
 void init(SparseMatrix<double> &mat) {
-    mean_rating = mat.mean();
+    mean_rating = mat.sum() / mat.nonZeros();
 
     MatrixD sample_u(num_p, num_feat);
     MatrixD sample_m(num_m, num_feat);
@@ -80,34 +82,42 @@ function pred(probe_vec, sample_m, sample_u, mean_rating)
 end
 */
 
-void sample_movie(int mm, MatrixD &mat, double mean_rating, 
+MatrixD randn(int n)
+{
+    return MatrixD(n,n);
+}
+
+MatrixD sample_movie(int mm, SparseMatrixD &mat, double mean_rating, 
     MatrixD sample_u, int alpha, MatrixD mu_u, MatrixD Lambda_u)
 {
-    auto col = mat.col(mm);
-    col -= mean_rating;
+    auto rr = mat.col(mm).toDense();
+    rr.array() -= mean_rating;
     MatrixD MM;
 
     int i = 0;
-    for (MatrixD::InnerIterator it(mat,col); it; ++it) {
-        MM.col(i++) = sample_u.col(it.row));
+    for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it, ++i) {
+        MM.col(i) = sample_u.col(it.col());
     }
 
-    auto covar = (Lamda_m + alpha * MM.transpose() * MM).inverse();
-    auto mu = covar * (alpha * MM.transpose() * rr + Lambda_m * mu_m);
+    auto covar = (Lambda_u + alpha * MM.transpose() * MM).inverse();
+    auto mu = covar * (alpha * MM.transpose() * rr + Lambda_u * mu_u);
 
     return covar.llt().matrixL().transpose() * randn(num_feat) + mu;
 
 }
 
 void run() {
+    double err_avg = 0.0;
+    double err = 0.0;
 
-    cout <<< "Sampling" << endl;
+    std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
 
-      # Sample from movie hyperparams
+#if 0
+      // Sample from movie hyperparams
       mu_m, Lambda_m = rand( ConditionalNormalWishart(sample_m, vec(mu0_m), b0_m, WI_m, df_m) )
 
-      # Sample from user hyperparams
+      // Sample from user hyperparams
       mu_u, Lambda_u = rand( ConditionalNormalWishart(sample_u, vec(mu0_u), b0_u, WI_u, df_u) )
 
       for mm = 1:num_m
@@ -132,5 +142,6 @@ void run() {
       err = mean(ratings_test .== (probe_rat .< log10(200)))
 
       printf("Iteration %d:\t avg RMSE %6.4f RMSE %6.4f FU(%6.4f) FM(%6.4f)\n", i, err_avg, err, vecnorm(sample_u), vecnorm(sample_m));
+#endif
     }
 }
