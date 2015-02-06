@@ -21,7 +21,7 @@ unsigned num_p = 0;
 unsigned num_m = 0;
 
 const int alpha = 2;
-const int nsims = 10;
+const int nsims = 2;
 const int burnin = 5;
 
 double mean_rating;
@@ -30,8 +30,8 @@ SparseMatrixD M;
 
 MatrixXd sample_u;
 MatrixXd sample_m;
-MatrixXd mu_u(num_feat, 1);
-MatrixXd mu_m(num_feat, 1);
+VectorXd mu_u(num_feat);
+VectorXd mu_m(num_feat);
 MatrixXd Lambda_u(num_feat, num_feat);
 MatrixXd Lambda_m(num_feat, num_feat);
 
@@ -39,12 +39,12 @@ MatrixXd Lambda_m(num_feat, num_feat);
 MatrixXd WI_u(num_feat, num_feat);
 const int b0_u = 2;
 const int df_u = num_feat;
-MatrixXd mu0_u(num_feat, 1);
+VectorXd mu0_u(num_feat);
 
 MatrixXd WI_m(num_feat, num_feat);
 const int b0_m = 2;
 const int df_m = num_feat;
-MatrixXd mu0_m(num_feat, 1);
+VectorXd mu0_m(num_feat);
 
 void loadChemo()
 {
@@ -68,10 +68,12 @@ void loadChemo()
         num_m = std::max(num_m, j);
         lst.push_back(T(i,j,v_ij));
     }
+    num_p++;
+    num_m++;
 
     fclose(f);
 
-    M = SparseMatrix<double>(num_p+1, num_m+1);
+    M = SparseMatrix<double>(num_p, num_m);
     M.setFromTriplets(lst.begin(), lst.end());
 }
 
@@ -112,7 +114,7 @@ VectorXd randn(int n, double mean = 0.5, double sigma = 1)
     boost::mt19937 gen;
     boost::random::normal_distribution<> dist(mean,sigma);
 
-    for(int i=0; i<n; ++i) ret << dist(gen);
+    for(int i=0; i<n; ++i) ret(i) = dist(gen);
         
     return ret;
 }
@@ -120,28 +122,34 @@ VectorXd randn(int n, double mean = 0.5, double sigma = 1)
 MatrixXd sample_movie(int mm, SparseMatrixD &mat, double mean_rating, 
     MatrixXd sample_u, int alpha, MatrixXd mu_u, MatrixXd Lambda_u)
 {
-    auto rr = mat.col(mm).toDense();
-    rr.array() -= mean_rating;
-
     int i = 0;
-
-    MatrixXd E(sample_u.rows(), mat.col(mm).nonZeros());
+    MatrixXd E(mat.col(mm).nonZeros(), num_feat);
+    VectorXd rr(mat.col(mm).nonZeros());
     for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it, ++i) {
-        // cout << "M[" << it.row() << "," << it.col() << "] = " << it.value() << endl;
-        E.col(i) = sample_u.col(it.col());
+        //cout << "M[" << it.row() << "," << it.col() << "] = " << it.value() << endl;
+        E.row(i) = sample_u.row(it.row());
+        rr(i) = it.value() - mean_rating;
     }
 
-    auto MM = E * E.transpose();
+    auto MM = E.transpose() * E;
     MatrixXd MMs = alpha * MM.array();
+    assert(MMs.cols() == num_feat && MMs.rows() == num_feat);
     auto covar = (Lambda_u + MMs).inverse();
-    auto mu = covar * (alpha * MM.transpose() * rr + Lambda_u * mu_u);
+    auto MMrr = E.transpose() * rr; 
+    MMrr.array() *= alpha;
+    auto U = Lambda_u * mu_u;
+    auto mu = covar * (MMrr + U);
 
-    return covar.llt().matrixL().transpose() * randn(num_feat) + mu;
+    auto chol = covar.llt().matrixL().transpose();
+    auto result = chol * randn(num_feat) + mu;
+    return result.transpose();
 }
 
 void run() {
     double err_avg = 0.0;
     double err = 0.0;
+
+    SparseMatrixD Mt = M.transpose();
 
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
@@ -154,15 +162,15 @@ void run() {
       mu_u, Lambda_u = rand( ConditionalNormalWishart(sample_u, vec(mu0_u), b0_u, WI_u, df_u) )
 #endif
 
+#pragma omp parallel for
       for(int mm = 1; mm < num_m; ++mm) {
-        auto sample = sample_movie(mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
+        sample_m.row(mm) = sample_movie(mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       }
 
+      for(int uu = 1; uu < num_p; ++uu) {
+        sample_u.row(uu) = sample_movie(uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
+      }
 #if 0
-
-      for uu = 1:num_p
-        sample_u[uu, :] = sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
-      end
 
       probe_rat = pred(probe_vec, sample_m, sample_u, mean_rating)
 
