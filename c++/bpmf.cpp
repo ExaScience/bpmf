@@ -9,6 +9,8 @@
 
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/mersenne_twister.hpp>
+#include <boost/random/gamma_distribution.hpp>
+#include <boost/random/variate_generator.hpp>
 
 
 using namespace Eigen;
@@ -30,6 +32,7 @@ SparseMatrixD M;
 
 MatrixXd sample_u;
 MatrixXd sample_m;
+
 VectorXd mu_u(num_feat);
 VectorXd mu_m(num_feat);
 MatrixXd Lambda_u(num_feat, num_feat);
@@ -144,6 +147,31 @@ MatrixXd sample_movie(int mm, SparseMatrixD &mat, double mean_rating,
     auto result = chol * randn(num_feat) + mu;
     return result.transpose();
 }
+
+MatrixXd WishartUnit(MatrixXd sigma, int df)
+{
+    auto m = sigma.cols();
+    MatrixXd c(m,m);
+    c.setZero();
+
+    for ( int i = 0; i < m; i++ ) {
+        boost::gamma_distribution<> chi(0.5*(df - i));
+        boost::mt19937 rng;
+        boost::variate_generator<boost::mt19937&, boost::gamma_distribution<> > gen(rng, chi);
+        c(i,i) = sqrt(2.0 * chi(gen));
+        c.block(i,i+1,1,m-i) = randn(m-i);
+    }
+
+    return c.transpose() * c;
+}
+
+MatrixXd Wishart(MatrixXd sigma, int df)
+{
+  MatrixXd r = sigma.llt().matrixU();
+  auto u = WishartUnit(sigma, df);
+  return r.transpose() * u;
+}
+
 
 void run() {
     double err_avg = 0.0;
