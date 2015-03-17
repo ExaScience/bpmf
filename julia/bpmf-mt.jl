@@ -1,3 +1,5 @@
+using MAT, Distributions, Base.Threading
+
 macro default_value(sym, value)
   quote
     symsym = $(QuoteNode(sym))
@@ -32,26 +34,9 @@ end
 @default_value(alpha, 2) # observation noise (precision)
 @default_value(skip_load, false)
 @default_value(skip_initial, true)
-@default_value(nsims, 100)
-@default_value(burnin, 50)
-@default_value(problem, TinyFlix)
-
-using MAT, Distributions
-
-@everywhere begin
-
-include("replicated_data.jl")
-immutable DataSet
-  Am::SparseMatrixCSC{Float64,Int64}
-  Au::SparseMatrixCSC{Float64,Int64}
-  mean_rating::Float64
-end
-
-function DataSet(A::SparseMatrixCSC{Float64,Int64})
-  DataSet(A, A', sum(A)/nnz(A))
-end
-
-end
+@default_value(nsims, 50)
+@default_value(burnin, 25)
+@default_value(problem, Netflix)
 
 if ! skip_load
   println("Loading data")
@@ -99,19 +84,12 @@ if ! skip_load
     ratings_test = probe_vec[:,3] .< log10(200)
   end
 
-  ds = DataSet(Am)
-  mean_rating = ds.mean_rating
+  Au = Am'
+  mean_rating = sum(Am)/nnz(Am)
 end
 
-if nprocs() > 1
-  ds = ReplicatedData(ds)
-end
-
-import Base: shmem_fill
-#sample_u = zeros(num_p, num_feat)
-sample_u = shmem_fill(0.0, (num_p, num_feat))
-#sample_m = zeros(num_m, num_feat)
-sample_m = shmem_fill(0.0, (num_m, num_feat))
+sample_u = zeros(num_p, num_feat)
+sample_m = zeros(num_m, num_feat)
 
 # Initialize hierarchical priors
 mu_u = zeros(num_feat,1)
@@ -156,7 +134,8 @@ function pred(probe_vec, sample_m, sample_u, mean_rating)
   sum(sample_m[probe_vec[:,2],:].*sample_u[probe_vec[:,1],:],2) + mean_rating
 end
 
-function ConditionalNormalWishart(U, mu::Vector{Float64}, kappa::Real, T::Matrix{Float64}, nu::Real)
+
+function ConditionalNormalWishart(U::Matrix{Float64}, mu::Vector{Float64}, kappa::Real, T::Matrix{Float64}, nu::Real)
   N = size(U, 1)
   Ū = mean(U,1)
   S = cov(U, mean=Ū)
@@ -170,18 +149,10 @@ function ConditionalNormalWishart(U, mu::Vector{Float64}, kappa::Real, T::Matrix
   NormalWishart(vec(mu_c), kappa_c, T_c, nu_c)
 end
 
-@everywhere begin
-
 function grab_col{Tv,Ti}(A::SparseMatrixCSC{Tv,Ti}, col::Integer)
   r = A.colptr[col]:A.colptr[col+1]-1
   A.rowval[r], A.nzval[r]
 end
-
-sample_movie(mm, rd::ReplicatedData{DataSet}, sample_m, alpha, mu_u, Lambda_u) =
-  sample_movie(mm, rd.val, sample_m, alpha, mu_u, Lambda_u)
-
-sample_movie(mm, ds::DataSet, sample_u, alpha, mu_m, Lambda_m) =
-  sample_movie(mm, ds.Am, ds.mean_rating, sample_u, alpha, mu_m, Lambda_m)
 
 function sample_movie(mm, Am, mean_rating, sample_u, alpha, mu_m, Lambda_m)
   ff, v = grab_col(Am, mm)
@@ -192,15 +163,8 @@ function sample_movie(mm, Am, mean_rating, sample_u, alpha, mu_m, Lambda_m)
   mu = covar * (alpha * MM'*rr + Lambda_m * mu_m)
 
   # Sample from normal distribution
-  num_feat = length(mu_m)
   chol(covar)' * randn(num_feat) + mu
 end
-
-sample_user(uu, rd::ReplicatedData{DataSet}, sample_m, alpha, mu_u, Lambda_u) =
-  sample_user(uu, rd.val, sample_m, alpha, mu_u, Lambda_u)
-
-sample_user(uu, ds::DataSet, sample_m, alpha, mu_u, Lambda_u) =
-  sample_user(uu, ds.Au, ds.mean_rating, sample_m, alpha, mu_u, Lambda_u)
 
 function sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
   ff, v = grab_col(Au, uu)
@@ -211,12 +175,10 @@ function sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
   mu = covar * (alpha * MM'*rr + Lambda_u * mu_u)
 
   # Sample from normal distribution
-  num_feat = length(mu_u)
   chol(covar)' * randn(num_feat) + mu
 end
 
-end
-
+#=
 println("Sampling")
 for i in 1:nsims
   # Sample from movie hyperparams
@@ -226,17 +188,31 @@ for i in 1:nsims
   mu_u, Lambda_u = rand( ConditionalNormalWishart(sample_u, vec(mu0_u), b0_u, WI_u, df_u) )
 
   tic()
-  @sync begin
-    @parallel for mm = 1:num_m
-      sample_m[mm, :] = sample_movie(mm, ds, sample_u, alpha, mu_m, Lambda_m)
+#=  @threads all for mm = 1:num_m
+    sample_m[mm, :] = sample_movie(mm, Am, mean_rating, sample_u, alpha, mu_m, Lambda_m)
+  end=#
+  function thread_movie()
+    chunks = Base.splitrange(num_m, nthreads())
+    tid = threadid()
+    for mm in chunks[tid]
+      sample_m[mm, :] = sample_movie(mm, Am, mean_rating, sample_u, alpha, mu_m, Lambda_m)
     end
   end
+  ccall(:jl_threading_run, Void, (Any,Any), thread_movie, ())
 
-  @sync begin
-    @parallel for uu = 1:num_p
-      sample_u[uu, :] = sample_user(uu, ds, sample_m, alpha, mu_u, Lambda_u)
+#=  @threads all for uu = 1:num_p
+    sample_u[uu, :] = sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
+  end
+=#
+  function thread_user()
+    chunks = Base.splitrange(num_p, nthreads())
+    tid = threadid()
+    for uu in chunks[tid]
+      sample_u[uu, :] = sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
     end
   end
+  ccall(:jl_threading_run, Void, (Any,Any), thread_user, ())
+
   toc()
 
   if problem == Chemo
@@ -263,3 +239,4 @@ for i in 1:nsims
 
   @printf("Iteration %d:\t avg RMSE %6.4f RMSE %6.4f FU(%6.4f) FM(%6.4f)\n", i, err_avg, err, vecnorm(sample_u), vecnorm(sample_m))
 end
+=#

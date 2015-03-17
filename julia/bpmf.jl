@@ -30,12 +30,12 @@ end
 
 @enum Problem TinyFlix Netflix Chemo
 
-@default_value(num_feat, 10)
+@default_value(num_feat, 3)
 @default_value(alpha, 2) # observation noise (precision)
 @default_value(skip_load, false)
 @default_value(skip_initial, true)
-@default_value(nsims, 50)
-@default_value(burnin, 25)
+@default_value(nsims, 10)
+@default_value(burnin, 5)
 @default_value(problem, Chemo)
 
 if ! skip_load
@@ -179,42 +179,44 @@ function sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
 end
 
 println("Sampling")
-for i in 1:nsims
-  # Sample from movie hyperparams
-  mu_m, Lambda_m = rand( ConditionalNormalWishart(sample_m, vec(mu0_m), b0_m, WI_m, df_m) )
+@profile begin
+    for i in 1:nsims
+      # Sample from movie hyperparams
+      mu_m, Lambda_m = rand( ConditionalNormalWishart(sample_m, vec(mu0_m), b0_m, WI_m, df_m) )
 
-  # Sample from user hyperparams
-  mu_u, Lambda_u = rand( ConditionalNormalWishart(sample_u, vec(mu0_u), b0_u, WI_u, df_u) )
+      # Sample from user hyperparams
+      mu_u, Lambda_u = rand( ConditionalNormalWishart(sample_u, vec(mu0_u), b0_u, WI_u, df_u) )
 
-  for mm = 1:num_m
-    sample_m[mm, :] = sample_movie(mm, Am, mean_rating, sample_u, alpha, mu_m, Lambda_m)
-  end
+      for mm = 1:num_m
+        sample_m[mm, :] = sample_movie(mm, Am, mean_rating, sample_u, alpha, mu_m, Lambda_m)
+      end
 
-  for uu = 1:num_p
-    sample_u[uu, :] = sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
-  end
+      for uu = 1:num_p
+        sample_u[uu, :] = sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
+      end
 
-  if problem == Chemo
-    probe_rat = pred(probe_vec, sample_m, sample_u, mean_rating)
-  else
-    probe_rat = pred_clamp(probe_vec, sample_m, sample_u, mean_rating)
-  end
+      if problem == Chemo
+        probe_rat = pred(probe_vec, sample_m, sample_u, mean_rating)
+      else
+        probe_rat = pred_clamp(probe_vec, sample_m, sample_u, mean_rating)
+      end
 
-  if i > burnin
-    probe_rat_all = (counter_prob*probe_rat_all + probe_rat)/(counter_prob+1)
-    counter_prob = counter_prob + 1
-  else
-    probe_rat_all = probe_rat
-    counter_prob = 1
-  end
+      if i > burnin
+        probe_rat_all = (counter_prob*probe_rat_all + probe_rat)/(counter_prob+1)
+        counter_prob = counter_prob + 1
+      else
+        probe_rat_all = probe_rat
+        counter_prob = 1
+      end
 
-  if problem == Chemo
-    err_avg = mean(ratings_test .== (probe_rat_all .< log10(200)))
-    err = mean(ratings_test .== (probe_rat .< log10(200)))
-  else
-    err_avg = sqrt( sum((ratings_test - probe_rat_all).^2) / size(probe_vec,1) );
-    err = sqrt( sum((ratings_test - probe_rat).^2) / size(probe_vec,1) );
-  end
+      if problem == Chemo
+        err_avg = mean(ratings_test .== (probe_rat_all .< log10(200)))
+        err = mean(ratings_test .== (probe_rat .< log10(200)))
+      else
+        err_avg = sqrt( sum((ratings_test - probe_rat_all).^2) / size(probe_vec,1) );
+        err = sqrt( sum((ratings_test - probe_rat).^2) / size(probe_vec,1) );
+      end
 
-  @printf("Iteration %d:\t avg RMSE %6.4f RMSE %6.4f FU(%6.4f) FM(%6.4f)\n", i, err_avg, err, vecnorm(sample_u), vecnorm(sample_m))
+      @printf("Iteration %d:\t avg RMSE %6.4f RMSE %6.4f FU(%6.4f) FM(%6.4f)\n", i, err_avg, err, vecnorm(sample_u), vecnorm(sample_m))
+    end
 end
