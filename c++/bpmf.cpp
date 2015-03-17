@@ -172,6 +172,39 @@ MatrixXd Wishart(MatrixXd sigma, int df)
   return r.transpose() * u;
 }
 
+MatrixXd NormalWishart(
+  WI_u = eye(num_feat);
+  b0_u = 2;
+  df_u = num_feat;
+  mu0_u = zeros(num_feat,1);        
+  WI_u = eye(num_feat);
+  b0_u = 2;
+  df_u = num_feat;
+  mu0_u = zeros(num_feat,1);
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %%% Sample from user hyperparams
+  N = size(w1_P1_sample,1);
+  x_bar = mean(w1_P1_sample)';
+  S_bar = cov(w1_P1_sample);
+
+  WI_post = inv(inv(WI_u) + N/1*S_bar + ...
+            N*b0_u*(mu0_u - x_bar)*(mu0_u - x_bar)'/(1*(b0_u+N)));
+  WI_post = (WI_post + WI_post')/2;
+  df_mpost = df_u+N;
+  alpha_u = wishrnd(WI_post,df_mpost);
+  mu_temp = (b0_u*mu0_u + N*x_bar)/(b0_u+N);
+  lam = chol( inv((b0_u+N)*alpha_u) ); lam=lam';
+  mu_u = lam*randn(num_feat,1)+mu_temp;
+
+
+MatrixXd CondWishart(MatrixXd sigma, int df)
+{
+  MatrixXd r = sigma.llt().matrixU();
+  auto u = WishartUnit(sigma, df);
+  return r.transpose() * u;
+}
+
 
 void run() {
     double err_avg = 0.0;
