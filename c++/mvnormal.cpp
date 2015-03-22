@@ -8,6 +8,8 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/normal_distribution.hpp>    
 
+#include "bpmf.h"
+
 /*
   We need a functor that can pretend it's const,
   but to be a good random number generator 
@@ -39,7 +41,7 @@ struct functor_traits<scalar_normal_dist_op<Scalar> >
   Draw nn samples from a size-dimensional normal distribution
   with a specified mean and covariance
 */
-Eigen::MatrixXd MvNormal(Eigen::MatrixXd covar, Eigen::VectorXd mean, int nn = 1) 
+Eigen::MatrixXd MvNormal(Eigen::MatrixXd covar, Eigen::VectorXd mean, int nn) 
 {
   int size = mean.cols(); // Dimensionality (rows)
   Eigen::internal::scalar_normal_dist_op<double> randN; // Gaussian functor
@@ -55,3 +57,16 @@ Eigen::MatrixXd MvNormal(Eigen::MatrixXd covar, Eigen::VectorXd mean, int nn = 1
 
   return samples;
 }
+
+std::pair<Eigen::VectorXd, Eigen::MatrixXd> NormalWishart(Eigen::VectorXd mu, double kappa, Eigen::MatrixXd T, double nu, int nn) 
+{
+  int size = mu.cols(); // Dimensionality (rows)
+  
+  Eigen::LLT<Eigen::MatrixXd> cholSolver(T);
+  auto Tchol = cholSolver.matrixL();
+  auto Lam = Wishart(Tchol, nu); 
+  auto mu_o = MvNormal(mu, Lam.inverse().array() * kappa);
+
+  return std::make_pair(mu_o , Lam);
+}
+
