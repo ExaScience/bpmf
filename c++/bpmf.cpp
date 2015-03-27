@@ -95,8 +95,8 @@ void init() {
     sample_m.setZero();
 }
 
-/*
-function pred(probe_vec, sample_m, sample_u, mean_rating)
+
+double pred(VevtorXd probe_vec, sample_m, sample_u, mean_rating)
   sum(sample_m[probe_vec[:,2],:].*sample_u[probe_vec[:,1],:],2) + mean_rating
 end
 */
@@ -169,11 +169,28 @@ MatrixXd Wishart(MatrixXd sigma, int df)
   return r.transpose() * u;
 }
 
-MatrixXd CondWishart(MatrixXd sigma, int df)
+MatrixXd CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
 {
+#if 0
+  int n = U.cols();
+  VectorXd mean_U = U.mean(); // FIXME: should be collumnwise!!!
+  auto S = U.cov
+  S = cov(U, mean=Ū)
+  Ū = Ū'
+
+  mu_c = (kappa*mu + N*Ū) / (kappa + N)
+  kappa_c = kappa + N
+  T_c = inv( inv(T) + N * S + (kappa * N)/(kappa + N) * (mu - Ū) * (mu - Ū)' )
+  nu_c = nu + N
+
+  NormalWishart(vec(mu_c), kappa_c, T_c, nu_c)
+end
+
+
   MatrixXd r = sigma.llt().matrixU();
   auto u = WishartUnit(sigma, df);
   return r.transpose() * u;
+#endif
 }
 
 
@@ -186,15 +203,12 @@ void run() {
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
 
-#if 0
       // Sample from movie hyperparams
-      mu_m, Lambda_m = rand( ConditionalNormalWishart(sample_m, vec(mu0_m), b0_m, WI_m, df_m) )
+      boost::tie(mu_m, Lambda_m) = /*Conditional*/NormalWishart(sample_m, mu0_m, b0_m, WI_m, df_m);
 
       // Sample from user hyperparams
-      mu_u, Lambda_u = rand( ConditionalNormalWishart(sample_u, vec(mu0_u), b0_u, WI_u, df_u) )
-#endif
+      boost::tie(mu_u, Lambda_u) = /*Conditional*/NormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
 
-#pragma omp parallel for
       for(int mm = 1; mm < num_m; ++mm) {
         sample_m.row(mm) = sample_movie(mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       }
