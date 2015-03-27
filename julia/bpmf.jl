@@ -39,6 +39,8 @@ end
 @default_value(burnin, 5)
 @default_value(problem, Chemo)
 
+srand(1234)
+
 
 # compute U * V for probe vector
 
