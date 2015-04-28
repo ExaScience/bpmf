@@ -46,14 +46,14 @@ const int b0_m = 2;
 const int df_m = num_feat;
 VectorXd mu0_m(num_feat);
 
-void loadChemo()
+void loadChemo(const char* fname)
 {
     typedef Eigen::Triplet<double> T;
     std::vector<T> lst;
     lst.reserve(100000);
     
-    FILE *f = fopen("../data/chembl_19_mf1/chembl-IC50-360targets.csv", "r");
-    assert(f);
+    FILE *f = fopen(fname, "r");
+    assert(f && "Could not open file");
 
     // skip header
     char buf[2048];
@@ -96,6 +96,7 @@ void init() {
 }
 
 
+/*
 double pred(VevtorXd probe_vec, sample_m, sample_u, mean_rating)
   sum(sample_m[probe_vec[:,2],:].*sample_u[probe_vec[:,1],:],2) + mean_rating
 end
@@ -169,7 +170,7 @@ MatrixXd Wishart(MatrixXd sigma, int df)
   return r.transpose() * u;
 }
 
-MatrixXd CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
+std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
 {
 #if 0
   int n = U.cols();
@@ -204,10 +205,10 @@ void run() {
     for(int i=0; i<nsims; ++i) {
 
       // Sample from movie hyperparams
-      boost::tie(mu_m, Lambda_m) = /*Conditional*/NormalWishart(sample_m, mu0_m, b0_m, WI_m, df_m);
+      tie(mu_m, Lambda_m) = CondNormalWishart(sample_m, mu0_m, b0_m, WI_m, df_m);
 
       // Sample from user hyperparams
-      boost::tie(mu_u, Lambda_u) = /*Conditional*/NormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
+      tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
 
       for(int mm = 1; mm < num_m; ++mm) {
         sample_m.row(mm) = sample_movie(mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
@@ -236,9 +237,12 @@ void run() {
     }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    loadChemo();
+    const char *fname = argv[1];
+    assert(fname && "filename missing");
+
+    loadChemo(fname);
     init();
     run();
 
