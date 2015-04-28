@@ -1,4 +1,6 @@
 
+#include <stdlib.h>     /* srand, rand */
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -26,6 +28,8 @@ const int burnin = 5;
 double mean_rating;
 
 SparseMatrixD M;
+typedef Eigen::Triplet<double> T;
+vector<T> probe_vec, test_vec;
 
 MatrixXd sample_u;
 MatrixXd sample_m;
@@ -48,7 +52,6 @@ VectorXd mu0_m(num_feat);
 
 void loadChemo(const char* fname)
 {
-    typedef Eigen::Triplet<double> T;
     std::vector<T> lst;
     lst.reserve(100000);
     
@@ -61,16 +64,22 @@ void loadChemo(const char* fname)
 
     // data
     unsigned i, j;
-    double v_ij;
+    double v;
     while (!feof(f)) {
-        if (!fscanf(f, "%d,%d,%lg\n", &i, &j, &v_ij)) continue;
-        num_p = std::max(num_p, i);
-        num_m = std::max(num_m, j);
-        lst.push_back(T(i,j,v_ij));
+        if (!fscanf(f, "%d,%d,%lg\n", &i, &j, &v)) continue;
+
+        if ((rand() % 5) == 0) {
+            probe_vec.push_back(T(i,j,log10(v)));
+            if (v<200) 
+                test_vec.push_back(T(i,j,log10(v));
+        } else {
+            num_p = std::max(num_p, i);
+            num_m = std::max(num_m, j);
+            lst.push_back(T(i,j,log10(v)));
+        }
     }
     num_p++;
     num_m++;
-
     fclose(f);
 
     M = SparseMatrix<double>(num_p, num_m);
