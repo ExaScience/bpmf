@@ -25,7 +25,7 @@ const int alpha = 2;
 const int nsims = 2;
 const int burnin = 5;
 
-double mean_rating;
+double mean_rating = .0;
 
 SparseMatrixD M;
 typedef Eigen::Triplet<double> T;
@@ -71,15 +71,17 @@ void loadChemo(const char* fname)
         if ((rand() % 5) == 0) {
             probe_vec.push_back(T(i,j,log10(v)));
             if (v<200) 
-                test_vec.push_back(T(i,j,log10(v));
+                test_vec.push_back(T(i,j,log10(v)));
         } else {
             num_p = std::max(num_p, i);
             num_m = std::max(num_m, j);
+            mean_rating += v;
             lst.push_back(T(i,j,log10(v)));
         }
     }
     num_p++;
     num_m++;
+    mean_rating /= lst.size();
     fclose(f);
 
     M = SparseMatrix<double>(num_p, num_m);
@@ -111,14 +113,14 @@ double pred(VevtorXd probe_vec, sample_m, sample_u, mean_rating)
 end
 */
 
-double rand(double mean, double sigma)
+double nrand(double mean, double sigma)
 {
     boost::mt19937 gen;
     boost::random::normal_distribution<> dist(mean,sigma);
     return dist(gen);
 }
 
-VectorXd randn(int n, double mean, double sigma)
+VectorXd nrandn(int n, double mean, double sigma)
 {
     VectorXd ret(n);
     boost::mt19937 gen;
@@ -151,7 +153,7 @@ MatrixXd sample_movie(int mm, SparseMatrixD &mat, double mean_rating,
     auto mu = covar * (MMrr + U);
 
     auto chol = covar.llt().matrixL().transpose();
-    auto result = chol * randn(num_feat) + mu;
+    auto result = chol * nrandn(num_feat) + mu;
     return result.transpose();
 }
 
@@ -166,7 +168,7 @@ MatrixXd WishartUnit(MatrixXd sigma, int df)
         boost::mt19937 rng;
         boost::variate_generator<boost::mt19937&, boost::gamma_distribution<> > gen(rng, chi);
         c(i,i) = sqrt(2.0 * chi(gen));
-        c.block(i,i+1,1,m-i) = randn(m-i);
+        c.block(i,i+1,1,m-i) = nrandn(m-i);
     }
 
     return c.transpose() * c;
@@ -181,26 +183,17 @@ MatrixXd Wishart(MatrixXd sigma, int df)
 
 std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
 {
-#if 0
-  int n = U.cols();
-  VectorXd mean_U = U.mean(); // FIXME: should be collumnwise!!!
-  auto S = U.cov
-  S = cov(U, mean=Ū)
-  Ū = Ū'
+  int N = U.cols();
+  MatrixXd C = U.rowwise() - U.colwise().mean();
+  MatrixXd S = (C.adjoint() * C) / double(U.rows() - 1);
+  auto U_t = U.transpose();
 
-  mu_c = (kappa*mu + N*Ū) / (kappa + N)
-  kappa_c = kappa + N
-  T_c = inv( inv(T) + N * S + (kappa * N)/(kappa + N) * (mu - Ū) * (mu - Ū)' )
-  nu_c = nu + N
+  VectorXd mu_c = (kappa*mu + N*U.transpose()) / (kappa + N);
+  double kappa_c = kappa + N;
+  MatrixXd T_c = ( T.inverse() + N * S + (kappa * N)/(kappa + N) * (mu - U_t) * (mu - U_t)).inverse();
+  int nu_c = nu + N;
 
-  NormalWishart(vec(mu_c), kappa_c, T_c, nu_c)
-end
-
-
-  MatrixXd r = sigma.llt().matrixU();
-  auto u = WishartUnit(sigma, df);
-  return r.transpose() * u;
-#endif
+  return NormalWishart(mu_c, kappa_c, T_c, nu_c);
 }
 
 

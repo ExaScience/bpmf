@@ -10,9 +10,9 @@ MatrixXd MvNormal(MatrixXd covar, VectorXd mean, int nn = 1);
 
 std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd T, double nu, int nn = 1);
 
-double rand(double mean = 0, double sigma = 1);
+double nrand(double mean = 0, double sigma = 1);
 
-VectorXd randn(int n, double mean = 0, double sigma = 1);
+VectorXd nrandn(int n, double mean = 0, double sigma = 1);
 
 MatrixXd WishartUnit(MatrixXd sigma, int df);
 
