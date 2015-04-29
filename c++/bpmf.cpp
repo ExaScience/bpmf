@@ -113,13 +113,6 @@ double pred(VevtorXd probe_vec, sample_m, sample_u, mean_rating)
 end
 */
 
-double nrand(double mean, double sigma)
-{
-    boost::mt19937 gen;
-    boost::random::normal_distribution<> dist(mean,sigma);
-    return dist(gen);
-}
-
 VectorXd nrandn(int n, double mean, double sigma)
 {
     VectorXd ret(n);
@@ -168,7 +161,7 @@ MatrixXd WishartUnit(MatrixXd sigma, int df)
         boost::mt19937 rng;
         boost::variate_generator<boost::mt19937&, boost::gamma_distribution<> > gen(rng, chi);
         c(i,i) = sqrt(2.0 * chi(gen));
-        c.block(i,i+1,1,m-i) = nrandn(m-i);
+        c.block(i,i+1,1,m-i-1) = nrandn(m-i-1).transpose();
     }
 
     return c.transpose() * c;
@@ -184,13 +177,15 @@ MatrixXd Wishart(MatrixXd sigma, int df)
 std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
 {
   int N = U.cols();
+  auto Um = U.colwise().mean().transpose();
+
+  // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
   MatrixXd C = U.rowwise() - U.colwise().mean();
   MatrixXd S = (C.adjoint() * C) / double(U.rows() - 1);
-  auto U_t = U.transpose();
 
-  VectorXd mu_c = (kappa*mu + N*U.transpose()) / (kappa + N);
+  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
   double kappa_c = kappa + N;
-  MatrixXd T_c = ( T.inverse() + N * S + (kappa * N)/(kappa + N) * (mu - U_t) * (mu - U_t)).inverse();
+  MatrixXd T_c = ( T.inverse() + N * S + (kappa * N)/(kappa + N) * (mu - Um) * ((mu - Um).transpose())).inverse();
   int nu_c = nu + N;
 
   return NormalWishart(mu_c, kappa_c, T_c, nu_c);

@@ -43,7 +43,7 @@ struct functor_traits<scalar_normal_dist_op<Scalar> >
 */
 Eigen::MatrixXd MvNormal(Eigen::MatrixXd covar, Eigen::VectorXd mean, int nn) 
 {
-  int size = mean.cols(); // Dimensionality (rows)
+  int size = mean.rows(); // Dimensionality (rows)
   Eigen::internal::scalar_normal_dist_op<double> randN; // Gaussian functor
   Eigen::internal::scalar_normal_dist_op<double>::rng.seed(1); // Seed the rng
   Eigen::MatrixXd normTransform(size,size);
@@ -65,7 +65,7 @@ std::pair<Eigen::VectorXd, Eigen::MatrixXd> NormalWishart(Eigen::VectorXd mu, do
   Eigen::LLT<Eigen::MatrixXd> cholSolver(T);
   auto Tchol = cholSolver.matrixL();
   auto Lam = Wishart(Tchol, nu); 
-  auto mu_o = MvNormal(mu, Lam.inverse().array() * kappa);
+  auto mu_o = MvNormal(Lam.inverse() * kappa, mu);
 
   return std::make_pair(mu_o , Lam);
 }
