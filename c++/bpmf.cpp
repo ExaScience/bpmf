@@ -7,11 +7,6 @@
 #include <string>
 #include <algorithm>
 
-#include <boost/random/normal_distribution.hpp>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/gamma_distribution.hpp>
-#include <boost/random/variate_generator.hpp>
-
 #include "bpmf.h"
 
 using namespace std;
@@ -117,17 +112,6 @@ VectorXd pred(const vector<T> &probe_vec, const MatrixXd &sample_m, const Matrix
     return ret;
 }
 
-VectorXd nrandn(int n, double mean, double sigma)
-{
-    VectorXd ret(n);
-    boost::mt19937 gen;
-    boost::random::normal_distribution<> dist(mean,sigma);
-
-    for(int i=0; i<n; ++i) ret(i) = dist(gen);
-        
-    return ret;
-}
-
 MatrixXd sample_movie(int mm, SparseMatrixD &mat, double mean_rating, 
     MatrixXd sample_u, int alpha, MatrixXd mu_u, MatrixXd Lambda_u)
 {
@@ -153,49 +137,6 @@ MatrixXd sample_movie(int mm, SparseMatrixD &mat, double mean_rating,
     auto result = chol * nrandn(num_feat) + mu;
     return result.transpose();
 }
-
-MatrixXd WishartUnit(MatrixXd sigma, int df)
-{
-    auto m = sigma.cols();
-    MatrixXd c(m,m);
-    c.setZero();
-
-    for ( int i = 0; i < m; i++ ) {
-        boost::gamma_distribution<> chi(0.5*(df - i));
-        boost::mt19937 rng;
-        boost::variate_generator<boost::mt19937&, boost::gamma_distribution<> > gen(rng, chi);
-        c(i,i) = sqrt(2.0 * chi(gen));
-        c.block(i,i+1,1,m-i-1) = nrandn(m-i-1).transpose();
-    }
-
-    return c.transpose() * c;
-}
-
-MatrixXd Wishart(MatrixXd sigma, int df)
-{
-  MatrixXd r = sigma.llt().matrixU();
-  auto u = WishartUnit(sigma, df);
-  return r.transpose() * u;
-}
-
-std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
-{
-  int N = U.cols();
-  auto Um = U.colwise().mean();
-  auto Ut = Um.transpose();
-
-  // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
-  MatrixXd C = U.rowwise() - Um;
-  MatrixXd S = (C.adjoint() * C) / double(U.rows() - 1);
-
-  VectorXd mu_c = (kappa*mu + N*Ut) / (kappa + N);
-  double kappa_c = kappa + N;
-  MatrixXd T_c = ( T.inverse() + N * S + (kappa * N)/(kappa + N) * (mu - Ut) * ((mu - Ut).transpose())).inverse();
-  int nu_c = nu + N;
-
-  return NormalWishart(mu_c, kappa_c, T_c, nu_c);
-}
-
 
 void run() {
     unsigned counter_prob = 0;
