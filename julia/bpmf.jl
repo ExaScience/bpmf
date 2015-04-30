@@ -31,7 +31,7 @@ end
 
 @enum Problem TinyFlix Netflix Chemo
 
-@default_value(num_feat, 3)
+@default_value(num_feat, 30)
 @default_value(alpha, 2) # observation noise (precision)
 @default_value(skip_load, false)
 @default_value(skip_initial, true)
@@ -192,6 +192,7 @@ function main()
     end
 
     println("Sampling")
+    start = time()
 
     for i in 1:nsims
       # Sample from movie hyperparams
@@ -232,7 +233,9 @@ function main()
         err = sqrt( sum((ratings_test - probe_rat).^2) / size(probe_vec,1) );
       end
 
-      @printf("Iteration %d:\t avg RMSE %6.4f RMSE %6.4f FU(%6.4f) FM(%6.4f)\n", i, err_avg, err, vecnorm(sample_u), vecnorm(sample_m))
+      samples_per_sec = i * (num_p+num_m) / (time() - start)
+
+      @printf("Iteration %d:\t avg RMSE %6.4f RMSE %6.4f FU(%6.4f) FM(%6.4f)\tsamples/sec %.2f\n", i, err_avg, err, vecnorm(sample_u), vecnorm(sample_m), samples_per_sec)
     end
 end
 

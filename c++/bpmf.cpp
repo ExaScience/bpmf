@@ -1,6 +1,7 @@
 
 #include <stdlib.h>     /* srand, rand */
 
+#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -22,14 +23,15 @@ unsigned num_p = 0;
 unsigned num_m = 0;
 
 const int alpha = 2;
-const int nsims = 2;
+const int nsims = 50;
 const int burnin = 5;
 
 double mean_rating = .0;
+unsigned num_lowrat_init = 0;
 
 SparseMatrixD M;
 typedef Eigen::Triplet<double> T;
-vector<T> probe_vec, test_vec;
+vector<T> probe_vec;
 
 MatrixXd sample_u;
 MatrixXd sample_m;
@@ -70,8 +72,7 @@ void loadChemo(const char* fname)
 
         if ((rand() % 5) == 0) {
             probe_vec.push_back(T(i,j,log10(v)));
-            if (v<200) 
-                test_vec.push_back(T(i,j,log10(v)));
+            if (v<200) num_lowrat_init++;
         } else {
             num_p = std::max(num_p, i);
             num_m = std::max(num_m, j);
@@ -106,12 +107,15 @@ void init() {
     sample_m.setZero();
 }
 
-
-/*
-double pred(VevtorXd probe_vec, sample_m, sample_u, mean_rating)
-  sum(sample_m[probe_vec[:,2],:].*sample_u[probe_vec[:,1],:],2) + mean_rating
-end
-*/
+VectorXd pred(const vector<T> &probe_vec, const MatrixXd &sample_m, const MatrixXd &sample_u, double mean_rating)
+{
+    VectorXd ret(probe_vec.size());
+    long n = 0;
+    for(auto t : probe_vec) {
+         ret[n++] = sample_m.row(t.col()).dot(sample_u.row(t.row())) + mean_rating;
+    }
+    return ret;
+}
 
 VectorXd nrandn(int n, double mean, double sigma)
 {
@@ -177,15 +181,16 @@ MatrixXd Wishart(MatrixXd sigma, int df)
 std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
 {
   int N = U.cols();
-  auto Um = U.colwise().mean().transpose();
+  auto Um = U.colwise().mean();
+  auto Ut = Um.transpose();
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
-  MatrixXd C = U.rowwise() - U.colwise().mean();
+  MatrixXd C = U.rowwise() - Um;
   MatrixXd S = (C.adjoint() * C) / double(U.rows() - 1);
 
-  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
+  VectorXd mu_c = (kappa*mu + N*Ut) / (kappa + N);
   double kappa_c = kappa + N;
-  MatrixXd T_c = ( T.inverse() + N * S + (kappa * N)/(kappa + N) * (mu - Um) * ((mu - Um).transpose())).inverse();
+  MatrixXd T_c = ( T.inverse() + N * S + (kappa * N)/(kappa + N) * (mu - Ut) * ((mu - Ut).transpose())).inverse();
   int nu_c = nu + N;
 
   return NormalWishart(mu_c, kappa_c, T_c, nu_c);
@@ -193,8 +198,9 @@ std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(MatrixXd U, Vector
 
 
 void run() {
-    double err_avg = 0.0;
-    double err = 0.0;
+    unsigned counter_prob = 0;
+    VectorXd probe_rat_all; probe_rat_all.setZero();
+    auto start = std::chrono::steady_clock::now();
 
     SparseMatrixD Mt = M.transpose();
 
@@ -207,30 +213,36 @@ void run() {
       // Sample from user hyperparams
       tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
 
+#pragma omp parallel for
       for(int mm = 1; mm < num_m; ++mm) {
         sample_m.row(mm) = sample_movie(mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       }
 
+#pragma omp parallel for
       for(int uu = 1; uu < num_p; ++uu) {
         sample_u.row(uu) = sample_movie(uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
       }
-#if 0
 
-      probe_rat = pred(probe_vec, sample_m, sample_u, mean_rating)
+      auto probe_rat_itr = pred(probe_vec, sample_m, sample_u, mean_rating);
 
-      if i > burnin
-        probe_rat_all = (counter_prob*probe_rat_all + probe_rat)/(counter_prob+1)
-        counter_prob = counter_prob + 1
-      else
-        probe_rat_all = probe_rat
-        counter_prob = 1
-      end
+      if (i > burnin) {
+        probe_rat_all = (counter_prob*probe_rat_all + probe_rat_itr)/(counter_prob+1);
+        counter_prob = counter_prob + 1;
+      } else {
+        probe_rat_all = probe_rat_itr;
+        counter_prob = 1;
+      }
 
-      err_avg = mean(ratings_test .== (probe_rat_all .< log10(200)))
-      err = mean(ratings_test .== (probe_rat .< log10(200)))
+      unsigned num_lowrat_itr = (probe_rat_itr.array() < log10(200)).count();
+      unsigned num_lowrat_all = (probe_rat_all.array() < log10(200)).count();
+      double norm_u = sample_u.norm();
+      double norm_m = sample_m.norm();
+      auto end = std::chrono::steady_clock::now();
+      auto elapsed = std::chrono::duration<double>(end - start);
+      double samples_per_sec = (i + 1) * (num_p + num_m) / elapsed.count();
 
-      printf("Iteration %d:\t avg RMSE %6.4f RMSE %6.4f FU(%6.4f) FM(%6.4f)\n", i, err_avg, err, vecnorm(sample_u), vecnorm(sample_m));
-#endif
+      printf("Iteration %d:\t init: %d\titer: %d\tall: %d\tFU(%6.2f)\tFM(%6.2f)\tSamples/sec: %6.2f\n",
+              i, num_lowrat_init, num_lowrat_itr, num_lowrat_all, norm_u, norm_m, samples_per_sec);
     }
 }
 
