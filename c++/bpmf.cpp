@@ -10,6 +10,7 @@
 #include "bpmf.h"
 
 using namespace std;
+using namespace Eigen;
 
 typedef SparseMatrix<double> SparseMatrixD;
 

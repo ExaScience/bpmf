@@ -7,8 +7,6 @@
 
 #include <iostream>
 
-using namespace std;
-
 #include <boost/random/normal_distribution.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/gamma_distribution.hpp>
@@ -17,6 +15,10 @@ using namespace std;
 #include <Eigen/Dense>
 
 #include "bpmf.h"
+
+using namespace std;
+using namespace Eigen;
+
 
 /*
   We need a functor that can pretend it's const,

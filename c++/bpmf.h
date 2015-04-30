@@ -4,10 +4,9 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-using namespace Eigen;
 
-VectorXd nrandn(int n, double mean = 0, double sigma = 1);
+Eigen::VectorXd nrandn(int n, double mean = 0, double sigma = 1);
 
-std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu);
+std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(Eigen::MatrixXd U, Eigen::VectorXd mu, double kappa, Eigen::MatrixXd T, int nu);
 
 #endif
