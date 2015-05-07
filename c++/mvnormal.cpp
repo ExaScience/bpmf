@@ -24,12 +24,14 @@ using namespace Eigen;
   but to be a good random number generator 
   it needs mutable state.
 */
+
+thread_local static boost::mt19937 rng;
+
 namespace Eigen {
 namespace internal {
 template<typename Scalar> 
 struct scalar_normal_dist_op 
 {
-  static boost::mt19937 rng;    // The uniform pseudo-random algorithm
   mutable boost::normal_distribution<Scalar> norm;  // The gaussian combinator
 
   EIGEN_EMPTY_STRUCT_CTOR(scalar_normal_dist_op)
@@ -38,13 +40,13 @@ struct scalar_normal_dist_op
   inline const Scalar operator() (Index, Index = 0) const { return norm(rng); }
 };
 
-template<typename Scalar> boost::mt19937 scalar_normal_dist_op<Scalar>::rng;
 
 template<typename Scalar>
 struct functor_traits<scalar_normal_dist_op<Scalar> >
 { enum { Cost = 50 * NumTraits<Scalar>::MulCost, PacketAccess = false, IsRepeatable = false }; };
 } // end namespace internal
 } // end namespace Eigen
+
 
 /*
   Draw nn samples from a size-dimensional normal distribution
@@ -72,14 +74,13 @@ MatrixXd WishartUnit(int m, int df)
     c.setZero();
 
     for ( int i = 0; i < m; i++ ) {
-        boost::gamma_distribution<> chi(0.5*(df - i));
-        boost::mt19937 rng;
-        boost::variate_generator<boost::mt19937&, boost::gamma_distribution<> > gen(rng, chi);
-        c(i,i) = sqrt(2.0 * chi(gen));
+        boost::gamma_distribution<> gam(0.5*(df - i));
+        boost::variate_generator<boost::mt19937&, boost::gamma_distribution<> > gen(rng, gam);
+        c(i,i) = sqrt(2.0 * gam(rng));
         c.block(i,i+1,1,m-i-1) = nrandn(m-i-1).transpose();
     }
 
-    MatrixXd ret = c * c.transpose();
+    MatrixXd ret = c.transpose() * c;
 
 #ifdef TEST_MVNORMAL
     cout << "WISHART UNIT {\n" << endl;
@@ -126,7 +127,7 @@ std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd 
   int size = mu.cols(); // Dimensionality (rows)
   
   MatrixXd Lam = Wishart(T, nu); 
-  MatrixXd mu_o = MvNormal(Lam / kappa, mu);
+  MatrixXd mu_o = MvNormal(Lam.inverse() / kappa, mu);
 
 #ifdef TEST_MVNORMAL
     cout << "NORMAL WISHART {\n" << endl;
@@ -145,10 +146,10 @@ std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd 
 VectorXd nrandn(int n, double mean, double sigma)
 {
     VectorXd ret(n);
-    static boost::mt19937 gen;
+    
     boost::random::normal_distribution<> dist(mean,sigma);
 
-    for(int i=0; i<n; ++i) ret(i) = dist(gen);
+    for(int i=0; i<n; ++i) ret(i) = dist(rng);
         
     return ret;
 }
