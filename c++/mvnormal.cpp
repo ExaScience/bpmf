@@ -19,7 +19,6 @@
 using namespace std;
 using namespace Eigen;
 
-
 /*
   We need a functor that can pretend it's const,
   but to be a good random number generator 
@@ -51,18 +50,17 @@ struct functor_traits<scalar_normal_dist_op<Scalar> >
   Draw nn samples from a size-dimensional normal distribution
   with a specified mean and covariance
 */
-Eigen::MatrixXd MvNormal(Eigen::MatrixXd covar, Eigen::VectorXd mean, int nn = 1) 
+MatrixXd MvNormal(MatrixXd covar, VectorXd mean, int nn = 1) 
 {
   int size = mean.rows(); // Dimensionality (rows)
-  Eigen::internal::scalar_normal_dist_op<double> randN; // Gaussian functor
-  Eigen::internal::scalar_normal_dist_op<double>::rng.seed(1); // Seed the rng
-  Eigen::MatrixXd normTransform(size,size);
+  internal::scalar_normal_dist_op<double> randN; // Gaussian functor
+  MatrixXd normTransform(size,size);
 
-  Eigen::LLT<Eigen::MatrixXd> cholSolver(covar);
+  LLT<MatrixXd> cholSolver(covar);
   normTransform = cholSolver.matrixL();
 
-  Eigen::MatrixXd samples = (normTransform 
-                           * Eigen::MatrixXd::NullaryExpr(size,nn,randN)).colwise() 
+  MatrixXd samples = (normTransform 
+                           * MatrixXd::NullaryExpr(size,nn,randN)).colwise() 
                            + mean;
 
   return samples;
@@ -81,54 +79,64 @@ MatrixXd WishartUnit(int m, int df)
         c.block(i,i+1,1,m-i-1) = nrandn(m-i-1).transpose();
     }
 
-    auto ret = c.transpose() * c;
+    MatrixXd ret = c * c.transpose();
 
 #ifdef TEST_MVNORMAL
-    cout << "WISHART UNIT\n" << endl;
+    cout << "WISHART UNIT {\n" << endl;
     cout << "  m:\n" << m << endl;
     cout << "  df:\n" << df << endl;
-    cout << "  WishartUnit\n" << ret << endl;
+    cout << "  ret;\n" << ret << endl;
+    cout << "  c:\n" << c << endl;
+    cout << "}\n" << ret << endl;
 #endif
 
     return ret;
 }
 
-MatrixXd Wishart(LLT<MatrixXd> sigma, int df)
+MatrixXd Wishart(const MatrixXd &sigma, int df)
 {
-  auto u = WishartUnit(sigma.cols(), df);
-  auto ret = sigma.matrixL() * u * sigma.matrixU();
+//  Get R, the upper triangular Cholesky factor of SIGMA.
+  MatrixXd r = sigma.llt().matrixU();
+
+//  Get AU, a sample from the unit Wishart distribution.
+  MatrixXd au = WishartUnit(sigma.cols(), df);
+
+//  Construct the matrix A = R' * AU * R.
+  MatrixXd a = r.transpose() * au * r; 
+
 
 #ifdef TEST_MVNORMAL
-    cout << "WISHART\n" << endl;
-    cout << "  Sigma:\n" << sigma.reconstructedMatrix() << endl;
+    cout << "WISHART {\n" << endl;
+    cout << "  sigma::\n" << sigma << endl;
+    cout << "  r:\n" << r << endl;
+    cout << "  au:\n" << au << endl;
     cout << "  df:\n" << df << endl;
-    cout << "  Wishart\n" << ret << endl;
+    cout << "  a:\n" << a << endl;
+    cout << "}\n" << endl;
 #endif
 
 
-  return ret;
+  return a;
 }
 
 
 // from julia package Distributions: conjugates/normalwishart.jl
-std::pair<Eigen::VectorXd, Eigen::MatrixXd> NormalWishart(Eigen::VectorXd mu, double kappa, Eigen::MatrixXd T, double nu) 
+std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd T, double nu) 
 {
   int size = mu.cols(); // Dimensionality (rows)
   
-  Eigen::LLT<Eigen::MatrixXd> cholSolver(T);
-  auto Lam = Wishart(cholSolver, nu); 
-  auto mu_o = MvNormal(Lam / kappa, mu);
+  MatrixXd Lam = Wishart(T, nu); 
+  MatrixXd mu_o = MvNormal(Lam / kappa, mu);
 
 #ifdef TEST_MVNORMAL
-    cout << "BEGIN NORMAL WISHART\n" << endl;
+    cout << "NORMAL WISHART {\n" << endl;
     cout << "  mu:\n" << mu << endl;
     cout << "  kappa:\n" << kappa << endl;
     cout << "  T:\n" << T << endl;
     cout << "  nu:\n" << nu << endl;
     cout << "  mu_o\n" << mu_o << endl;
     cout << "  Lam\n" << Lam << endl;
-    cout << "  Lam-1\n" << Lam_1 << endl;
-    cout << "END NORMAL WISHART\n" << endl;
+    cout << "}\n" << endl;
 #endif
 
   return std::make_pair(mu_o , Lam);
@@ -137,7 +145,7 @@ std::pair<Eigen::VectorXd, Eigen::MatrixXd> NormalWishart(Eigen::VectorXd mu, do
 VectorXd nrandn(int n, double mean, double sigma)
 {
     VectorXd ret(n);
-    boost::mt19937 gen;
+    static boost::mt19937 gen;
     boost::random::normal_distribution<> dist(mean,sigma);
 
     for(int i=0; i<n; ++i) ret(i) = dist(gen);
@@ -146,7 +154,7 @@ VectorXd nrandn(int n, double mean, double sigma)
 }
 
 // from bpmf.jl -- verified
-std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
+std::pair<VectorXd, MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
 {
   int N = U.cols();
   auto Um = U.colwise().mean();
@@ -185,12 +193,14 @@ int main()
 
     MatrixXd T(3,3);
     T.setIdentity(3,3);
+    T.array() /= 4;
 
     int nu = 3;
 
     VectorXd mu_out;
     MatrixXd T_out;
 
+#if 0
     cout << "COND NORMAL WISHART\n" << endl;
 
     tie(mu_out, T_out) = CondNormalWishart(U, mu, kappa, T, nu);
@@ -199,16 +209,24 @@ int main()
     cout << "T_out:\n" << T_out << endl;
 
     cout << "\n-----\n\n";
+#endif
 
+#if 1
     cout << "NORMAL WISHART\n" << endl;
 
     tie(mu_out, T_out) = NormalWishart(mu, kappa, T, nu);
-
     cout << "mu_out:\n" << mu_out << endl;
     cout << "T_out:\n" << T_out << endl;
 
+#endif
 
-
+#if 0
+    cout << "MVNORMAL\n" << endl;
+    MatrixXd out = MvNormal(T, mu, 10);
+    cout << "mu:\n" << mu << endl;
+    cout << "T:\n" << T << endl;
+    cout << "out:\n" << out << endl;
+#endif
 }
 
 #endif
