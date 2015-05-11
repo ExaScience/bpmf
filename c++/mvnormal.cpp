@@ -25,7 +25,7 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-thread_local static boost::mt19937 rng;
+/*thread_local*/ static boost::mt19937 rng;
 
 namespace Eigen {
 namespace internal {
@@ -155,19 +155,17 @@ VectorXd nrandn(int n, double mean, double sigma)
 }
 
 // from bpmf.jl -- verified
-std::pair<VectorXd, MatrixXd> CondNormalWishart(MatrixXd U, VectorXd mu, double kappa, MatrixXd T, int nu)
+std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
 {
-  int N = U.cols();
-  auto Um = U.colwise().mean();
-  auto Ut = Um.transpose();
+  int N = U.rows();
+  auto Um = U.rowwise().mean();
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
-  MatrixXd C = U.rowwise() - Um;
-  MatrixXd S = (C.adjoint() * C) / double(U.rows() - 1);
-
-  VectorXd mu_c = (kappa*mu + N*Ut) / (kappa + N);
+  MatrixXd C = U.colwise() - Um;
+  MatrixXd S = (C * C.adjoint()) / double(U.cols() - 1);
+  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
   double kappa_c = kappa + N;
-  MatrixXd T_c = ( T.inverse() + N * S + (kappa * N)/(kappa + N) * (mu - Ut) * ((mu - Ut).transpose())).inverse();
+  MatrixXd T_c = ( T.inverse() + N * S.transpose() + (kappa * N)/(kappa + N) * (mu - Um) * ((mu - Um).transpose())).inverse();
   int nu_c = nu + N;
 
 #ifdef TEST_MVNORMAL
@@ -201,7 +199,7 @@ int main()
     VectorXd mu_out;
     MatrixXd T_out;
 
-#if 0
+#if 1
     cout << "COND NORMAL WISHART\n" << endl;
 
     tie(mu_out, T_out) = CondNormalWishart(U, mu, kappa, T, nu);
@@ -212,7 +210,7 @@ int main()
     cout << "\n-----\n\n";
 #endif
 
-#if 1
+#if 0
     cout << "NORMAL WISHART\n" << endl;
 
     tie(mu_out, T_out) = NormalWishart(mu, kappa, T, nu);

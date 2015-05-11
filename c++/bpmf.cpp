@@ -197,10 +197,10 @@ void run() {
     for(int i=0; i<nsims; ++i) {
 
       // Sample from movie hyperparams
-      tie(mu_m, Lambda_m) = CondNormalWishart(sample_m.transpose(), mu0_m, b0_m, WI_m, df_m);
+      tie(mu_m, Lambda_m) = CondNormalWishart(sample_m, mu0_m, b0_m, WI_m, df_m);
 
       // Sample from user hyperparams
-      tie(mu_u, Lambda_u) = CondNormalWishart(sample_u.transpose(), mu0_u, b0_u, WI_u, df_u);
+      tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
 
 #pragma omp parallel for
       for(int mm = 0; mm < num_m; ++mm) {
