@@ -19,7 +19,7 @@ unsigned num_p = 0;
 unsigned num_m = 0;
 
 const int alpha = 2;
-const int nsims = 100;
+const int nsims = 20;
 const int burnin = 5;
 
 double mean_rating = .0;
@@ -121,25 +121,25 @@ pair<double,double> eval_probe_vec(const vector<T> &probe_vec, const MatrixXd &s
 }
 
 MatrixXd sample_movie(int mm, const SparseMatrixD &mat, double mean_rating, 
-    const MatrixXd &sample_u, int alpha, const MatrixXd &mu_u, const MatrixXd &Lambda_u)
+    const MatrixXd &samples, int alpha, const MatrixXd &mu_u, const MatrixXd &Lambda_u)
 {
     int i = 0;
-    MatrixXd E(mat.col(mm).nonZeros(), num_feat);
+    MatrixXd E(num_feat,mat.col(mm).nonZeros());
     VectorXd rr(mat.col(mm).nonZeros());
     //cout << "movie " << endl;
     for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it, ++i) {
         // cout << "M[" << it.row() << "," << it.col() << "] = " << it.value() << endl;
-        E.row(i) = sample_u.row(it.row());
+        E.col(i) = samples.col(it.row());
         rr(i) = it.value() - mean_rating;
     }
 
 
-    MatrixXd MM = E.transpose() * E;
+    MatrixXd MM = E * E.transpose();
 
     MatrixXd MMs = alpha * MM.array();
     assert(MMs.cols() == num_feat && MMs.rows() == num_feat);
     MatrixXd covar = (Lambda_u + MMs).inverse();
-    MatrixXd MMrr = E.transpose() * rr; 
+    MatrixXd MMrr = E * rr; 
     MMrr.array() *= alpha;
     MatrixXd U = Lambda_u * mu_u;
     MatrixXd mu = covar * (MMrr + U);
@@ -168,7 +168,7 @@ MatrixXd sample_movie(int mm, const SparseMatrixD &mat, double mean_rating,
       cout << "result = [" << result << "]" << endl;
 #endif
 
-    return result.transpose();
+    return result;
 }
 
 #ifdef TEST_SAMPLE
@@ -206,12 +206,12 @@ void run() {
 
 #pragma omp parallel for
       for(int mm = 0; mm < num_m; ++mm) {
-        sample_m.col(mm) = sample_movie(mm, M, mean_rating, sample_u.transpose(), alpha, mu_m, Lambda_m).transpose();
+        sample_m.col(mm) = sample_movie(mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       }
 
 #pragma omp parallel for
       for(int uu = 0; uu < num_p; ++uu) {
-        sample_u.col(uu) = sample_movie(uu, Mt, mean_rating, sample_m.transpose(), alpha, mu_u, Lambda_u).transpose();
+        sample_u.col(uu) = sample_movie(uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
       }
 
       auto eval = eval_probe_vec(probe_vec, sample_m, sample_u, mean_rating);
