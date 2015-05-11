@@ -134,21 +134,19 @@ MatrixXd sample_movie(int mm, const SparseMatrixD &mat, double mean_rating,
     }
 
 
-    MatrixXd MM = E * E.transpose();
-
+    auto MM = E * E.transpose();
     MatrixXd MMs = alpha * MM.array();
     assert(MMs.cols() == num_feat && MMs.rows() == num_feat);
     MatrixXd covar = (Lambda_u + MMs).inverse();
-    MatrixXd MMrr = E * rr; 
-    MMrr.array() *= alpha;
-    MatrixXd U = Lambda_u * mu_u;
-    MatrixXd mu = covar * (MMrr + U);
+    MatrixXd MMrr = (E * rr) * alpha;  
+    auto U = Lambda_u * mu_u;
+    auto mu = covar * (MMrr + U);
 
-    MatrixXd chol = covar.llt().matrixU().transpose();
+    MatrixXd chol = covar.llt().matrixL();
 #ifdef TEST_SAMPLE
-    VectorXd r(num_feat); r.setConstant(0.25);
+    auto r(num_feat); r.setConstant(0.25);
 #else
-    VectorXd r = nrandn(num_feat);
+    auto r = nrandn(num_feat);
 #endif
     MatrixXd result = chol * r + mu;
 
@@ -181,7 +179,7 @@ void test() {
     Lambda_m.setIdentity();
     sample_u.setConstant(2.0);
     Lambda_m *= 0.5;
-    sample_m.col(0) = sample_movie(0, M, mean_rating, sample_u.transpose(), alpha, mu_m, Lambda_m).transpose();
+    sample_m.col(0) = sample_movie(0, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
 }
 
 #else
