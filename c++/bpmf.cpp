@@ -28,12 +28,12 @@ SparseMatrixD M;
 typedef Eigen::Triplet<double> T;
 vector<T> probe_vec;
 
-double *u_data, *m_data;
-
 VectorXd mu_u(num_feat);
 VectorXd mu_m(num_feat);
 MatrixXd Lambda_u(num_feat, num_feat);
 MatrixXd Lambda_m(num_feat, num_feat);
+MatrixXd sample_u;
+MatrixXd sample_m;
 
 // parameters of Inv-Whishart distribution (see paper for details)
 MatrixXd WI_u(num_feat, num_feat);
@@ -93,15 +93,17 @@ void init() {
     Lambda_u.setIdentity();
     Lambda_m.setIdentity();
 
+    sample_u = MatrixXd(num_feat, num_p);
+    sample_m = MatrixXd(num_feat, num_m);
+    sample_u.setZero();
+    sample_m.setZero();
+
     // parameters of Inv-Whishart distribution (see paper for details)
     WI_u.setIdentity();
     mu0_u.setZero();
 
     WI_m.setIdentity();
     mu0_m.setZero();
-
-    u_data = new double[num_p * num_feat]();
-    m_data = new double[num_m * num_feat]();
 }
 
 pair<double,double> eval_probe_vec(const vector<T> &probe_vec, const MatrixXd &sample_m, const MatrixXd &sample_u, double mean_rating)
@@ -120,7 +122,7 @@ pair<double,double> eval_probe_vec(const vector<T> &probe_vec, const MatrixXd &s
     return std::make_pair((double)correct / n, diff / n);
 }
 
-MatrixXd sample_movie(int mm, const SparseMatrixD &mat, double mean_rating, 
+void sample_movie(MatrixXd &s, int mm, const SparseMatrixD &mat, double mean_rating, 
     const MatrixXd &samples, int alpha, const MatrixXd &mu_u, const MatrixXd &Lambda_u)
 {
     int i = 0;
@@ -148,9 +150,7 @@ MatrixXd sample_movie(int mm, const SparseMatrixD &mat, double mean_rating,
 #else
     auto r = nrandn(num_feat);
 #endif
-    MatrixXd result = chol * r + mu;
-
-    assert(result.rows() == num_feat && result.cols() == 1);
+    s.col(mm) = chol * r + mu;
 
 #ifdef TEST_SAMPLE
       cout << "movie " << mm << ":" << result.cols() << " x" << result.rows() << endl;
@@ -166,14 +166,12 @@ MatrixXd sample_movie(int mm, const SparseMatrixD &mat, double mean_rating,
       cout << "result = [" << result << "]" << endl;
 #endif
 
-    return result;
 }
 
 #ifdef TEST_SAMPLE
 void test() {
-    typedef Map<MatrixXd> MapXd;
-    MapXd sample_u(u_data, num_feat, num_p);
-    MapXd sample_m(m_data, num_feat, num_m);
+    MatrixXd sample_u(num_feat, num_p);
+    MatrixXd sample_m(num_feat, num_m);
 
     mu_m.setZero();
     Lambda_m.setIdentity();
@@ -189,10 +187,6 @@ void run() {
 
     SparseMatrixD Mt = M.transpose();
 
-    typedef Map<MatrixXd> MapXd;
-    MapXd sample_u(u_data, num_feat, num_p);
-    MapXd sample_m(m_data, num_feat, num_m);
-
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
 
@@ -204,12 +198,12 @@ void run() {
 
 #pragma omp parallel for
       for(int mm = 0; mm < num_m; ++mm) {
-        sample_m.col(mm) = sample_movie(mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
+        sample_movie(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       }
 
 #pragma omp parallel for
       for(int uu = 0; uu < num_p; ++uu) {
-        sample_u.col(uu) = sample_movie(uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
+        sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
       }
 
       auto eval = eval_probe_vec(probe_vec, sample_m, sample_u, mean_rating);
