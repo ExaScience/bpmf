@@ -28,23 +28,27 @@ SparseMatrixD M;
 typedef Eigen::Triplet<double> T;
 vector<T> probe_vec;
 
-VectorXd mu_u(num_feat);
-VectorXd mu_m(num_feat);
-MatrixXd Lambda_u(num_feat, num_feat);
-MatrixXd Lambda_m(num_feat, num_feat);
-MatrixXd sample_u;
-MatrixXd sample_m;
+typedef Matrix<double, num_feat, 1> VectorNd;
+typedef Matrix<double, num_feat, num_feat> MatrixNNd;
+typedef Matrix<double, num_feat, Dynamic> MatrixNXd;
+
+VectorNd mu_u;
+VectorNd mu_m;
+MatrixNNd Lambda_u;
+MatrixNNd Lambda_m;
+MatrixNXd sample_u;
+MatrixNXd sample_m;
 
 // parameters of Inv-Whishart distribution (see paper for details)
-MatrixXd WI_u(num_feat, num_feat);
+MatrixNNd WI_u;
 const int b0_u = 2;
 const int df_u = num_feat;
-VectorXd mu0_u(num_feat);
+VectorNd mu0_u;
 
-MatrixXd WI_m(num_feat, num_feat);
+MatrixNNd WI_m;
 const int b0_m = 2;
 const int df_m = num_feat;
-VectorXd mu0_m(num_feat);
+VectorNd mu0_m;
 
 void loadChemo(const char* fname)
 {
@@ -93,8 +97,8 @@ void init() {
     Lambda_u.setIdentity();
     Lambda_m.setIdentity();
 
-    sample_u = MatrixXd(num_feat, num_p);
-    sample_m = MatrixXd(num_feat, num_m);
+    sample_u = MatrixNXd(num_feat,num_p);
+    sample_m = MatrixNXd(num_feat,num_m);
     sample_u.setZero();
     sample_m.setZero();
 
@@ -106,7 +110,7 @@ void init() {
     mu0_m.setZero();
 }
 
-pair<double,double> eval_probe_vec(const vector<T> &probe_vec, const MatrixXd &sample_m, const MatrixXd &sample_u, double mean_rating)
+pair<double,double> eval_probe_vec(const vector<T> &probe_vec, const MatrixNXd &sample_m, const MatrixNXd &sample_u, double mean_rating)
 {
     unsigned n = probe_vec.size();
     unsigned correct = 0;
@@ -122,11 +126,11 @@ pair<double,double> eval_probe_vec(const vector<T> &probe_vec, const MatrixXd &s
     return std::make_pair((double)correct / n, diff / n);
 }
 
-void sample_movie(MatrixXd &s, int mm, const SparseMatrixD &mat, double mean_rating, 
-    const MatrixXd &samples, int alpha, const MatrixXd &mu_u, const MatrixXd &Lambda_u)
+void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating, 
+    const MatrixNXd &samples, int alpha, const VectorNd &mu_u, const MatrixNNd &Lambda_u)
 {
     int i = 0;
-    MatrixXd E(num_feat,mat.col(mm).nonZeros());
+    MatrixNXd E(num_feat,mat.col(mm).nonZeros());
     VectorXd rr(mat.col(mm).nonZeros());
     //cout << "movie " << endl;
     for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it, ++i) {
@@ -137,14 +141,13 @@ void sample_movie(MatrixXd &s, int mm, const SparseMatrixD &mat, double mean_rat
 
 
     auto MM = E * E.transpose();
-    MatrixXd MMs = alpha * MM.array();
-    assert(MMs.cols() == num_feat && MMs.rows() == num_feat);
-    MatrixXd covar = (Lambda_u + MMs).inverse();
-    MatrixXd MMrr = (E * rr) * alpha;  
+    auto MMs = alpha * MM;
+    MatrixNNd covar = (Lambda_u + MMs).inverse();
+    VectorNd MMrr = (E * rr) * alpha;
     auto U = Lambda_u * mu_u;
     auto mu = covar * (MMrr + U);
 
-    MatrixXd chol = covar.llt().matrixL();
+    MatrixNNd chol = covar.llt().matrixL();
 #ifdef TEST_SAMPLE
     auto r(num_feat); r.setConstant(0.25);
 #else
@@ -170,8 +173,8 @@ void sample_movie(MatrixXd &s, int mm, const SparseMatrixD &mat, double mean_rat
 
 #ifdef TEST_SAMPLE
 void test() {
-    MatrixXd sample_u(num_feat, num_p);
-    MatrixXd sample_m(num_feat, num_m);
+    MatrixNXd sample_u(num_p);
+    MatrixNXd sample_m(num_m);
 
     mu_m.setZero();
     Lambda_m.setIdentity();
