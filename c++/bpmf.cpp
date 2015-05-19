@@ -7,6 +7,8 @@
 #include <string>
 #include <algorithm>
 
+#include <unsupported/Eigen/SparseExtra>
+
 #include "bpmf.h"
 
 using namespace std;
@@ -15,8 +17,6 @@ using namespace Eigen;
 typedef SparseMatrix<double> SparseMatrixD;
 
 const int num_feat = 32;
-unsigned num_p = 0;
-unsigned num_m = 0;
 
 const int alpha = 2;
 const int nsims = 20;
@@ -24,9 +24,7 @@ const int burnin = 5;
 
 double mean_rating = .0;
 
-SparseMatrixD M;
-typedef Eigen::Triplet<double> T;
-vector<T> probe_vec;
+SparseMatrixD M, P;
 
 typedef Matrix<double, num_feat, 1> VectorNd;
 typedef Matrix<double, num_feat, num_feat> MatrixNNd;
@@ -50,55 +48,13 @@ const int b0_m = 2;
 const int df_m = num_feat;
 VectorNd mu0_m;
 
-void loadChemo(const char* fname)
-{
-    std::vector<T> lst;
-    lst.reserve(100000);
-    
-    FILE *f = fopen(fname, "r");
-    assert(f && "Could not open file");
-
-    // skip header
-    char buf[2048];
-    fscanf(f, "%s\n", buf);
-
-    // data
-    unsigned i, j;
-    double v;
-    while (!feof(f)) {
-        if (!fscanf(f, "%d,%d,%lg\n", &i, &j, &v)) continue;
-        i--;
-        j--;
-
-        if ((rand() % 5) == 0) {
-            probe_vec.push_back(T(i,j,log10(v)));
-        } 
-#ifndef TEST_SAMPLE
-        else // if not in test case -> remove probe_vec from lst
-#endif
-        {
-            num_p = std::max(num_p, i);
-            num_m = std::max(num_m, j);
-            mean_rating += v;
-            lst.push_back(T(i,j,log10(v)));
-        }
-    }
-    num_p++;
-    num_m++;
-    mean_rating /= lst.size();
-    fclose(f);
-
-    M = SparseMatrix<double>(num_p, num_m);
-    M.setFromTriplets(lst.begin(), lst.end());
-}
-
 void init() {
     mean_rating = M.sum() / M.nonZeros();
     Lambda_u.setIdentity();
     Lambda_m.setIdentity();
 
-    sample_u = MatrixNXd(num_feat,num_p);
-    sample_m = MatrixNXd(num_feat,num_m);
+    sample_u = MatrixNXd(num_feat,M.rows());
+    sample_m = MatrixNXd(num_feat,M.cols());
     sample_u.setZero();
     sample_m.setZero();
 
@@ -110,18 +66,19 @@ void init() {
     mu0_m.setZero();
 }
 
-pair<double,double> eval_probe_vec(const vector<T> &probe_vec, const MatrixNXd &sample_m, const MatrixNXd &sample_u, double mean_rating)
+pair<double,double> eval_probe_vec(const MatrixNXd &sample_m, const MatrixNXd &sample_u, double mean_rating)
 {
-    unsigned n = probe_vec.size();
+    unsigned n = P.nonZeros();
     unsigned correct = 0;
     double diff = .0;
-    for(auto t : probe_vec) {
-         double prediction = sample_m.col(t.col()).dot(sample_u.col(t.row())) + mean_rating;
-         //cout << "prediction: " << prediction - mean_rating << " + " << mean_rating << " = " << prediction << endl;
-         //cout << "actual: " << t.value() << endl;
-         correct += (t.value() < log10(200)) == (prediction < log10(200));
-         diff += abs(t.value() - prediction);
-    }
+    for (int k=0; k<P.outerSize(); ++k)
+        for (SparseMatrix<double>::InnerIterator it(P,k); it; ++it) {
+            double prediction = sample_m.col(it.col()).dot(sample_u.col(it.row())) + mean_rating;
+            //cout << "prediction: " << prediction - mean_rating << " + " << mean_rating << " = " << prediction << endl;
+            //cout << "actual: " << it.value() << endl;
+            correct += (it.value() < log10(200)) == (prediction < log10(200));
+            diff += abs(it.value() - prediction);
+        }
    
     return std::make_pair((double)correct / n, diff / n);
 }
@@ -173,8 +130,8 @@ void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_ra
 
 #ifdef TEST_SAMPLE
 void test() {
-    MatrixNXd sample_u(num_p);
-    MatrixNXd sample_m(num_m);
+    MatrixNXd sample_u(M.rows());
+    MatrixNXd sample_m(M.cols());
 
     mu_m.setZero();
     Lambda_m.setIdentity();
@@ -200,21 +157,21 @@ void run() {
       tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
 
 #pragma omp parallel for
-      for(int mm = 0; mm < num_m; ++mm) {
+      for(int mm = 0; mm < M.cols(); ++mm) {
         sample_movie(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       }
 
 #pragma omp parallel for
-      for(int uu = 0; uu < num_p; ++uu) {
+      for(int uu = 0; uu < M.rows(); ++uu) {
         sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
       }
 
-      auto eval = eval_probe_vec(probe_vec, sample_m, sample_u, mean_rating);
+      auto eval = eval_probe_vec(sample_m, sample_u, mean_rating);
       double norm_u = sample_u.norm();
       double norm_m = sample_m.norm();
       auto end = std::chrono::steady_clock::now();
       auto elapsed = std::chrono::duration<double>(end - start);
-      double samples_per_sec = (i + 1) * (num_p + num_m) / elapsed.count();
+      double samples_per_sec = (i + 1) * (M.rows() + M.cols()) / elapsed.count();
 
       printf("Iteration %d:\t num_correct: %3.2f%%\tavg_diff: %3.2f\tFU(%6.2f)\tFM(%6.2f)\tSamples/sec: %6.2f\n",
               i, 100*eval.first, eval.second, norm_u, norm_m, samples_per_sec);
@@ -225,12 +182,13 @@ void run() {
 
 int main(int argc, char *argv[])
 {
-    const char *fname = argv[1];
-    assert(fname && "filename missing");
+    assert(argv[1] && argv[2] && "filename missing");
     Eigen::initParallel();
     Eigen::setNbThreads(1);
 
-    loadChemo(fname);
+    loadMarket(M, argv[1]);
+    loadMarket(P, argv[2]);
+
     init();
 #ifdef TEST_SAMPLE
     test();
