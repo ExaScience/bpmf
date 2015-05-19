@@ -4,6 +4,9 @@ B(1:end, 3) = log10(B(1:end, 3));
 P = randperm(size(B,1)); 
 s = round(size(B,1) / 5);
 
+D_all = spconvert(B); 
+mmwrite("chembl-IC50-360targets.mtx", D_all);
+
 C_probe = B(P(1:s), :);
 D_probe = spconvert(C_probe);
 mmwrite("chembl-IC50-360targets_probe.mtx", D_probe);
