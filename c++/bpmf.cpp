@@ -183,7 +183,7 @@ void test() {
 #else
 
 void run() {
-    auto start = std::chrono::steady_clock::now();
+    auto start = chrono::duration_cast<chrono::duration<double>>(chrono::high_resolution_clock::now().time_since_epoch()).count(); 
 
     SparseMatrixD Mt = M.transpose();
 
@@ -209,9 +209,9 @@ void run() {
       auto eval = eval_probe_vec(probe_vec, sample_m, sample_u, mean_rating);
       double norm_u = sample_u.norm();
       double norm_m = sample_m.norm();
-      auto end = std::chrono::steady_clock::now();
-      auto elapsed = std::chrono::duration<double>(end - start);
-      double samples_per_sec = (i + 1) * (num_p + num_m) / elapsed.count();
+      auto end = chrono::duration_cast<chrono::duration<double>>(chrono::high_resolution_clock::now().time_since_epoch()).count(); 
+      auto elapsed = end - start;
+      double samples_per_sec = (i + 1) * (num_p + num_m) / elapsed;
 
       printf("Iteration %d:\t num_correct: %3.2f%%\tavg_diff: %3.2f\tFU(%6.2f)\tFM(%6.2f)\tSamples/sec: %6.2f\n",
               i, 100*eval.first, eval.second, norm_u, norm_m, samples_per_sec);
