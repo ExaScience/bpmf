@@ -25,7 +25,7 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-/*thread_local*/ static boost::mt19937 rng;
+thread_local static boost::mt19937 rng;
 
 namespace Eigen {
 namespace internal {
