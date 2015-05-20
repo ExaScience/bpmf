@@ -4,7 +4,7 @@ DEBUG?=0
 ifeq ($(DEBUG),1)
 CXXFLAGS=-DDEBUG -O0 -g -std=c++11 `pkg-config --cflags eigen3`
 else
-CXXFLAGS=-DNDEBUG -O3 -g -std=c++11 `pkg-config --cflags eigen3` # -fopenmp
+CXXFLAGS=-DNDEBUG -O3 -g -std=c++11 `pkg-config --cflags eigen3` -fopenmp
 endif
 
 VPATH=..
