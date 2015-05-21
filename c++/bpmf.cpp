@@ -83,6 +83,12 @@ pair<double,double> eval_probe_vec(const MatrixNXd &sample_m, const MatrixNXd &s
     return std::make_pair((double)correct / n, diff / n);
 }
 
+double randn(double) {
+  static mt19937 rng;
+  static normal_distribution<> nd;
+  return nd(rng);
+}
+
 void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating, 
     const MatrixNXd &samples, int alpha, const VectorNd &mu_u, const MatrixNNd &Lambda_u)
 {
@@ -102,7 +108,7 @@ void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_ra
     auto mu = covar * (rr + U);
 
     MatrixNNd chol = covar.llt().matrixL();
-    auto r = nrandn(num_feat);
+    auto r = VectorXd::NullaryExpr(num_feat, ptr_fun(randn));
     s.col(mm) = chol * r + mu;
 
 #ifdef TEST_SAMPLE
