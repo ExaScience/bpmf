@@ -2,13 +2,15 @@ CXX=g++-4.9
 DEBUG?=0
 
 ifeq ($(DEBUG),1)
-CXXFLAGS=-DDEBUG -O0 -g -std=c++11 `pkg-config --cflags eigen3`
+CXXFLAGS=-DDEBUG -Wall -O0 -g -std=c++11 `pkg-config --cflags eigen3`
 else
-CXXFLAGS=-DNDEBUG -O3 -g -std=c++11 `pkg-config --cflags eigen3` -fopenmp
+CXXFLAGS=-Wall -O3 -g -std=c++11 -I.
 endif
 
+LDFLAGS+=-ltbb
+
 VPATH=..
-LINK.o=$(CXX) $(CXXFLAGS)
+LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS)
 
 bpmf: mvnormal.o bpmf.o
 

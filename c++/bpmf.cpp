@@ -9,12 +9,13 @@
 
 #include <unsupported/Eigen/SparseExtra>
 
+#include <tbb/tbb.h>
+
 #include "bpmf.h"
 
 using namespace std;
 using namespace Eigen;
 
-typedef SparseMatrix<double> SparseMatrixD;
 
 const int num_feat = 32;
 
@@ -24,7 +25,8 @@ const int burnin = 5;
 
 double mean_rating = .0;
 
-SparseMatrixD M, P;
+typedef SparseMatrix<double> SparseMatrixD;
+SparseMatrixD M, Mt, P;
 
 typedef Matrix<double, num_feat, 1> VectorNd;
 typedef Matrix<double, num_feat, num_feat> MatrixNNd;
@@ -144,7 +146,6 @@ void test() {
 void run() {
     auto start = chrono::duration_cast<chrono::duration<double>>(chrono::high_resolution_clock::now().time_since_epoch()).count(); 
 
-    SparseMatrixD Mt = M.transpose();
 
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
@@ -155,15 +156,15 @@ void run() {
       // Sample from user hyperparams
       tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
 
-#pragma omp parallel for
       for(int mm = 0; mm < M.cols(); ++mm) {
         sample_movie(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       }
 
-#pragma omp parallel for
-      for(int uu = 0; uu < M.rows(); ++uu) {
+      const int num_u = M.rows();
+      tbb::parallel_for(0, num_u, [](int uu) {
         sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
-      }
+        }
+      );
 
       auto eval = eval_probe_vec(sample_m, sample_u, mean_rating);
       double norm_u = sample_u.norm();
@@ -186,6 +187,7 @@ int main(int argc, char *argv[])
     Eigen::setNbThreads(1);
 
     loadMarket(M, argv[1]);
+    Mt = M.transpose();
     loadMarket(P, argv[2]);
 
     init();

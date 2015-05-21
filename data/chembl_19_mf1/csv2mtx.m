@@ -5,12 +5,18 @@ P = randperm(size(B,1));
 s = round(size(B,1) / 5);
 
 D_all = spconvert(B); 
-mmwrite("chembl-IC50-360targets.mtx", D_all);
+E_all = D_all';
+F_all = E_all(:, colamd(E_all))';
+mmwrite("chembl-IC50-360targets.mtx", F_all);
 
 C_probe = B(P(1:s), :);
 D_probe = spconvert(C_probe);
-mmwrite("chembl-IC50-360targets_probe.mtx", D_probe);
+E_probe = D_probe';
+F_probe = E_probe(:, colamd(E_probe))';
+mmwrite("chembl-IC50-360targets_probe.mtx", F_probe);
 
 C_sample = B(P(s+1:end), :);
 D_sample = spconvert(C_sample);
-mmwrite("chembl-IC50-360targets_sample.mtx", D_sample);
+E_sample = D_sample';
+F_sample = E_sample(:, colamd(E_sample))';
+mmwrite("chembl-IC50-360targets_sample.mtx", F_sample);
