@@ -12,8 +12,6 @@
 #include <boost/random/gamma_distribution.hpp>
 #include <boost/random/variate_generator.hpp>
 
-#include <Eigen/Dense>
-
 #include "bpmf.h"
 
 using namespace std;
