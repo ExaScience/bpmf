@@ -102,11 +102,7 @@ void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_ra
     auto mu = covar * (rr + U);
 
     MatrixNNd chol = covar.llt().matrixL();
-#ifdef TEST_SAMPLE
-    auto r(num_feat); r.setConstant(0.25);
-#else
     auto r = nrandn(num_feat);
-#endif
     s.col(mm) = chol * r + mu;
 
 #ifdef TEST_SAMPLE
