@@ -1,8 +1,8 @@
 #ifndef BPMF_H
 #define BPMF_H
 
-#define EIGEN_RUNTIME_NO_MALLOC // Define this symbol to enable runtime tests for allocations
-#define EIGEN_DONT_PARALLELIZE
+#define EIGEN_RUNTIME_NO_MALLOC 1
+#define EIGEN_DONT_PARALLELIZE 1
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>

@@ -124,8 +124,6 @@ MatrixXd Wishart(const MatrixXd &sigma, int df)
 // from julia package Distributions: conjugates/normalwishart.jl
 std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd T, double nu) 
 {
-  int size = mu.cols(); // Dimensionality (rows)
-  
   MatrixXd Lam = Wishart(T, nu); 
   MatrixXd mu_o = MvNormal(Lam.inverse() / kappa, mu);
 

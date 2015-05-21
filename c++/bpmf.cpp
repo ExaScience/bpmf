@@ -87,29 +87,22 @@ void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_ra
     const MatrixNXd &samples, int alpha, const VectorNd &mu_u, const MatrixNNd &Lambda_u)
 {
     int i = 0;
-    MatrixNXd E(num_feat,mat.col(mm).nonZeros());
-    VectorXd rr(mat.col(mm).nonZeros());
-    //cout << "movie " << endl;
+    MatrixNNd MM; MM.setZero();
+    VectorNd rr; rr.setZero();
     for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it, ++i) {
         // cout << "M[" << it.row() << "," << it.col() << "] = " << it.value() << endl;
-        E.col(i) = samples.col(it.row());
-        rr(i) = it.value() - mean_rating;
+        auto col = samples.col(it.row());
+        MM += col * col.transpose();
+        rr += col * ((it.value() - mean_rating) * alpha);
     }
 
-
-    auto MM = E * E.transpose();
     auto MMs = alpha * MM;
     MatrixNNd covar = (Lambda_u + MMs).inverse();
-    VectorNd MMrr = (E * rr) * alpha;
     auto U = Lambda_u * mu_u;
-    auto mu = covar * (MMrr + U);
+    auto mu = covar * (rr + U);
 
     MatrixNNd chol = covar.llt().matrixL();
-#ifdef TEST_SAMPLE
-    auto r(num_feat); r.setConstant(0.25);
-#else
     auto r = nrandn(num_feat);
-#endif
     s.col(mm) = chol * r + mu;
 
 #ifdef TEST_SAMPLE
