@@ -9,13 +9,15 @@
 
 #include <unsupported/Eigen/SparseExtra>
 
-#include <tbb/tbb.h>
+#include <omp.h>
+
+// -- OR
+// #include <tbb/tbb.h>
 
 #include "bpmf.h"
 
 using namespace std;
 using namespace Eigen;
-
 
 const int num_feat = 32;
 
@@ -156,15 +158,22 @@ void run() {
       // Sample from user hyperparams
       tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
 
-      for(int mm = 0; mm < M.cols(); ++mm) {
+      const int num_m = M.cols();
+#     pragma omp parallel for
+      for(int mm=0; mm<num_m; ++mm) {
         sample_movie(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
-      }
+      };
 
       const int num_u = M.rows();
-      tbb::parallel_for(0, num_u, [](int uu) {
+#     pragma omp parallel for
+      for(int uu=0; uu<num_u; ++uu) {
         sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
-        }
-      );
+      }
+   
+      // -- TBB version
+      // tbb::parallel_for(0, num_u, [](int uu) {
+      //   sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
+      // });
 
       auto eval = eval_probe_vec(sample_m, sample_u, mean_rating);
       double norm_u = sample_u.norm();
@@ -184,11 +193,12 @@ int main(int argc, char *argv[])
 {
     assert(argv[1] && argv[2] && "filename missing");
     Eigen::initParallel();
-    Eigen::setNbThreads(1);
 
     loadMarket(M, argv[1]);
     Mt = M.transpose();
     loadMarket(P, argv[2]);
+
+    assert(M.nonZeros() > P.nonZeros());
 
     init();
 #ifdef TEST_SAMPLE
