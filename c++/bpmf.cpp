@@ -9,10 +9,11 @@
 
 #include <unsupported/Eigen/SparseExtra>
 
+#ifdef _OPENMP
 #include <omp.h>
-
-// -- OR
-// #include <tbb/tbb.h>
+#else
+#include <tbb/tbb.h>
+#endif
 
 #include "bpmf.h"
 
@@ -159,21 +160,25 @@ void run() {
       tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
 
       const int num_m = M.cols();
-#     pragma omp parallel for
+      const int num_u = M.rows();
+#ifdef _OPENMP
+#pragma omp parallel for
       for(int mm=0; mm<num_m; ++mm) {
         sample_movie(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
-      };
-
-      const int num_u = M.rows();
-#     pragma omp parallel for
+      }
+#pragma omp parallel for
       for(int uu=0; uu<num_u; ++uu) {
         sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
       }
-   
-      // -- TBB version
-      // tbb::parallel_for(0, num_u, [](int uu) {
-      //   sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
-      // });
+#else
+      tbb::parallel_for(0, num_m, [](int mm) {
+        sample_movie(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
+      });
+
+      tbb::parallel_for(0, num_u, [](int uu) {
+         sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
+       });
+#endif
 
       auto eval = eval_probe_vec(sample_m, sample_u, mean_rating);
       double norm_u = sample_u.norm();
