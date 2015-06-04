@@ -153,40 +153,68 @@ VectorXd nrandn(int n, double mean, double sigma)
     return ret;
 }
 
-double acc[7] = { .0 };
+double acc[9] = { .0 };
+
+std::pair<VectorXd, MatrixXd> OldCondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
+{
+  int N = U.rows();
+  auto start = tick();
+  auto Um = U.rowwise().mean();
+  
+
+  // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
+  MatrixXd C = U.colwise() - Um;
+  MatrixXd S = (C * C.adjoint()) / double(U.cols() - 1);
+  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
+  double kappa_c = kappa + N;
+  MatrixXd T_c = ( T + N * S.transpose() + (kappa * N)/(kappa + N) * (mu - Um) * ((mu - Um).transpose())).inverse();
+  int nu_c = nu + N;
+
+#ifdef TEST_MVNORMAL
+  cout << "mu_c:\n" << mu_c << endl;
+  cout << "kappa_c:\n" << kappa_c << endl;
+  cout << "T_c:\n" << T_c << endl;
+  cout << "nu_c:\n" << nu_c << endl;
+#endif
+
+  auto ret = NormalWishart(mu_c, kappa_c, T_c, nu_c);
+
+  acc[8] += tick() - start;
+
+  return ret;
+}
 
 // from bpmf.jl -- verified
 std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
 {
-         double   t[7];
+         double   t[8];
 
   int nrows = U.rows();
 
   t[0] = tick();
   auto Um = U.rowwise().mean();
   t[1] = tick();
-  acc[0] = t[1] - t[0];
+  acc[0] += t[1] - t[0];
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
   MatrixXd C = U.colwise() - Um;
   t[2] = tick();
-  acc[1] = t[2] - t[1];
+  acc[1] += t[2] - t[1];
   auto S = (C * C.adjoint()) / double(U.cols() - 1);
   t[3] = tick();
-  acc[2] = t[3] - t[2];
+  acc[2] += t[3] - t[2];
   VectorXd mu_c = (kappa*mu + nrows*Um) / (kappa + nrows);
   double kappa_c = kappa + nrows;
   t[4] = tick();
-  acc[3] = t[4] - t[3];
+  acc[3] += t[4] - t[3];
   VectorXd mu_m = (mu - Um);
   double kappa_m = (kappa * nrows)/(kappa + nrows);
   auto X = ( T + nrows * S.transpose() + kappa_m * (mu_m * mu_m.transpose())); //.inverse();
   t[5] = tick();
-  acc[4] = t[5] - t[4];
+  acc[4] += t[5] - t[4];
   MatrixXd T_c = X.inverse();
   t[6] = tick();
-  acc[5] = t[6] - t[5];
-  acc[6] = t[6] - t[0];
+  acc[5] += t[6] - t[5];
   int nu_c = nu + nrows;
 
 #ifdef TEST_MVNORMAL
@@ -196,7 +224,13 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
   cout << "nu_c:\n" << nu_c << endl;
 #endif
 
-  return NormalWishart(mu_c, kappa_c, T_c, nu_c);
+  auto ret = NormalWishart(mu_c, kappa_c, T_c, nu_c);
+
+  t[7] = tick();
+  acc[6] += t[7] - t[6];
+  acc[7] += t[7] - t[0];
+
+  return ret;
 }
 
 #if defined(TEST_MVNORMAL) || defined (BENCH_MVNORMAL)
@@ -222,15 +256,25 @@ int main()
     MatrixXd T_out;
 
 #ifdef BENCH_MVNORMAL
-    for(int i=0; i<30; ++i) {
+    for(int i=0; i<300; ++i) {
         tie(mu_out, T_out) = CondNormalWishart(U, mu, kappa, T, nu);
         cout << i << "\r" << flush;
     }
     cout << endl << flush;
 
-    for(int i=0; i<6; ++i) {
-        cout << i << ": " << acc[i] / acc[6] << endl;
+    for(int i=0; i<7; ++i) {
+        cout << i << ": " << (int)(100.0 * acc[i] / acc[7])  << endl;
     }
+    cout << "total: " << acc[7] << endl;
+
+    for(int i=0; i<300; ++i) {
+        tie(mu_out, T_out) = OldCondNormalWishart(U, mu, kappa, T, nu);
+        cout << i << "\r" << flush;
+    }
+    cout << endl << flush;
+
+    cout << "total: " << acc[8] << endl;
+
 
 #else
 #if 1
