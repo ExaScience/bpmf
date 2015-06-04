@@ -7,7 +7,10 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-Eigen::VectorXd nrandn(int n, double mean = 0, double sigma = 1);
+#include <random>
+
+double randn(double);
+auto nrandn(int n) -> decltype( Eigen::VectorXd::NullaryExpr(n, std::ptr_fun(randn)) );
 
 std::pair<Eigen::VectorXd, Eigen::MatrixXd> CondNormalWishart(const Eigen::MatrixXd &U, const Eigen::VectorXd &mu, const double kappa, const Eigen::MatrixXd &T, const int nu);
 

@@ -7,7 +7,6 @@
 
 #include <iostream>
 
-#include <random>
 
 #include "bpmf.h"
 
@@ -25,26 +24,20 @@ thread_local
 #endif 
 static std::mt19937 rng;
 
-namespace Eigen {
-namespace internal {
-template<typename Scalar> 
-struct scalar_normal_dist_op 
+#ifndef __clang__
+thread_local 
+#endif 
+static normal_distribution<> nd;
+
+double randn(double) {
+  return nd(rng);
+}
+
+auto
+nrandn(int n) -> decltype( VectorXd::NullaryExpr(n, ptr_fun(randn)) ) 
 {
-  mutable std::normal_distribution<Scalar> norm;  // The gaussian combinator
-
-  EIGEN_EMPTY_STRUCT_CTOR(scalar_normal_dist_op)
-
-  template<typename Index>
-  inline const Scalar operator() (Index, Index = 0) const { return norm(rng); }
-};
-
-
-template<typename Scalar>
-struct functor_traits<scalar_normal_dist_op<Scalar> >
-{ enum { Cost = 50 * NumTraits<Scalar>::MulCost, PacketAccess = false, IsRepeatable = false }; };
-} // end namespace internal
-} // end namespace Eigen
-
+    return VectorXd::NullaryExpr(n, ptr_fun(randn));
+}
 
 /*
   Draw nn samples from a size-dimensional normal distribution
@@ -53,15 +46,13 @@ struct functor_traits<scalar_normal_dist_op<Scalar> >
 MatrixXd MvNormal(MatrixXd covar, VectorXd mean, int nn = 1) 
 {
   int size = mean.rows(); // Dimensionality (rows)
-  internal::scalar_normal_dist_op<double> randN; // Gaussian functor
   MatrixXd normTransform(size,size);
 
   LLT<MatrixXd> cholSolver(covar);
   normTransform = cholSolver.matrixL();
 
-  MatrixXd samples = (normTransform 
-                           * MatrixXd::NullaryExpr(size,nn,randN)).colwise() 
-                           + mean;
+  auto normSamples = MatrixXd::NullaryExpr(size,nn,ptr_fun(randn));
+  MatrixXd samples = (normTransform * normSamples).colwise() + mean;
 
   return samples;
 }
@@ -74,7 +65,8 @@ MatrixXd WishartUnit(int m, int df)
     for ( int i = 0; i < m; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
         c(i,i) = sqrt(2.0 * gam(rng));
-        c.block(i,i+1,1,m-i-1) = nrandn(m-i-1).transpose();
+        VectorXd r = nrandn(m-i-1).transpose();
+        c.block(i,i+1,1,m-i-1) = r;
     }
 
     MatrixXd ret = c.transpose() * c;
@@ -136,17 +128,6 @@ std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd 
 #endif
 
   return std::make_pair(mu_o , Lam);
-}
-
-VectorXd nrandn(int n, double mean, double sigma)
-{
-    VectorXd ret(n);
-    
-    std::normal_distribution<> dist(mean,sigma);
-
-    for(int i=0; i<n; ++i) ret(i) = dist(rng);
-        
-    return ret;
 }
 
 double acc[9] = { .0 };
