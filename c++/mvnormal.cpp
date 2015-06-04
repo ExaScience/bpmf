@@ -233,7 +233,7 @@ int main()
     }
 
 #else
-#if 0
+#if 1
     cout << "COND NORMAL WISHART\n" << endl;
 
     tie(mu_out, T_out) = CondNormalWishart(U, mu, kappa, T, nu);
