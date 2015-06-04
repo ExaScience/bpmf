@@ -23,7 +23,7 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-#if 0
+#ifndef __clang__
 thread_local 
 #endif 
 static boost::mt19937 rng;
