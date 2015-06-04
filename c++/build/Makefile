@@ -1,9 +1,9 @@
 DEBUG?=0
 
 ifeq ($(DEBUG),1)
-CXXFLAGS=-DDEBUG -Wall -O0 -g -std=c++11 `pkg-config --cflags eigen3`
+CXXFLAGS=-DDEBUG -Wall -O0 -g -std=c++11
 else
-CXXFLAGS=-DNDEBUG -Wall -Wno-deprecated-declarations -O3 -g -std=c++11 -I. 
+CXXFLAGS=-DNDEBUG -Wall -O3 -g -std=c++11 
 endif
 
 # for tbb
@@ -12,6 +12,8 @@ endif
 # for openmp
 CXXFLAGS+=-fopenmp
 
+# Add Eigen path here
+CPPFLAGS=-I.
 
 VPATH=..
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS)
