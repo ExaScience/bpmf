@@ -1,7 +1,6 @@
 
 #include <stdlib.h>     /* srand, rand */
 
-#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -147,8 +146,7 @@ void test() {
 #else
 
 void run() {
-    auto start = chrono::duration_cast<chrono::duration<double>>(chrono::high_resolution_clock::now().time_since_epoch()).count(); 
-
+    auto start = tick(); 
 
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
@@ -183,7 +181,7 @@ void run() {
       auto eval = eval_probe_vec(sample_m, sample_u, mean_rating);
       double norm_u = sample_u.norm();
       double norm_m = sample_m.norm();
-      auto end = chrono::duration_cast<chrono::duration<double>>(chrono::high_resolution_clock::now().time_since_epoch()).count(); 
+      auto end = tick(); 
       auto elapsed = end - start;
       double samples_per_sec = (i + 1) * (M.rows() + M.cols()) / elapsed;
 
