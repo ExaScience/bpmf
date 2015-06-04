@@ -3,10 +3,15 @@ DEBUG?=0
 ifeq ($(DEBUG),1)
 CXXFLAGS=-DDEBUG -Wall -O0 -g -std=c++11 `pkg-config --cflags eigen3`
 else
-CXXFLAGS=-Wall -Wno-deprecated-declarations -O3 -g -std=c++11 -I. 
+CXXFLAGS=-DNDEBUG -Wall -Wno-deprecated-declarations -O3 -g -std=c++11 -I. 
 endif
 
-LDFLAGS+=-ltbb
+# for tbb
+# LDFLAGS+=-ltbb
+
+# for openmp
+CXXFLAGS+=-fopenmp
+
 
 VPATH=..
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS)
