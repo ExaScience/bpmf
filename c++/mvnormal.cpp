@@ -23,7 +23,10 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-thread_local static boost::mt19937 rng;
+#if 0
+thread_local 
+#endif 
+static boost::mt19937 rng;
 
 namespace Eigen {
 namespace internal {
@@ -150,19 +153,41 @@ VectorXd nrandn(int n, double mean, double sigma)
     return ret;
 }
 
+double acc[7] = { .0 };
+
 // from bpmf.jl -- verified
 std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
 {
-  int N = U.rows();
+         double   t[7];
+
+  int nrows = U.rows();
+
+  t[0] = tick();
   auto Um = U.rowwise().mean();
+  t[1] = tick();
+  acc[0] = t[1] - t[0];
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
   MatrixXd C = U.colwise() - Um;
-  MatrixXd S = (C * C.adjoint()) / double(U.cols() - 1);
-  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
-  double kappa_c = kappa + N;
-  MatrixXd T_c = ( T.inverse() + N * S.transpose() + (kappa * N)/(kappa + N) * (mu - Um) * ((mu - Um).transpose())).inverse();
-  int nu_c = nu + N;
+  t[2] = tick();
+  acc[1] = t[2] - t[1];
+  auto S = (C * C.adjoint()) / double(U.cols() - 1);
+  t[3] = tick();
+  acc[2] = t[3] - t[2];
+  VectorXd mu_c = (kappa*mu + nrows*Um) / (kappa + nrows);
+  double kappa_c = kappa + nrows;
+  t[4] = tick();
+  acc[3] = t[4] - t[3];
+  VectorXd mu_m = (mu - Um);
+  double kappa_m = (kappa * nrows)/(kappa + nrows);
+  auto X = ( T + nrows * S.transpose() + kappa_m * (mu_m * mu_m.transpose())); //.inverse();
+  t[5] = tick();
+  acc[4] = t[5] - t[4];
+  MatrixXd T_c = X.inverse();
+  t[6] = tick();
+  acc[5] = t[6] - t[5];
+  acc[6] = t[6] - t[0];
+  int nu_c = nu + nrows;
 
 #ifdef TEST_MVNORMAL
   cout << "mu_c:\n" << mu_c << endl;
@@ -174,20 +199,21 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
   return NormalWishart(mu_c, kappa_c, T_c, nu_c);
 }
 
-#ifdef TEST_MVNORMAL
+#if defined(TEST_MVNORMAL) || defined (BENCH_MVNORMAL)
 
 int main()
 {
-    MatrixXd U(3,3);
+    
+    MatrixXd U(32,32 * 1024);
     U.setOnes();
 
-    VectorXd mu(3);
+    VectorXd mu(32);
     mu.setZero();
 
     double kappa = 2;
 
-    MatrixXd T(3,3);
-    T.setIdentity(3,3);
+    MatrixXd T(32,32);
+    T.setIdentity(32,32);
     T.array() /= 4;
 
     int nu = 3;
@@ -195,7 +221,19 @@ int main()
     VectorXd mu_out;
     MatrixXd T_out;
 
-#if 1
+#ifdef BENCH_MVNORMAL
+    for(int i=0; i<30; ++i) {
+        tie(mu_out, T_out) = CondNormalWishart(U, mu, kappa, T, nu);
+        cout << i << "\r" << flush;
+    }
+    cout << endl << flush;
+
+    for(int i=0; i<6; ++i) {
+        cout << i << ": " << acc[i] / acc[6] << endl;
+    }
+
+#else
+#if 0
     cout << "COND NORMAL WISHART\n" << endl;
 
     tie(mu_out, T_out) = CondNormalWishart(U, mu, kappa, T, nu);
@@ -221,6 +259,7 @@ int main()
     cout << "mu:\n" << mu << endl;
     cout << "T:\n" << T << endl;
     cout << "out:\n" << out << endl;
+#endif
 #endif
 }
 
