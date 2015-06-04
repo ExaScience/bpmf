@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <algorithm>
+#include <random>
 
 #include <unsupported/Eigen/SparseExtra>
 
