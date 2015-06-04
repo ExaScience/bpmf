@@ -7,10 +7,7 @@
 
 #include <iostream>
 
-#include <boost/random/normal_distribution.hpp>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/gamma_distribution.hpp>
-#include <boost/random/variate_generator.hpp>
+#include <random>
 
 #include "bpmf.h"
 
@@ -26,14 +23,14 @@ using namespace Eigen;
 #ifndef __clang__
 thread_local 
 #endif 
-static boost::mt19937 rng;
+static std::mt19937 rng;
 
 namespace Eigen {
 namespace internal {
 template<typename Scalar> 
 struct scalar_normal_dist_op 
 {
-  mutable boost::normal_distribution<Scalar> norm;  // The gaussian combinator
+  mutable std::normal_distribution<Scalar> norm;  // The gaussian combinator
 
   EIGEN_EMPTY_STRUCT_CTOR(scalar_normal_dist_op)
 
@@ -75,8 +72,7 @@ MatrixXd WishartUnit(int m, int df)
     c.setZero();
 
     for ( int i = 0; i < m; i++ ) {
-        boost::gamma_distribution<> gam(0.5*(df - i));
-        boost::variate_generator<boost::mt19937&, boost::gamma_distribution<> > gen(rng, gam);
+        std::gamma_distribution<> gam(0.5*(df - i));
         c(i,i) = sqrt(2.0 * gam(rng));
         c.block(i,i+1,1,m-i-1) = nrandn(m-i-1).transpose();
     }
@@ -146,7 +142,7 @@ VectorXd nrandn(int n, double mean, double sigma)
 {
     VectorXd ret(n);
     
-    boost::random::normal_distribution<> dist(mean,sigma);
+    std::normal_distribution<> dist(mean,sigma);
 
     for(int i=0; i<n; ++i) ret(i) = dist(rng);
         
