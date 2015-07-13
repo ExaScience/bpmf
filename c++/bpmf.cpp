@@ -20,7 +20,7 @@ using namespace Eigen;
 
 const int num_feat = 32;
 
-const int alpha = 2;
+const double alpha = 2;
 const int nsims = 20;
 const int burnin = 5;
 
@@ -94,8 +94,8 @@ std::pair<double,double> eval_probe_vec(int n, VectorXd & predictions, const Mat
     return std::make_pair(rmse, rmse_avg);
 }
 
-void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating, 
-    const MatrixNXd &samples, int alpha, const VectorNd &mu_u, const MatrixNNd &Lambda_u)
+void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
+    const MatrixNXd &samples, double alpha, const VectorNd &mu_u, const MatrixNNd &Lambda_u)
 {
     int i = 0;
     MatrixNNd MM; MM.setZero();
