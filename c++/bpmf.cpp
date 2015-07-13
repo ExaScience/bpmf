@@ -99,13 +99,12 @@ void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_ra
         rr += col * ((it.value() - mean_rating) * alpha);
     }
 
-    auto MMs = alpha * MM;
-    MatrixNNd covar = (Lambda_u + MMs).inverse();
-    auto U = Lambda_u * mu_u;
-    auto mu = covar * (rr + U);
+		Eigen::LLT<MatrixNNd> chol = (Lambda_u + alpha * MM).llt();
+    auto mu = chol.solve(rr + Lambda_u * mu_u);
 
-    MatrixNNd chol = covar.llt().matrixL();
-    s.col(mm) = chol * nrandn(num_feat) + mu;
+		VectorNd r = nrandn(num_feat);
+		chol.matrixU().solveInPlace(r);
+    s.col(mm) = mu + r;
 
 #ifdef TEST_SAMPLE
       cout << "movie " << mm << ":" << result.cols() << " x" << result.rows() << endl;
