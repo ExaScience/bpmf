@@ -185,7 +185,7 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
   acc[0] += t[1] - t[0];
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
-  MatrixXd C = U.colwise() - Um;
+  auto C = U.colwise() - Um;
   MatrixXd S = (C * C.adjoint()) / double(N - 1);
   VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
   double kappa_c = kappa + N;
@@ -195,9 +195,9 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
   acc[2] += t[3] - t[2];
   t[4] = tick();
   acc[3] += t[4] - t[3];
-  VectorXd mu_m = (mu - Um);
+  auto mu_m = (mu - Um);
   double kappa_m = (kappa * N)/(kappa + N);
-  auto X = ( T + N * S.transpose() + kappa_m * (mu_m * mu_m.transpose())); //.inverse();
+  auto X = ( T + N * S + kappa_m * (mu_m * mu_m.transpose()));
   t[5] = tick();
   acc[4] += t[5] - t[4];
   MatrixXd T_c = X.inverse();
