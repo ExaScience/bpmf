@@ -141,14 +141,11 @@ std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd 
   return std::make_pair(mu_o , Lam);
 }
 
-double acc[9] = { .0 };
-
 std::pair<VectorXd, MatrixXd> OldCondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
 {
   int N = U.cols();
-  auto start = tick();
+
   auto Um = U.rowwise().mean();
-  
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
   MatrixXd C = U.colwise() - Um;
@@ -165,44 +162,25 @@ std::pair<VectorXd, MatrixXd> OldCondNormalWishart(const MatrixXd &U, const Vect
   cout << "nu_c:\n" << nu_c << endl;
 #endif
 
-  auto ret = NormalWishart(mu_c, kappa_c, T_c, nu_c);
-
-  acc[8] += tick() - start;
-
-  return ret;
+  return NormalWishart(mu_c, kappa_c, T_c, nu_c);
 }
 
 // from bpmf.jl -- verified
 std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
 {
-         double   t[8];
-
   int N = U.cols();
 
-  t[0] = tick();
   auto Um = U.rowwise().mean();
-  t[1] = tick();
-  acc[0] += t[1] - t[0];
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
   auto C = U.colwise() - Um;
   MatrixXd S = (C * C.adjoint()) / double(N - 1);
   VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
   double kappa_c = kappa + N;
-  t[2] = tick();
-  acc[1] += t[2] - t[1];
-  t[3] = tick();
-  acc[2] += t[3] - t[2];
-  t[4] = tick();
-  acc[3] += t[4] - t[3];
   auto mu_m = (mu - Um);
   double kappa_m = (kappa * N)/(kappa + N);
   auto X = ( T + N * S + kappa_m * (mu_m * mu_m.transpose()));
-  t[5] = tick();
-  acc[4] += t[5] - t[4];
   MatrixXd T_c = X.inverse();
-  t[6] = tick();
-  acc[5] += t[6] - t[5];
   int nu_c = nu + N;
 
 #ifdef TEST_MVNORMAL
@@ -212,20 +190,14 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
   cout << "nu_c:\n" << nu_c << endl;
 #endif
 
-  auto ret = NormalWishart(mu_c, kappa_c, T_c, nu_c);
-
-  t[7] = tick();
-  acc[6] += t[7] - t[6];
-  acc[7] += t[7] - t[0];
-
-  return ret;
+  return NormalWishart(mu_c, kappa_c, T_c, nu_c);
 }
 
 #if defined(TEST_MVNORMAL) || defined (BENCH_MVNORMAL)
 
 int main()
 {
-    
+
     MatrixXd U(32,32 * 1024);
     U.setOnes();
 
