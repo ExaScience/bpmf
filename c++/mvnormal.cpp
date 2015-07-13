@@ -94,17 +94,16 @@ MatrixXd WishartUnit(int m, int df)
     return ret;
 }
 
-MatrixXd Wishart(const MatrixXd &sigma, int df)
+MatrixXd Wishart(const MatrixXd &sigma, const int df)
 {
 //  Get R, the upper triangular Cholesky factor of SIGMA.
-  MatrixXd r = sigma.llt().matrixU();
+  auto chol = sigma.llt();
 
 //  Get AU, a sample from the unit Wishart distribution.
   MatrixXd au = WishartUnit(sigma.cols(), df);
 
 //  Construct the matrix A = R' * AU * R.
-  MatrixXd a = r.transpose() * au * r; 
-
+  MatrixXd a = chol.matrixL() * au * chol.matrixU();
 
 #ifdef TEST_MVNORMAL
     cout << "WISHART {\n" << endl;
@@ -122,7 +121,7 @@ MatrixXd Wishart(const MatrixXd &sigma, int df)
 
 
 // from julia package Distributions: conjugates/normalwishart.jl
-std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd T, double nu) 
+std::pair<VectorXd, MatrixXd> NormalWishart(const VectorXd & mu, double kappa, const MatrixXd & T, double nu)
 {
   MatrixXd Lam = Wishart(T, nu);
   MatrixXd mu_o = MvNormal_prec(Lam * kappa, mu);
