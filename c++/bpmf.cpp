@@ -69,21 +69,29 @@ void init() {
     mu0_m.setZero();
 }
 
-pair<double,double> eval_probe_vec(const MatrixNXd &sample_m, const MatrixNXd &sample_u, double mean_rating)
+inline double sqr(double x) { return x*x; }
+
+std::pair<double,double> eval_probe_vec(int n, VectorXd & predictions, const MatrixNXd &sample_m, const MatrixNXd &sample_u, double mean_rating)
 {
-    unsigned n = P.nonZeros();
-    unsigned correct = 0;
-    double diff = .0;
-    for (int k=0; k<P.outerSize(); ++k)
+    double se = 0.0, se_avg = 0.0;
+		unsigned idx = 0;
+    for (int k=0; k<P.outerSize(); ++k) {
         for (SparseMatrix<double>::InnerIterator it(P,k); it; ++it) {
-            double prediction = sample_m.col(it.col()).dot(sample_u.col(it.row())) + mean_rating;
-            //cout << "prediction: " << prediction - mean_rating << " + " << mean_rating << " = " << prediction << endl;
-            //cout << "actual: " << it.value() << endl;
-            correct += (it.value() < log10(200)) == (prediction < log10(200));
-            diff += abs(it.value() - prediction);
+            const double pred = sample_m.col(it.col()).dot(sample_u.col(it.row())) + mean_rating;
+            //se += (it.value() < log10(200)) == (pred < log10(200));
+						se += sqr(it.value() - pred);
+
+						const double pred_avg = (n == 0) ? pred : (predictions[idx] + (pred - predictions[idx]) / n);
+            //se_avg += (it.value() < log10(200)) == (pred_avg < log10(200));
+						se_avg += sqr(it.value() - pred_avg);
+						predictions[idx++] = pred_avg;
         }
-   
-    return std::make_pair((double)correct / n, diff / n);
+		}
+
+    const unsigned N = P.nonZeros();
+		const double rmse = sqrt( se / N );
+		const double rmse_avg = sqrt( se_avg / N );
+    return std::make_pair(rmse, rmse_avg);
 }
 
 void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating, 
@@ -138,6 +146,8 @@ void test() {
 
 void run() {
     auto start = tick(); 
+		VectorXd predictions;
+		predictions = VectorXd::Zero( P.nonZeros() );
 
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
@@ -169,15 +179,16 @@ void run() {
        });
 #endif
 
-      auto eval = eval_probe_vec(sample_m, sample_u, mean_rating);
+      auto eval = eval_probe_vec( (i < burnin) ? 0 : (i - burnin), predictions, sample_m, sample_u, mean_rating);
+//			auto eval = std::make_pair(0.0, 0.0);
       double norm_u = sample_u.norm();
       double norm_m = sample_m.norm();
       auto end = tick(); 
       auto elapsed = end - start;
       double samples_per_sec = (i + 1) * (M.rows() + M.cols()) / elapsed;
 
-      printf("Iteration %d:\t num_correct: %3.2f%%\tavg_diff: %3.2f\tFU(%6.2f)\tFM(%6.2f)\tSamples/sec: %6.2f\n",
-              i, 100*eval.first, eval.second, norm_u, norm_m, samples_per_sec);
+      printf("Iteration %d:\t RMSE: %3.2f\tavg RMSE: %3.2f\tFU(%6.2f)\tFM(%6.2f)\tSamples/sec: %6.2f\n",
+              i, eval.first, eval.second, norm_u, norm_m, samples_per_sec);
     }
 }
 
