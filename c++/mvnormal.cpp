@@ -134,14 +134,14 @@ double acc[9] = { .0 };
 
 std::pair<VectorXd, MatrixXd> OldCondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
 {
-  int N = U.rows();
+  int N = U.cols();
   auto start = tick();
   auto Um = U.rowwise().mean();
   
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
   MatrixXd C = U.colwise() - Um;
-  MatrixXd S = (C * C.adjoint()) / double(U.cols() - 1);
+  MatrixXd S = (C * C.adjoint()) / double(N - 1);
   VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
   double kappa_c = kappa + N;
   MatrixXd T_c = ( T + N * S.transpose() + (kappa * N)/(kappa + N) * (mu - Um) * ((mu - Um).transpose())).inverse();
@@ -166,7 +166,7 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
 {
          double   t[8];
 
-  int nrows = U.rows();
+  int N = U.cols();
 
   t[0] = tick();
   auto Um = U.rowwise().mean();
@@ -175,24 +175,24 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
   MatrixXd C = U.colwise() - Um;
+  MatrixXd S = (C * C.adjoint()) / double(N - 1);
+  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
+  double kappa_c = kappa + N;
   t[2] = tick();
   acc[1] += t[2] - t[1];
-  auto S = (C * C.adjoint()) / double(U.cols() - 1);
   t[3] = tick();
   acc[2] += t[3] - t[2];
-  VectorXd mu_c = (kappa*mu + nrows*Um) / (kappa + nrows);
-  double kappa_c = kappa + nrows;
   t[4] = tick();
   acc[3] += t[4] - t[3];
   VectorXd mu_m = (mu - Um);
-  double kappa_m = (kappa * nrows)/(kappa + nrows);
-  auto X = ( T + nrows * S.transpose() + kappa_m * (mu_m * mu_m.transpose())); //.inverse();
+  double kappa_m = (kappa * N)/(kappa + N);
+  auto X = ( T + N * S.transpose() + kappa_m * (mu_m * mu_m.transpose())); //.inverse();
   t[5] = tick();
   acc[4] += t[5] - t[4];
   MatrixXd T_c = X.inverse();
   t[6] = tick();
   acc[5] += t[6] - t[5];
-  int nu_c = nu + nrows;
+  int nu_c = nu + N;
 
 #ifdef TEST_MVNORMAL
   cout << "mu_c:\n" << mu_c << endl;
