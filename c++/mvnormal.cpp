@@ -39,6 +39,17 @@ nrandn(int n) -> decltype( VectorXd::NullaryExpr(n, ptr_fun(randn)) )
     return VectorXd::NullaryExpr(n, ptr_fun(randn));
 }
 
+MatrixXd MvNormal_prec(const MatrixXd & Lambda, const VectorXd & mean, int nn = 1)
+{
+  int size = mean.rows(); // Dimensionality (rows)
+
+  LLT<MatrixXd> chol(Lambda);
+
+  MatrixXd r = MatrixXd::NullaryExpr(size,nn,ptr_fun(randn));
+	chol.matrixU().solveInPlace(r);
+  return r.colwise() + mean;
+}
+
 /*
   Draw nn samples from a size-dimensional normal distribution
   with a specified mean and covariance
@@ -113,8 +124,8 @@ MatrixXd Wishart(const MatrixXd &sigma, int df)
 // from julia package Distributions: conjugates/normalwishart.jl
 std::pair<VectorXd, MatrixXd> NormalWishart(VectorXd mu, double kappa, MatrixXd T, double nu) 
 {
-  MatrixXd Lam = Wishart(T, nu); 
-  MatrixXd mu_o = MvNormal(Lam.inverse() / kappa, mu);
+  MatrixXd Lam = Wishart(T, nu);
+  MatrixXd mu_o = MvNormal_prec(Lam * kappa, mu);
 
 #ifdef TEST_MVNORMAL
     cout << "NORMAL WISHART {\n" << endl;
