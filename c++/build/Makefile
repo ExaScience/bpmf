@@ -1,5 +1,8 @@
 DEBUG?=0
 
+#CXX=icc -gcc-name=gcc-4.7
+CXX=g++-4.8
+
 ifeq ($(DEBUG),1)
 CXXFLAGS=-DDEBUG -Wall -O0 -g -std=c++11
 else
@@ -13,7 +16,7 @@ endif
 CXXFLAGS+=-fopenmp
 
 # Add Eigen path here
-CPPFLAGS=-I.
+CPPFLAGS=-I /home/tomh/usr/include/eigen3
 
 VPATH=..
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS)
