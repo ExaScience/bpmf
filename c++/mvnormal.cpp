@@ -76,8 +76,8 @@ MatrixXd WishartUnit(int m, int df)
     for ( int i = 0; i < m; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
         c(i,i) = sqrt(2.0 * gam(rng));
-        VectorXd r = nrandn(m-i-1).transpose();
-        c.block(i,i+1,1,m-i-1) = r;
+        VectorXd r = nrandn(m-i-1);
+        c.block(i,i+1,1,m-i-1) = r.transpose();
     }
 
     MatrixXd ret = c.transpose() * c;
