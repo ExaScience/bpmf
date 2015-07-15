@@ -190,6 +190,10 @@ void run() {
       printf("Iteration %d:\t RMSE: %3.2f\tavg RMSE: %3.2f\tFU(%6.2f)\tFM(%6.2f)\tSamples/sec: %6.2f\n",
               i, eval.first, eval.second, norm_u, norm_m, samples_per_sec);
     }
+
+	auto end = tick(); 
+	auto elapsed = end - start;
+	printf("Total time: %6.2f\n", elapsed);
 }
 
 #endif
