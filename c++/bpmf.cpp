@@ -108,11 +108,15 @@ void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_ra
     }
 
 		Eigen::LLT<MatrixNNd> chol = (Lambda_u + alpha * MM).llt();
-    auto mu = chol.solve(rr + Lambda_u * mu_u);
+		if(chol.info() != Eigen::Success) {
+			throw std::runtime_error("Cholesky Decomposition failed!");
+		}
 
-		VectorNd r = nrandn(num_feat);
-		chol.matrixU().solveInPlace(r);
-    s.col(mm) = mu + r;
+		VectorNd tmp = rr + Lambda_u * mu_u;
+		chol.matrixL().solveInPlace(tmp);
+		tmp += nrandn(num_feat);
+		chol.matrixU().solveInPlace(tmp);
+    s.col(mm) = tmp;
 
 #ifdef TEST_SAMPLE
       cout << "movie " << mm << ":" << result.cols() << " x" << result.rows() << endl;
