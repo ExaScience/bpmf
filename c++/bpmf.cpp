@@ -74,23 +74,23 @@ inline double sqr(double x) { return x*x; }
 std::pair<double,double> eval_probe_vec(int n, VectorXd & predictions, const MatrixNXd &sample_m, const MatrixNXd &sample_u, double mean_rating)
 {
     double se = 0.0, se_avg = 0.0;
-		unsigned idx = 0;
+    unsigned idx = 0;
     for (int k=0; k<P.outerSize(); ++k) {
         for (SparseMatrix<double>::InnerIterator it(P,k); it; ++it) {
             const double pred = sample_m.col(it.col()).dot(sample_u.col(it.row())) + mean_rating;
             //se += (it.value() < log10(200)) == (pred < log10(200));
-						se += sqr(it.value() - pred);
+            se += sqr(it.value() - pred);
 
-						const double pred_avg = (n == 0) ? pred : (predictions[idx] + (pred - predictions[idx]) / n);
+            const double pred_avg = (n == 0) ? pred : (predictions[idx] + (pred - predictions[idx]) / n);
             //se_avg += (it.value() < log10(200)) == (pred_avg < log10(200));
-						se_avg += sqr(it.value() - pred_avg);
-						predictions[idx++] = pred_avg;
+            se_avg += sqr(it.value() - pred_avg);
+            predictions[idx++] = pred_avg;
         }
-		}
+    }
 
     const unsigned N = P.nonZeros();
-		const double rmse = sqrt( se / N );
-		const double rmse_avg = sqrt( se_avg / N );
+    const double rmse = sqrt( se / N );
+    const double rmse_avg = sqrt( se_avg / N );
     return std::make_pair(rmse, rmse_avg);
 }
 
@@ -107,15 +107,15 @@ void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_ra
         rr += col * ((it.value() - mean_rating) * alpha);
     }
 
-		Eigen::LLT<MatrixNNd> chol = (Lambda_u + alpha * MM).llt();
-		if(chol.info() != Eigen::Success) {
-			throw std::runtime_error("Cholesky Decomposition failed!");
-		}
+    Eigen::LLT<MatrixNNd> chol = (Lambda_u + alpha * MM).llt();
+    if(chol.info() != Eigen::Success) {
+      throw std::runtime_error("Cholesky Decomposition failed!");
+    }
 
-		VectorNd tmp = rr + Lambda_u * mu_u;
-		chol.matrixL().solveInPlace(tmp);
-		tmp += nrandn(num_feat);
-		chol.matrixU().solveInPlace(tmp);
+    VectorNd tmp = rr + Lambda_u * mu_u;
+    chol.matrixL().solveInPlace(tmp);
+    tmp += nrandn(num_feat);
+    chol.matrixU().solveInPlace(tmp);
     s.col(mm) = tmp;
 
 #ifdef TEST_SAMPLE
@@ -149,9 +149,9 @@ void test() {
 #else
 
 void run() {
-    auto start = tick(); 
-		VectorXd predictions;
-		predictions = VectorXd::Zero( P.nonZeros() );
+    auto start = tick();
+    VectorXd predictions;
+    predictions = VectorXd::Zero( P.nonZeros() );
 
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
@@ -184,10 +184,10 @@ void run() {
 #endif
 
       auto eval = eval_probe_vec( (i < burnin) ? 0 : (i - burnin), predictions, sample_m, sample_u, mean_rating);
-//			auto eval = std::make_pair(0.0, 0.0);
+//      auto eval = std::make_pair(0.0, 0.0);
       double norm_u = sample_u.norm();
       double norm_m = sample_m.norm();
-      auto end = tick(); 
+      auto end = tick();
       auto elapsed = end - start;
       double samples_per_sec = (i + 1) * (M.rows() + M.cols()) / elapsed;
 
@@ -195,9 +195,9 @@ void run() {
               i, eval.first, eval.second, norm_u, norm_m, samples_per_sec);
     }
 
-	auto end = tick(); 
-	auto elapsed = end - start;
-	printf("Total time: %6.2f\n", elapsed);
+  auto end = tick();
+  auto elapsed = end - start;
+  printf("Total time: %6.2f\n", elapsed);
 }
 
 #endif
