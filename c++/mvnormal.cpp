@@ -169,7 +169,7 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
 {
   int N = U.cols();
 
-  auto Um = U.rowwise().mean();
+  VectorXd Um = U.rowwise().mean();
 
   // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
   auto C = U.colwise() - Um;
