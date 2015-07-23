@@ -1,0 +1,26 @@
+HOW TO USE MOVIELENS DATA in BPMF
+
+The grouplens website make available a database of movie ratings that can be use
+as an input dataset for BPMF. Here is how to use this dataset.
+
+Download and unzip one of their datasets from https://grouplens.org/datasets/movielens/.
+For example:
+
+    wget http://files.grouplens.org/datasets/movielens/ml-100k.zip
+    unzip ml-100k.zip
+
+Convert the files from movielens format to matrix market format. This can be
+done in Matlab/Octave using the mm* functions in the data/ subdirectory.
+
+    M = dlmread("ml-100k/u.data", "\t");
+    M = M(1:end, 1:3); % only first three collumns
+    S = spconvert(M)
+    mmwrite("u.mtx", S)
+
+
+Now you can use u.mtx as input for BPMF:
+
+    ./bpmf u_sample.mtx u_train.mtx
+
+2015-07-22 -- Tom Vander Aa
+
