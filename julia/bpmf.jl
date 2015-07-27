@@ -1,4 +1,4 @@
-using MAT, Distributions
+using MAT, Distributions, MatrixMarket
 
 macro default_value(sym, value)
   quote
@@ -11,79 +11,27 @@ macro default_value(sym, value)
   end
 end
 
-macro enum(T,syms...)
-    blk = quote
-        immutable $(esc(T))
-            n::Int32
-            $(esc(T))(n::Integer) = new(n)
-        end
-        Base.show(io::IO, x::$(esc(T))) = print(io, $syms[x.n+1])
-        Base.show(io::IO, x::Type{$(esc(T))}) = print(io, $(string("enum ", T, ' ', '(', join(syms, ", "), ')')))
-    end
-    for (i,sym) in enumerate(syms)
-        push!(blk.args, :(const $(esc(sym)) = $(esc(T))($(i-1))))
-    end
-    push!(blk.args, :nothing)
-    blk.head = :toplevel
-    return blk
-end
-
-@enum Problem TinyFlix Netflix Chemo
-
 @default_value(num_feat, 10)
 @default_value(alpha, 2) # observation noise (precision)
 @default_value(skip_load, false)
-@default_value(skip_initial, true)
 @default_value(nsims, 10)
 @default_value(burnin, 5)
-@default_value(problem, TinyFlix)
+@default_value(clamp_lo, 1)
+@default_value(clamp_hi, 5)
+
+if length(ARGS) < 2
+  println("Usage bpmf.jl <matrix_train.mtx> <matrix_test.mtx>")
+  exit()
+end
 
 if ! skip_load
   println("Loading data")
-
-  if problem == Netflix
-    using SQLite, DataFrames
-    db = SQLite.connect("netflix.sqlite")
-
-    I = array( query("SELECT ID FROM Users", db) )
-    J = full(sparsevec(vec(I), [1:maximum(I)]))
-
-    res = query("SELECT User, Movie, Rating FROM Ratings", db)
-    Am = sparse( J[ res[:User] ], res[:Movie], res[:Rating] )
-    res = nothing
-    gc()
-
-    probe_vec = array( query("SELECT User, Movie, Rating FROM Probe", db) )
-    probe_vec[:,1] = J[ probe_vec[:,1] ]
-    ratings_test = probe_vec[:,3]
-
-    close(db)
-    num_p, num_m = size(Am)
-  elseif problem == TinyFlix
-    m = matopen("BPMF/moviedata.mat")
-      train_vec = read(m, "train_vec")
-      probe_vec = read(m, "probe_vec")
-      num_m = 3952
-      num_p = 6040
-    close(m)
-
-    Am = sparse( int(train_vec[:,1]), int(train_vec[:, 2]), train_vec[:,3], num_p, num_m)
-    ratings_test = probe_vec[:,3]
-  elseif problem == Chemo
-    using DataFrames
-    X = readtable("chembl_19_mf1/chembl-IC50-360targets.csv", header=true)
-    rename!(X, [:row, :col], [:compound, :target])
-
-    X[:, :value] = log10(X[:, :value])
-    idx = sample(1:size(X,1), int(floor(20/100 * size(X,1))); replace=false)
-    probe_vec = array(X[idx,:])
-    X = X[setdiff(1:size(X,1), idx), :]
-
-    Am = sparse( X[:compound], X[:target], X[:value])
-    num_p, num_m = size(Am)
-    ratings_test = probe_vec[:,3] .< log10(200)
-  end
-
+  println(ARGS[1])
+  Am = MatrixMarket.mmread(ARGS[1])
+  P = MatrixMarket.mmread(ARGS[2])
+  (I, J, V) = findnz(P)
+  P = sparse(I, J, V)
+  num_p, num_m = size(Am)
   Au = Am'
   mean_rating = sum(Am)/nnz(Am)
 end
@@ -108,32 +56,12 @@ b0_m = 2
 df_m = num_feat
 mu0_m = zeros(num_feat,1)
 
-if ! skip_initial
-  if problem == TinyFlix
-    println("Loading initial solution")
-    m = matopen("BPMF/pmf_weight.mat")
-      sample_u = read(m, "w1_P1")
-      sample_m = read(m, "w1_M1")
-    close(m)
-
-    mu_u = mean(sample_u,1)'
-    mu_m = mean(sample_m,1)'
-    Lambda_u = inv(cov(sample_u))
-    Lambda_m = inv(cov(sample_m))
-  end
+function pred(P, sample_m, sample_u, mean_rating)
+  (I, J, Vin) = findnz(P)
+  pr = sum(sample_m[J,:].*sample_u[I,:],2) + mean_rating;
+  Vout = clamp(pr[:,1], clamp_lo, clamp_hi)
+  sparse(I, J, Vout)
 end
-
-function pred_clamp(probe_vec, sample_m, sample_u, mean_rating)
-  out = sum(sample_m[probe_vec[:,2],:].*sample_u[probe_vec[:,1],:],2) + mean_rating
-  out[ out .< 1 ] = 1
-  out[ out .> 5 ] = 5
-  out
-end
-
-function pred(probe_vec, sample_m, sample_u, mean_rating)
-  sum(sample_m[probe_vec[:,2],:].*sample_u[probe_vec[:,1],:],2) + mean_rating
-end
-
 
 function ConditionalNormalWishart(U::Matrix{Float64}, mu::Vector{Float64}, kappa::Real, T::Matrix{Float64}, nu::Real)
   N = size(U, 1)
@@ -191,11 +119,7 @@ for i in 1:nsims
     sample_u[uu, :] = sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
   end
 
-  if problem == Chemo
-    probe_rat = pred(probe_vec, sample_m, sample_u, mean_rating)
-  else
-    probe_rat = pred_clamp(probe_vec, sample_m, sample_u, mean_rating)
-  end
+  probe_rat = pred(P, sample_m, sample_u, mean_rating)
 
   if i > burnin
     probe_rat_all = (counter_prob*probe_rat_all + probe_rat)/(counter_prob+1)
@@ -205,13 +129,8 @@ for i in 1:nsims
     counter_prob = 1
   end
 
-  if problem == Chemo
-    err_avg = mean(ratings_test .== (probe_rat_all .< log10(200)))
-    err = mean(ratings_test .== (probe_rat .< log10(200)))
-  else
-    err_avg = sqrt( sum((ratings_test - probe_rat_all).^2) / size(probe_vec,1) );
-    err = sqrt( sum((ratings_test - probe_rat).^2) / size(probe_vec,1) );
-  end
+  err_avg = sqrt( sum((P .- probe_rat_all).^2) / nnz(P) );
+  err = sqrt( sum((P .- probe_rat).^2) / nnz(P) );
 
   @printf("Iteration %d:\t avg RMSE %6.4f RMSE %6.4f FU(%6.4f) FM(%6.4f)\n", i, err_avg, err, vecnorm(sample_u), vecnorm(sample_m))
 end
