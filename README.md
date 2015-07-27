@@ -5,13 +5,17 @@ recommender method that allows to predict for example movie ratings. The method 
 
 Input is in the form of a sparse matrix of values (e.g. movie ratings) `R` . The outputs are two smaller matrices `U` and `V` such that `U * V` forms a prediction matrix.
 
-## julia version
+## Usage
 
-Several julia versions exists. The most basic and tested is in julia/bpmf.jl. Have a look in the source code to know how to ca
+Both the julia and the c++ version take two command line arguments:
 
-## c++ version
+`./bpmf <train_matrix.mtx> <test_matrix.mtx>`
 
+Matrices should be in the MatrixMarket format. Other options need to be changed in the source code itself. E.g. the number of iterations, the size of the features vectors, ...
 
+## Building the c++ version
+
+A sample Makefile is provided in the c++/build directory. Eigen, including the unsupported directory to read MatirxMarket files is required. To use multiple cores, Threading Building Blocks (TBB) or OpenMP can be used. 
 
 ## input data
 The `data/` directory provides README files on how to obtain input data from the movielens database to predict movie ratings 
