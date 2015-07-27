@@ -1,0 +1,57 @@
+HOW TO USE CHEMBL DATA in BPMF
+
+BPMF can be used to predict compound-on-target activity in chemogenomics. In
+this example we will use the ChEMBL publicly available data for this.
+
+1. Download and unzip one of their datasets from ftp://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/
+For example ftp://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_20_mysql.tar.gz
+
+2. Insert the downloaded dump in a SQL database as instructed in the documentation
+of the download.
+
+3. Select compound and target activity data. For example, from MySQL:
+
+SELECT DISTINCT
+        r.molregno AS compound, 
+        a.tid AS target,
+        act.standard_value AS value
+FROM
+        compound_records r,
+        activities act,
+        assays a
+
+WHERE r.record_id = act.record_id
+AND   act.assay_id = a.assay_id
+AND   act.standard_units = 'nM'
+AND   act.standard_type  = 'IC50' 
+into outfile "/tmp/activity.csv";
+
+4. Convert the output from this command to a sparse matrix in matrix market
+format. This can be done in Matlab/Octave using the mm* functions in the data/
+subdirectory.
+
+    M = dlmread("/tmp/activity.csv", "\t");
+    T = M(1:end,2);          % target ids
+    [TX,TI,TJ] = unique(T);  % renumber target ids
+    C = M(1:end,1);          % compound ids
+    [CX,CI,CJ] = unique(C);  % renumber compound ids
+    V = real(log10(M(1:end,3))); % log10 of values
+    O = [ CJ, TJ, V ];
+    S = spconvert(O);
+    mmwrite("chembl-IC50.mtx", S);
+
+5. Split the files in to training an test sets
+
+    P = randperm(size(O,1));
+    s = round(size(O,1) / 5);
+    S_test = spconvert(O(1:s, :));
+    mmwrite("chembl-test-IC50.mtx", S_test);
+    S_train = spconvert(O(s+1:end, :));
+    mmwrite("chembl-train-IC50.mtx", S_train);
+
+Now you can use the .mtx files as input for BPMF:
+
+    ./bpmf chembl-train-IC50.mtx chembl-test-IC50.mtx
+
+2015-07-22 -- Tom Vander Aa
+
