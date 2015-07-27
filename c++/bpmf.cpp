@@ -204,11 +204,22 @@ void run() {
 
 int main(int argc, char *argv[])
 {
-    assert(argv[1] && argv[2] && "filename missing");
+    if(argc < 3) {
+       cerr << "Usage: " << argv[0] << " <train_matrix.mtx> <test_matrix.mtx>" << endl;
+       abort();
+    }
+
+    cerr << "num_feat: " << num_feat << endl;
+    cerr << "nsims: " << nsims << endl;
+    cerr << "burnin: " << burnin << endl;
+
     Eigen::initParallel();
 
+    cerr << "Loading training matrix (" << argv[1] << ")" << endl;
     loadMarket(M, argv[1]);
     Mt = M.transpose();
+
+    cerr << "Loading test matrix (" << argv[2] << ")" << endl;
     loadMarket(P, argv[2]);
 
     assert(M.nonZeros() > P.nonZeros());
