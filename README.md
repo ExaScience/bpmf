@@ -17,7 +17,7 @@ Matrices should be in the MatrixMarket format. Other options need to be changed 
 
 A sample Makefile is provided in the c++/build directory. Eigen, including the unsupported directory to read MatirxMarket files is required. To use multiple cores, Threading Building Blocks (TBB) or OpenMP can be used. 
 
-## input data
+## Input matrices
 The `data/` directory provides README files on how to obtain input data from the movielens database to predict movie ratings 
 from the chembl database to predict compound-on-protein activity
 
