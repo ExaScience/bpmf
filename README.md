@@ -1,7 +1,7 @@
 # bpmf
 
 Julia and C++ implementations of Bayesian Probabilistic Matrix Factorization using Markov Chain Monte Carlo. BPMF is a 
-recommender method that allows to predict for example movie ratings. The method is described here:http://www.cs.toronto.edu/~rsalakhu/papers/bpmf.pdf
+recommender method that allows to predict for example movie ratings. The method is described here: http://www.cs.toronto.edu/~rsalakhu/papers/bpmf.pdf
 
 Input is in the form of a sparse matrix of values (e.g. movie ratings) `R` . The outputs are two smaller matrices `U` and `V` such that `U * V` forms a prediction matrix.
 
