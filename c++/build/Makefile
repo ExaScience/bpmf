@@ -13,7 +13,7 @@ endif
 # LDFLAGS+=-ltbb
 
 # for openmp
-CXXFLAGS+=-fopenmp
+CXXFLAGS+=-fopenmp -DBREAKPOINT=$(BREAKPOINT)
 
 # Add Eigen path here
 CPPFLAGS=-I /home/tomh/usr/include/eigen3

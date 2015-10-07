@@ -50,11 +50,20 @@ MatrixXd MvNormal_prec(const MatrixXd & Lambda, const VectorXd & mean, int nn = 
   return r.colwise() + mean;
 }
 
+MatrixXd MvNormalChol_prec(double kappa, const MatrixXd & Lambda_U, const VectorXd & mean, int nn = 1)
+{
+  int size = mean.rows(); // Dimensionality (rows)
+
+  MatrixXd r = MatrixXd::NullaryExpr(size,nn,ptr_fun(randn));
+	Lambda_U.triangularView<Upper>().solveInPlace(r);
+  return (r / sqrt(kappa)).colwise() + mean;
+}
+
 /*
   Draw nn samples from a size-dimensional normal distribution
   with a specified mean and covariance
 */
-MatrixXd MvNormal(MatrixXd covar, VectorXd mean, int nn = 1) 
+MatrixXd MvNormal(const MatrixXd & covar, const VectorXd & mean, int nn = 1)
 {
   int size = mean.rows(); // Dimensionality (rows)
   MatrixXd normTransform(size,size);
@@ -68,10 +77,8 @@ MatrixXd MvNormal(MatrixXd covar, VectorXd mean, int nn = 1)
   return samples;
 }
 
-MatrixXd WishartUnit(int m, int df)
-{
-    MatrixXd c(m,m);
-    c.setZero();
+void WishartUnitChol(int m, int df, MatrixXd & c) {
+    c.setZero(m, m);
 
     for ( int i = 0; i < m; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
@@ -80,51 +87,40 @@ MatrixXd WishartUnit(int m, int df)
         c.block(i,i+1,1,m-i-1) = r.transpose();
     }
 
-    MatrixXd ret = c.transpose() * c;
-
 #ifdef TEST_MVNORMAL
     cout << "WISHART UNIT {\n" << endl;
     cout << "  m:\n" << m << endl;
     cout << "  df:\n" << df << endl;
-    cout << "  ret;\n" << ret << endl;
-    cout << "  c:\n" << c << endl;
-    cout << "}\n" << ret << endl;
+    cout << "}\n" << c << endl;
 #endif
-
-    return ret;
 }
 
-MatrixXd Wishart(const MatrixXd &sigma, const int df)
+void WishartChol(const MatrixXd &sigma, const int df, MatrixXd & U)
 {
 //  Get R, the upper triangular Cholesky factor of SIGMA.
   auto chol = sigma.llt();
 
 //  Get AU, a sample from the unit Wishart distribution.
-  MatrixXd au = WishartUnit(sigma.cols(), df);
-
-//  Construct the matrix A = R' * AU * R.
-  MatrixXd a = chol.matrixL() * au * chol.matrixU();
+  MatrixXd au;
+  WishartUnitChol(sigma.cols(), df, au);
+	U.noalias() = au * chol.matrixU();
 
 #ifdef TEST_MVNORMAL
     cout << "WISHART {\n" << endl;
     cout << "  sigma::\n" << sigma << endl;
-    cout << "  r:\n" << r << endl;
     cout << "  au:\n" << au << endl;
     cout << "  df:\n" << df << endl;
-    cout << "  a:\n" << a << endl;
     cout << "}\n" << endl;
 #endif
-
-
-  return a;
 }
 
 
 // from julia package Distributions: conjugates/normalwishart.jl
 std::pair<VectorXd, MatrixXd> NormalWishart(const VectorXd & mu, double kappa, const MatrixXd & T, double nu)
 {
-  MatrixXd Lam = Wishart(T, nu);
-  MatrixXd mu_o = MvNormal_prec(Lam * kappa, mu);
+  MatrixXd LamU;
+ 	WishartChol(T, nu, LamU);
+  MatrixXd mu_o = MvNormalChol_prec(kappa, LamU, mu);
 
 #ifdef TEST_MVNORMAL
     cout << "NORMAL WISHART {\n" << endl;
@@ -133,11 +129,11 @@ std::pair<VectorXd, MatrixXd> NormalWishart(const VectorXd & mu, double kappa, c
     cout << "  T:\n" << T << endl;
     cout << "  nu:\n" << nu << endl;
     cout << "  mu_o\n" << mu_o << endl;
-    cout << "  Lam\n" << Lam << endl;
+    cout << "  Lam\n" << LamU.transpose() * LamU << endl;
     cout << "}\n" << endl;
 #endif
 
-  return std::make_pair(mu_o , Lam);
+  return std::make_pair(mu_o , LamU);
 }
 
 std::pair<VectorXd, MatrixXd> OldCondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)

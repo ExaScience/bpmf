@@ -18,11 +18,11 @@
 using namespace std;
 using namespace Eigen;
 
-const int num_feat = 32;
+const int num_feat = 64;
 
 const double alpha = 2;
 const int nsims = 20;
-const int burnin = 5;
+const int burnin = 10;
 
 double mean_rating = .0;
 
@@ -94,25 +94,40 @@ std::pair<double,double> eval_probe_vec(int n, VectorXd & predictions, const Mat
     return std::make_pair(rmse, rmse_avg);
 }
 
-void sample_movie(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
-    const MatrixNXd &samples, double alpha, const VectorNd &mu_u, const MatrixNNd &Lambda_u)
+void sample(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
+    const MatrixNXd &samples, double alpha, const VectorNd &mu, const MatrixNNd &LambdaU, const MatrixNNd &Lambda)
 {
-    int i = 0;
-    MatrixNNd MM; MM.setZero();
-    VectorNd rr; rr.setZero();
-    for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it, ++i) {
-        // cout << "M[" << it.row() << "," << it.col() << "] = " << it.value() << endl;
-        auto col = samples.col(it.row());
-        MM += col * col.transpose();
-        rr += col * ((it.value() - mean_rating) * alpha);
-    }
 
-    Eigen::LLT<MatrixNNd> chol = (Lambda_u + alpha * MM).llt();
-    if(chol.info() != Eigen::Success) {
-      throw std::runtime_error("Cholesky Decomposition failed!");
-    }
+		int count = 0;
+		for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it, ++count)
+			if( count > BREAKPOINT )
+				break;
 
-    VectorNd tmp = rr + Lambda_u * mu_u;
+		VectorNd rr; rr.setZero();
+		Eigen::LLT<MatrixNNd> chol;
+
+		if( count < BREAKPOINT ) {
+			const_cast<MatrixNNd&>( chol.matrixLLT() ) = LambdaU.transpose();
+			for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it) {
+					auto col = samples.col(it.row());
+					chol.rankUpdate(col, alpha);
+					rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+			}
+		} else {
+			MatrixNNd MM; MM.setZero();
+			for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it) {
+					auto col = samples.col(it.row());
+					MM.noalias() += col * col.transpose();
+					rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+			}
+
+			chol = (Lambda + alpha * MM).llt();
+		}
+
+		if(chol.info() != Eigen::Success)
+			throw std::runtime_error("Cholesky Decomposition failed!");
+
+    VectorNd tmp = rr + Lambda * mu;
     chol.matrixL().solveInPlace(tmp);
     tmp += nrandn(num_feat);
     chol.matrixU().solveInPlace(tmp);
@@ -143,43 +158,47 @@ void test() {
     Lambda_m.setIdentity();
     sample_u.setConstant(2.0);
     Lambda_m *= 0.5;
-    sample_m.col(0) = sample_movie(0, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
+    sample_m.col(0) = sample(0, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
 }
 
 #else
 
 void run() {
-    auto start = tick();
-    VectorXd predictions;
-    predictions = VectorXd::Zero( P.nonZeros() );
+		VectorXd predictions;
+		predictions = VectorXd::Zero( P.nonZeros() );
 
+		MatrixNNd Lambda_mf, Lambda_uf;
+
+    auto start = tick();
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
 
       // Sample from movie hyperparams
       tie(mu_m, Lambda_m) = CondNormalWishart(sample_m, mu0_m, b0_m, WI_m, df_m);
+			Lambda_mf = Lambda_m.triangularView<Upper>().transpose() * Lambda_m;
 
       // Sample from user hyperparams
       tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
+			Lambda_uf = Lambda_u.triangularView<Upper>().transpose() * Lambda_u;
 
       const int num_m = M.cols();
       const int num_u = M.rows();
 #ifdef _OPENMP
 #pragma omp parallel for
       for(int mm=0; mm<num_m; ++mm) {
-        sample_movie(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
+        sample(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m, Lambda_mf);
       }
 #pragma omp parallel for
       for(int uu=0; uu<num_u; ++uu) {
-        sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
+        sample(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u, Lambda_uf);
       }
 #else
       tbb::parallel_for(0, num_m, [](int mm) {
-        sample_movie(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
+        sample(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       });
 
       tbb::parallel_for(0, num_u, [](int uu) {
-         sample_movie(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
+         sample(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
        });
 #endif
 
