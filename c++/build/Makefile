@@ -32,5 +32,8 @@ mvnormal_test: mvnormal.cpp
 mvnormal_bench: mvnormal.cpp
 	$(CXX) -DBENCH_MVNORMAL $(CXXFLAGS) -o $@ $?
 
+chol_bench: mvnormal.cpp
+	$(CXX) -DBENCH_CHOL $(CXXFLAGS) -o $@ $?
+
 sample_test: bpmf.cpp
 	$(CXX) -DTEST_SAMPLE $(CXXFLAGS) -o $@ $?
