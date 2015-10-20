@@ -1,5 +1,7 @@
 DEBUG?=0
 
+BREAKPOINT?=5
+
 #CXX=icc -gcc-name=gcc-4.7
 CXX=g++-4.9
 
@@ -16,7 +18,7 @@ endif
 CXXFLAGS+=-fopenmp -DBREAKPOINT=$(BREAKPOINT)
 
 # Add Eigen path here
-CPPFLAGS=-I/usr/local/include/eigen3
+CXXFLAGS+=-I/usr/local/include/eigen3
 
 VPATH=..
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS)
@@ -40,7 +42,9 @@ sample_test: bpmf.cpp
 
 LOG=bpmf-chmbl19_360-$(shell date "+%Y-%m-%d_%H%M").log
 REF=bpmf-chmbl19_360-ref.log
-check: bpmf
+bpmf_test: mvnormal.cpp bpmf.cpp
+	$(CXX) -DTEST_RND $(CXXFLAGS) -o $@ $+
 
-	./bpmf chembl-IC50-360targets_probe.mtx chembl-IC50-360targets_sample.mtx >$(LOG) 2>&1
+check: bpmf_test
+	./bpmf_test chembl-IC50-360targets_probe.mtx chembl-IC50-360targets_sample.mtx >$(LOG) 2>&1
 	grep ^Iteration $(LOG) | cut -f 1-5 | head -n 20 | diff -u - $(REF)
