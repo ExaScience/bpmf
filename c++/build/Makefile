@@ -42,5 +42,5 @@ LOG=bpmf-chmbl19_360-$(shell date "+%Y-%m-%d_%H%M").log
 REF=bpmf-chmbl19_360-ref.log
 check: bpmf
 
-	./bpmf chembl-IC50-360targets_probe.mtx chembl-IC50-360targets_sample.mtx 2>&1 | grep ^Iteration | cut -f 1-5 | head -n 20 >$(LOG)
-	diff -u $(LOG) $(REF)
+	./bpmf chembl-IC50-360targets_probe.mtx chembl-IC50-360targets_sample.mtx >$(LOG) 2>&1
+	grep ^Iteration $(LOG) | cut -f 1-5 | head -n 20 | diff -u - $(REF)
