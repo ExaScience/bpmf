@@ -30,7 +30,11 @@ thread_local
 static normal_distribution<> nd;
 
 double randn(double) {
+#ifdef TEST_RND
+  return 0.5;
+#else
   return nd(rng);
+#endif
 }
 
 auto
@@ -161,18 +165,10 @@ std::pair<VectorXd, MatrixXd> OldCondNormalWishart(const MatrixXd &U, const Vect
 }
 
 // from bpmf.jl -- verified
-std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
+std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &S, const VectorXd &mu_m, const VectorXd &mu_c, const double kappa, const MatrixXd &T, const int nu)
 {
-  int N = U.cols();
-
-  VectorXd Um = U.rowwise().mean();
-
-  // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
-  auto C = U.colwise() - Um;
-  MatrixXd S = (C * C.adjoint()) / double(N - 1);
-  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
+  const int N = S.cols();
   double kappa_c = kappa + N;
-  auto mu_m = (mu - Um);
   double kappa_m = (kappa * N)/(kappa + N);
   auto X = ( T + N * S + kappa_m * (mu_m * mu_m.transpose()));
   MatrixXd T_c = X.inverse();
@@ -186,6 +182,20 @@ std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorX
 #endif
 
   return NormalWishart(mu_c, kappa_c, T_c, nu_c);
+}
+
+
+std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
+{
+  // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
+  const int N = U.cols();
+  VectorXd Um = U.rowwise().mean();
+  auto C = U.colwise() - Um;
+  MatrixXd S = (C * C.adjoint()) / double(N - 1);
+  auto mu_m = (mu - Um);
+  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
+
+  return CondNormalWishart(S, mu_m, mu_c, kappa, T, nu);
 }
 
 #if defined(BENCH_CHOL)
