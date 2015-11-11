@@ -21,8 +21,8 @@ using namespace Eigen;
 const int num_feat = 64;
 
 const double alpha = 2;
-const int nsims = 200;
-const int burnin = 20;
+const int nsims = 20;
+const int burnin = 10;
 
 double mean_rating = .0;
 
@@ -33,37 +33,40 @@ typedef Matrix<double, num_feat, 1> VectorNd;
 typedef Matrix<double, num_feat, num_feat> MatrixNNd;
 typedef Matrix<double, num_feat, Dynamic> MatrixNXd;
 
+VectorNd mu_u;
+VectorNd mu_m;
+MatrixNNd Lambda_u;
+MatrixNNd Lambda_m;
 MatrixNXd sample_u;
 MatrixNXd sample_m;
 
-struct HyperParams 
-{
-    MatrixNNd Lambda, Lambda_f;
-    VectorNd mu;
+// parameters of Inv-Whishart distribution (see paper for details)
+MatrixNNd WI_u;
+const int b0_u = 2;
+const int df_u = num_feat;
+VectorNd mu0_u;
 
-    MatrixNNd WI;
-    const int b0 = 2;
-    const int df = num_feat;
-    VectorNd mu0;
-
-
-    HyperParams() {
-        WI.setIdentity();
-        mu0.setZero();
-    }
-
-    void sample(const MatrixNXd &s) {
-      tie(mu, Lambda) = CondNormalWishart(s, mu0, b0, WI, df);
-      Lambda_f = Lambda.triangularView<Upper>().transpose() * Lambda;
-    }
-};
+MatrixNNd WI_m;
+const int b0_m = 2;
+const int df_m = num_feat;
+VectorNd mu0_m;
 
 void init() {
     mean_rating = M.sum() / M.nonZeros();
+    Lambda_u.setIdentity();
+    Lambda_m.setIdentity();
+
     sample_u = MatrixNXd(num_feat,M.rows());
     sample_m = MatrixNXd(num_feat,M.cols());
     sample_u.setZero();
     sample_m.setZero();
+
+    // parameters of Inv-Whishart distribution (see paper for details)
+    WI_u.setIdentity();
+    mu0_u.setZero();
+
+    WI_m.setIdentity();
+    mu0_m.setZero();
 }
 
 inline double sqr(double x) { return x*x; }
@@ -92,7 +95,7 @@ std::pair<double,double> eval_probe_vec(int n, VectorXd & predictions, const Mat
 }
 
 void sample(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
-    const MatrixNXd &samples, double alpha, const HyperParams &hp)
+    const MatrixNXd &samples, double alpha, const VectorNd &mu, const MatrixNNd &LambdaU, const MatrixNNd &Lambda)
 {
 
 		int count = 0;
@@ -104,7 +107,7 @@ void sample(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
 		Eigen::LLT<MatrixNNd> chol;
 
 		if( count < BREAKPOINT ) {
-			const_cast<MatrixNNd&>( chol.matrixLLT() ) = hp.Lambda.transpose();
+			const_cast<MatrixNNd&>( chol.matrixLLT() ) = LambdaU.transpose();
 			for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it) {
 					auto col = samples.col(it.row());
 					chol.rankUpdate(col, alpha);
@@ -118,13 +121,13 @@ void sample(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
 					rr.noalias() += col * ((it.value() - mean_rating) * alpha);
 			}
 
-			chol = (hp.Lambda_f + alpha * MM).llt();
+			chol = (Lambda + alpha * MM).llt();
 		}
 
 		if(chol.info() != Eigen::Success)
 			throw std::runtime_error("Cholesky Decomposition failed!");
 
-    VectorNd tmp = rr + hp.Lambda_f * hp.mu;
+    VectorNd tmp = rr + Lambda * mu;
     chol.matrixL().solveInPlace(tmp);
     tmp += nrandn(num_feat);
     chol.matrixU().solveInPlace(tmp);
@@ -136,6 +139,7 @@ void sample(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
       cout << "E = [" << E << "]" << endl;
       cout << "rr = [" << rr << "]" << endl;
       cout << "MM = [" << MM << "]" << endl;
+      cout << "Lambda_u = [" << Lambda_u << "]" << endl;
       cout << "covar = [" << covar << "]" << endl;
       cout << "mu = [" << mu << "]" << endl;
       cout << "chol = [" << chol << "]" << endl;
@@ -163,34 +167,38 @@ void run() {
 		VectorXd predictions;
 		predictions = VectorXd::Zero( P.nonZeros() );
 
-    HyperParams hp_u, hp_m;
+		MatrixNNd Lambda_mf, Lambda_uf;
 
     auto start = tick();
     std::cout << "Sampling" << endl;
     for(int i=0; i<nsims; ++i) {
 
-      // Sample from user and movie hyperparams
-      hp_u.sample(sample_u);
-      hp_m.sample(sample_m);
+      // Sample from movie hyperparams
+      tie(mu_m, Lambda_m) = CondNormalWishart(sample_m, mu0_m, b0_m, WI_m, df_m);
+			Lambda_mf = Lambda_m.triangularView<Upper>().transpose() * Lambda_m;
+
+      // Sample from user hyperparams
+      tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
+			Lambda_uf = Lambda_u.triangularView<Upper>().transpose() * Lambda_u;
 
       const int num_m = M.cols();
       const int num_u = M.rows();
 #ifdef _OPENMP
 #pragma omp parallel for
       for(int mm=0; mm<num_m; ++mm) {
-        sample(sample_m, mm, M, mean_rating, sample_u, alpha, hp_m);
+        sample(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m, Lambda_mf);
       }
 #pragma omp parallel for
       for(int uu=0; uu<num_u; ++uu) {
-        sample(sample_u, uu, Mt, mean_rating, sample_m, alpha, hp_u);
+        sample(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u, Lambda_uf);
       }
 #else
       tbb::parallel_for(0, num_m, [](int mm) {
-        sample(sample_m, mm, M, mean_rating, sample_u, alpha, hp_m);
+        sample(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
       });
 
       tbb::parallel_for(0, num_u, [](int uu) {
-         sample(sample_u, uu, Mt, mean_rating, sample_m, alpha, hp_u);
+         sample(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
        });
 #endif
 
