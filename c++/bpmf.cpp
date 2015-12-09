@@ -94,6 +94,13 @@ std::pair<double,double> eval_probe_vec(int n, VectorXd & predictions, const Mat
     return std::make_pair(rmse, rmse_avg);
 }
 
+class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
+{
+  public:
+    void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Success; }
+    void operator=(const LLT<MatrixNNd> &m) { m_matrix = m.matrixLLT(); m_isInitialized = true; m_info = m.info(); }
+};
+
 void sample(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
     const MatrixNXd &samples, double alpha, const VectorNd &mu, const MatrixNNd &LambdaU, const MatrixNNd &Lambda)
 {
@@ -104,10 +111,10 @@ void sample(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
 				break;
 
 		VectorNd rr; rr.setZero();
-		Eigen::LLT<MatrixNNd> chol;
+		PrecomputedLLT chol;
 
 		if( count < BREAKPOINT ) {
-			const_cast<MatrixNNd&>( chol.matrixLLT() ) = LambdaU.transpose();
+			chol = LambdaU.transpose();
 			for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it) {
 					auto col = samples.col(it.row());
 					chol.rankUpdate(col, alpha);
