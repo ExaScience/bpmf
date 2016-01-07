@@ -4,258 +4,103 @@
 #include <string>
 #include <algorithm>
 #include <random>
-
-#include <unsupported/Eigen/SparseExtra>
-
-#ifdef _OPENMP
-#include <omp.h>
-#else
-#include <tbb/tbb.h>
-#endif
+#include <unistd.h>
 
 #include "bpmf.h"
 
 using namespace std;
 using namespace Eigen;
 
-const int num_feat = 64;
-
-const double alpha = 2;
-const int nsims = 20;
-const int burnin = 10;
-
-double mean_rating = .0;
-
-typedef SparseMatrix<double> SparseMatrixD;
-SparseMatrixD M, Mt, P;
-
-typedef Matrix<double, num_feat, 1> VectorNd;
-typedef Matrix<double, num_feat, num_feat> MatrixNNd;
-typedef Matrix<double, num_feat, Dynamic> MatrixNXd;
-
-VectorNd mu_u;
-VectorNd mu_m;
-MatrixNNd Lambda_u;
-MatrixNNd Lambda_m;
-MatrixNXd sample_u;
-MatrixNXd sample_m;
-
-// parameters of Inv-Whishart distribution (see paper for details)
-MatrixNNd WI_u;
-const int b0_u = 2;
-const int df_u = num_feat;
-VectorNd mu0_u;
-
-MatrixNNd WI_m;
-const int b0_m = 2;
-const int df_m = num_feat;
-VectorNd mu0_m;
-
-void init() {
-    mean_rating = M.sum() / M.nonZeros();
-    Lambda_u.setIdentity();
-    Lambda_m.setIdentity();
-
-    sample_u = MatrixNXd(num_feat,M.rows());
-    sample_m = MatrixNXd(num_feat,M.cols());
-    sample_u.setZero();
-    sample_m.setZero();
-
-    // parameters of Inv-Whishart distribution (see paper for details)
-    WI_u.setIdentity();
-    mu0_u.setZero();
-
-    WI_m.setIdentity();
-    mu0_m.setZero();
-}
-
-inline double sqr(double x) { return x*x; }
-
-std::pair<double,double> eval_probe_vec(int n, VectorXd & predictions, const MatrixNXd &sample_m, const MatrixNXd &sample_u, double mean_rating)
-{
-    double se = 0.0, se_avg = 0.0;
-    unsigned idx = 0;
-    for (int k=0; k<P.outerSize(); ++k) {
-        for (SparseMatrix<double>::InnerIterator it(P,k); it; ++it) {
-            const double pred = sample_m.col(it.col()).dot(sample_u.col(it.row())) + mean_rating;
-            //se += (it.value() < log10(200)) == (pred < log10(200));
-            se += sqr(it.value() - pred);
-
-            const double pred_avg = (n == 0) ? pred : (predictions[idx] + (pred - predictions[idx]) / n);
-            //se_avg += (it.value() < log10(200)) == (pred_avg < log10(200));
-            se_avg += sqr(it.value() - pred_avg);
-            predictions[idx++] = pred_avg;
-        }
-    }
-
-    const unsigned N = P.nonZeros();
-    const double rmse = sqrt( se / N );
-    const double rmse_avg = sqrt( se_avg / N );
-    return std::make_pair(rmse, rmse_avg);
-}
-
-class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
-{
-  public:
-    void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Success; }
-    void operator=(const LLT<MatrixNNd> &m) { m_matrix = m.matrixLLT(); m_isInitialized = true; m_info = m.info(); }
-};
-
-void sample(MatrixNXd &s, int mm, const SparseMatrixD &mat, double mean_rating,
-    const MatrixNXd &samples, double alpha, const VectorNd &mu, const MatrixNNd &LambdaU, const MatrixNNd &Lambda)
-{
-
-		int count = 0;
-		for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it, ++count)
-			if( count > BREAKPOINT )
-				break;
-
-		VectorNd rr; rr.setZero();
-		PrecomputedLLT chol;
-
-		if( count < BREAKPOINT ) {
-			chol = LambdaU.transpose();
-			for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it) {
-					auto col = samples.col(it.row());
-					chol.rankUpdate(col, alpha);
-					rr.noalias() += col * ((it.value() - mean_rating) * alpha);
-			}
-		} else {
-			MatrixNNd MM; MM.setZero();
-			for (SparseMatrixD::InnerIterator it(mat,mm); it; ++it) {
-					auto col = samples.col(it.row());
-					MM.noalias() += col * col.transpose();
-					rr.noalias() += col * ((it.value() - mean_rating) * alpha);
-			}
-
-			chol = (Lambda + alpha * MM).llt();
-		}
-
-		if(chol.info() != Eigen::Success)
-			throw std::runtime_error("Cholesky Decomposition failed!");
-
-    VectorNd tmp = rr + Lambda * mu;
-    chol.matrixL().solveInPlace(tmp);
-    tmp += nrandn(num_feat);
-    chol.matrixU().solveInPlace(tmp);
-    s.col(mm) = tmp;
-
-#ifdef TEST_SAMPLE
-      cout << "movie " << mm << ":" << result.cols() << " x" << result.rows() << endl;
-      cout << "mean rating " << mean_rating << endl;
-      cout << "E = [" << E << "]" << endl;
-      cout << "rr = [" << rr << "]" << endl;
-      cout << "MM = [" << MM << "]" << endl;
-      cout << "Lambda_u = [" << Lambda_u << "]" << endl;
-      cout << "covar = [" << covar << "]" << endl;
-      cout << "mu = [" << mu << "]" << endl;
-      cout << "chol = [" << chol << "]" << endl;
-      cout << "rand = [" << r <<"]" <<  endl;
-      cout << "result = [" << result << "]" << endl;
-#endif
-
-}
-
-#ifdef TEST_SAMPLE
-void test() {
-    MatrixNXd sample_u(M.rows());
-    MatrixNXd sample_m(M.cols());
-
-    mu_m.setZero();
-    Lambda_m.setIdentity();
-    sample_u.setConstant(2.0);
-    Lambda_m *= 0.5;
-    sample_m.col(0) = sample(0, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
-}
-
-#else
-
-void run() {
-		VectorXd predictions;
-		predictions = VectorXd::Zero( P.nonZeros() );
-
-		MatrixNNd Lambda_mf, Lambda_uf;
-
-    auto start = tick();
-    std::cout << "Sampling" << endl;
-    for(int i=0; i<nsims; ++i) {
-
-      // Sample from movie hyperparams
-      tie(mu_m, Lambda_m) = CondNormalWishart(sample_m, mu0_m, b0_m, WI_m, df_m);
-			Lambda_mf = Lambda_m.triangularView<Upper>().transpose() * Lambda_m;
-
-      // Sample from user hyperparams
-      tie(mu_u, Lambda_u) = CondNormalWishart(sample_u, mu0_u, b0_u, WI_u, df_u);
-			Lambda_uf = Lambda_u.triangularView<Upper>().transpose() * Lambda_u;
-
-      const int num_m = M.cols();
-      const int num_u = M.rows();
-#ifdef _OPENMP
-#pragma omp parallel for
-      for(int mm=0; mm<num_m; ++mm) {
-        sample(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m, Lambda_mf);
-      }
-#pragma omp parallel for
-      for(int uu=0; uu<num_u; ++uu) {
-        sample(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u, Lambda_uf);
-      }
-#else
-      tbb::parallel_for(0, num_m, [](int mm) {
-        sample(sample_m, mm, M, mean_rating, sample_u, alpha, mu_m, Lambda_m);
-      });
-
-      tbb::parallel_for(0, num_u, [](int uu) {
-         sample(sample_u, uu, Mt, mean_rating, sample_m, alpha, mu_u, Lambda_u);
-       });
-#endif
-
-      auto eval = eval_probe_vec( (i < burnin) ? 0 : (i - burnin), predictions, sample_m, sample_u, mean_rating);
-//      auto eval = std::make_pair(0.0, 0.0);
-      double norm_u = sample_u.norm();
-      double norm_m = sample_m.norm();
-      auto end = tick();
-      auto elapsed = end - start;
-      double samples_per_sec = (i + 1) * (M.rows() + M.cols()) / elapsed;
-
-      printf("Iteration %d:\t RMSE: %3.2f\tavg RMSE: %3.2f\tFU(%6.2f)\tFM(%6.2f)\tSamples/sec: %6.2f\n",
-              i, eval.first, eval.second, norm_u, norm_m, samples_per_sec);
-    }
-
-  auto end = tick();
-  auto elapsed = end - start;
-  printf("Total time: %6.2f\n", elapsed);
-}
-
+#ifdef BPMF_GPI_COMM
+#include "bpmf_gaspi.h"
+#elif defined(BPMF_MPI_COMM)
+#include "bpmf_mpi.h"
+//#include "bpmf_mpi_bcast.h"
+#else 
+#include "bpmf_nocomm.h"
 #endif
 
 int main(int argc, char *argv[])
 {
-    if(argc < 3) {
-       cerr << "Usage: " << argv[0] << " <train_matrix.mtx> <test_matrix.mtx>" << endl;
-       abort();
+    Sys::Init();
+
+    int ch;
+    string fname;
+    string probename;
+    int nthrds = -1;
+    int nsims = 20;
+    int burnin = 5;
+
+    while((ch = getopt(argc, argv, "n:t:r:p:i:")) != -1)
+    {
+        switch(ch)
+        {
+            case 'i': nsims = atoi(optarg); break;
+            case 't': nthrds = atoi(optarg); break;
+            case 'n': fname = optarg; break;
+            case 'p': probename = optarg; break;
+            case '?':
+            default:
+                      cout << "Usage: " << argv[0] << " [-t <threads>] " 
+                          << "[ -i <niters> ] -n <samples.mtx> -p <probe.mtx>"
+                          << endl;
+                      Sys::Abort(1);
+        }
     }
 
-    cerr << "num_feat: " << num_feat << endl;
-    cerr << "nsims: " << nsims << endl;
-    cerr << "burnin: " << burnin << endl;
+    if (fname.empty() || probename.empty()) { 
+        cout << "Usage: " << argv[0] << " [-t <threads>] [-i <iterations>]" << " -n <samples.mtx> -p <probe.mtx>" << endl;
+        Sys::Abort(1);
+    }
 
-    Eigen::initParallel();
+    SYS movies("movs", fname);
+    SYS users("users", movies.M);
+    movies.alloc_and_init(users);
+    users.alloc_and_init(movies);
+    users.build_conn(movies);
+    movies.build_conn(users);
 
-    cerr << "Loading training matrix (" << argv[1] << ")" << endl;
-    loadMarket(M, argv[1]);
-    Mt = M.transpose();
+    Eval eval(probename, movies.mean_rating, burnin);
+    Sys::SetupThreads(nthrds);
 
-    cerr << "Loading test matrix (" << argv[2] << ")" << endl;
-    loadMarket(P, argv[2]);
+    long double average_sampling_sec =0;
+    if(Sys::procid == 0)
+    {
+        cout << "num_feat: " << num_feat<<endl;
+        cout << "nprocs: " << Sys::nprocs << endl;
+        cout << "nthrds: " << Sys::nthrds << endl;
+    }
 
-    assert(M.nonZeros() > P.nonZeros());
 
-    init();
-#ifdef TEST_SAMPLE
-    test();
-#else
-    run();
-#endif
+    auto begin = tick();
+
+    for(int i=0; i<nsims; ++i) {
+        BPMF_COUNTER("main");
+        auto start = tick();
+
+        movies.sample_hp();
+        { BPMF_COUNTER("movies"); movies.sample(users); }
+        users.sample_hp();
+        { BPMF_COUNTER("users");  users.sample(movies); }
+        { BPMF_COUNTER("eval");   eval.predict(i, movies, users); }
+
+        auto stop = tick();
+        double samples_per_sec = (users.num() + movies.num()) / (stop - start);
+        eval.print(samples_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
+        average_sampling_sec += samples_per_sec;
+    }
+
+    Sys::sync();
+
+    auto end = tick();
+    auto elapsed = end - begin;
+
+    if (Sys::procid == 0) {
+        cout << "Total time: " << elapsed <<endl <<flush;
+        cout << "Average Samples/sec: " << average_sampling_sec / nsims << endl <<flush;
+    }
+
+    Sys::Finalize();
 
     return 0;
 }

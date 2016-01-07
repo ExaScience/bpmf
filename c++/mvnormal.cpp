@@ -5,8 +5,10 @@
  */
 
 
+#include <numeric>
+#include <functional>
 #include <iostream>
-
+#include <random>
 
 #include "bpmf.h"
 
@@ -20,13 +22,13 @@ using namespace Eigen;
 */
 
 #ifndef __clang__
-thread_local 
-#endif 
+thread_local
+#endif
 static std::mt19937 rng;
 
 #ifndef __clang__
-thread_local 
-#endif 
+thread_local
+#endif
 static normal_distribution<> nd;
 
 double randn(double) {
@@ -37,77 +39,43 @@ double randn(double) {
 #endif
 }
 
-auto
-nrandn(int n) -> decltype( VectorXd::NullaryExpr(n, ptr_fun(randn)) ) 
+auto nrandn(int n) -> decltype( Eigen::VectorXd::NullaryExpr(n, ptr_fun(randn)) ) 
 {
-    return VectorXd::NullaryExpr(n, ptr_fun(randn));
-}
-
-MatrixXd MvNormal_prec(const MatrixXd & Lambda, const VectorXd & mean, int nn = 1)
-{
-  int size = mean.rows(); // Dimensionality (rows)
-
-  LLT<MatrixXd> chol(Lambda);
-
-  MatrixXd r = MatrixXd::NullaryExpr(size,nn,ptr_fun(randn));
-	chol.matrixU().solveInPlace(r);
-  return r.colwise() + mean;
-}
-
-MatrixXd MvNormalChol_prec(double kappa, const MatrixXd & Lambda_U, const VectorXd & mean, int nn = 1)
-{
-  int size = mean.rows(); // Dimensionality (rows)
-
-  MatrixXd r = MatrixXd::NullaryExpr(size,nn,ptr_fun(randn));
-	Lambda_U.triangularView<Upper>().solveInPlace(r);
-  return (r / sqrt(kappa)).colwise() + mean;
+    return Eigen::VectorXd::NullaryExpr(n, ptr_fun(randn));
 }
 
 /*
   Draw nn samples from a size-dimensional normal distribution
   with a specified mean and covariance
 */
-MatrixXd MvNormal(const MatrixXd & covar, const VectorXd & mean, int nn = 1)
+VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const VectorNd & mean)
 {
-  int size = mean.rows(); // Dimensionality (rows)
-  MatrixXd normTransform(size,size);
-
-  LLT<MatrixXd> cholSolver(covar);
-  normTransform = cholSolver.matrixL();
-
-  auto normSamples = MatrixXd::NullaryExpr(size,nn,ptr_fun(randn));
-  MatrixXd samples = (normTransform * normSamples).colwise() + mean;
-
-  return samples;
+  VectorNd r = VectorNd::NullaryExpr(ptr_fun(randn));
+  Lambda_U.triangularView<Upper>().solveInPlace(r);
+  return (r / sqrt(kappa)) + mean;
 }
 
-void WishartUnitChol(int m, int df, MatrixXd & c) {
-    c.setZero(m, m);
 
-    for ( int i = 0; i < m; i++ ) {
+void WishartUnitChol(int df, MatrixNNd & c) {
+    c.setZero();
+
+    for ( int i = 0; i < num_feat; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
         c(i,i) = sqrt(2.0 * gam(rng));
-        VectorXd r = nrandn(m-i-1);
-        c.block(i,i+1,1,m-i-1) = r.transpose();
+        VectorXd r = nrandn(num_feat-i-1);
+        for(int j=i+1;j<num_feat;j++) c.coeffRef(i,j) = nd(rng);
     }
-
-#ifdef TEST_MVNORMAL
-    cout << "WISHART UNIT {\n" << endl;
-    cout << "  m:\n" << m << endl;
-    cout << "  df:\n" << df << endl;
-    cout << "}\n" << c << endl;
-#endif
 }
 
-void WishartChol(const MatrixXd &sigma, const int df, MatrixXd & U)
+void WishartChol(const MatrixNNd &sigma, const int df, MatrixNNd & U)
 {
 //  Get R, the upper triangular Cholesky factor of SIGMA.
   auto chol = sigma.llt();
 
 //  Get AU, a sample from the unit Wishart distribution.
-  MatrixXd au;
-  WishartUnitChol(sigma.cols(), df, au);
-	U.noalias() = au * chol.matrixU();
+  MatrixNNd au;
+  WishartUnitChol(df, au);
+  U.noalias() = au * chol.matrixU();
 
 #ifdef TEST_MVNORMAL
     cout << "WISHART {\n" << endl;
@@ -120,11 +88,11 @@ void WishartChol(const MatrixXd &sigma, const int df, MatrixXd & U)
 
 
 // from julia package Distributions: conjugates/normalwishart.jl
-std::pair<VectorXd, MatrixXd> NormalWishart(const VectorXd & mu, double kappa, const MatrixXd & T, double nu)
+std::pair<VectorNd, MatrixNNd> NormalWishart(const VectorNd & mu, double kappa, const MatrixNNd & T, double nu)
 {
-  MatrixXd LamU;
- 	WishartChol(T, nu, LamU);
-  MatrixXd mu_o = MvNormalChol_prec(kappa, LamU, mu);
+  MatrixNNd LamU;
+  WishartChol(T, nu, LamU);
+  VectorNd mu_o = MvNormalChol_prec(kappa, LamU, mu);
 
 #ifdef TEST_MVNORMAL
     cout << "NORMAL WISHART {\n" << endl;
@@ -140,62 +108,25 @@ std::pair<VectorXd, MatrixXd> NormalWishart(const VectorXd & mu, double kappa, c
   return std::make_pair(mu_o , LamU);
 }
 
-std::pair<VectorXd, MatrixXd> OldCondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
+std::pair<VectorNd, MatrixNNd> CondNormalWishart(const int N, const MatrixNNd &S, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu)
 {
-  int N = U.cols();
+    auto mu_m = (mu - Um);
+    VectorNd mu_c = (kappa*mu + N*Um) / (kappa + N);
 
-  auto Um = U.rowwise().mean();
-
-  // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
-  MatrixXd C = U.colwise() - Um;
-  MatrixXd S = (C * C.adjoint()) / double(N - 1);
-  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
-  double kappa_c = kappa + N;
-  MatrixXd T_c = ( T + N * S.transpose() + (kappa * N)/(kappa + N) * (mu - Um) * ((mu - Um).transpose())).inverse();
-  int nu_c = nu + N;
+    double kappa_c = kappa + N;
+    double kappa_m = (kappa * N)/(kappa + N);
+    auto X = ( T + N * S + kappa_m * (mu_m * mu_m.transpose()));
+    MatrixNNd T_c = X.inverse();
+    int nu_c = nu + N;
 
 #ifdef TEST_MVNORMAL
-  cout << "mu_c:\n" << mu_c << endl;
-  cout << "kappa_c:\n" << kappa_c << endl;
-  cout << "T_c:\n" << T_c << endl;
-  cout << "nu_c:\n" << nu_c << endl;
+    cout << "mu_c:\n" << mu_c << endl;
+    cout << "kappa_c:\n" << kappa_c << endl;
+    cout << "T_c:\n" << T_c << endl;
+    cout << "nu_c:\n" << nu_c << endl;
 #endif
 
-  return NormalWishart(mu_c, kappa_c, T_c, nu_c);
-}
-
-// from bpmf.jl -- verified
-std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &S, const VectorXd &mu_m, const VectorXd &mu_c, const double kappa, const MatrixXd &T, const int nu)
-{
-  const int N = S.cols();
-  double kappa_c = kappa + N;
-  double kappa_m = (kappa * N)/(kappa + N);
-  auto X = ( T + N * S + kappa_m * (mu_m * mu_m.transpose()));
-  MatrixXd T_c = X.inverse();
-  int nu_c = nu + N;
-
-#ifdef TEST_MVNORMAL
-  cout << "mu_c:\n" << mu_c << endl;
-  cout << "kappa_c:\n" << kappa_c << endl;
-  cout << "T_c:\n" << T_c << endl;
-  cout << "nu_c:\n" << nu_c << endl;
-#endif
-
-  return NormalWishart(mu_c, kappa_c, T_c, nu_c);
-}
-
-
-std::pair<VectorXd, MatrixXd> CondNormalWishart(const MatrixXd &U, const VectorXd &mu, const double kappa, const MatrixXd &T, const int nu)
-{
-  // http://stackoverflow.com/questions/15138634/eigen-is-there-an-inbuilt-way-to-calculate-sample-covariance
-  const int N = U.cols();
-  VectorXd Um = U.rowwise().mean();
-  auto C = U.colwise() - Um;
-  MatrixXd S = (C * C.adjoint()) / double(N - 1);
-  auto mu_m = (mu - Um);
-  VectorXd mu_c = (kappa*mu + N*Um) / (kappa + N);
-
-  return CondNormalWishart(S, mu_m, mu_c, kappa, T, nu);
+    return NormalWishart(mu_c, kappa_c, T_c, nu_c);
 }
 
 #if defined(BENCH_CHOL)
@@ -303,25 +234,13 @@ int main()
     MatrixXd T_out;
 
 #ifdef BENCH_MVNORMAL
-    for(int i=0; i<300; ++i) {
+    auto start = tick();
+    for(int i=0; i<1000; ++i) {
         tie(mu_out, T_out) = CondNormalWishart(U, mu, kappa, T, nu);
         cout << i << "\r" << flush;
     }
-    cout << endl << flush;
-
-    for(int i=0; i<7; ++i) {
-        cout << i << ": " << (int)(100.0 * acc[i] / acc[7])  << endl;
-    }
-    cout << "total: " << acc[7] << endl;
-
-    for(int i=0; i<300; ++i) {
-        tie(mu_out, T_out) = OldCondNormalWishart(U, mu, kappa, T, nu);
-        cout << i << "\r" << flush;
-    }
-    cout << endl << flush;
-
-    cout << "total: " << acc[8] << endl;
-
+    auto end = tick();
+    cout << end - start << " seconds" << endl << flush;
 
 #elif defined(TEST_MVNORMAL)
 #if 1
