@@ -1,2 +1,4 @@
 bpmf
+*.d
+*.dSYM
 *.o
