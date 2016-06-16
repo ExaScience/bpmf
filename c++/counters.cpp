@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2014-2016, imec
+ * All rights reserved.
+ */
+
+
 #ifndef COUNTERS_H
 #define COUNTERS_H
 

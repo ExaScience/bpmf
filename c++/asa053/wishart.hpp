@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2014-2016, imec
+ * All rights reserved.
+ */
+
+
 double *bartlett_sample ( int m, int df, double sigma[] );
 double *bartlett_unit_sample ( int m, int df );
 void jacobi_eigenvalue ( int n, double a[], int it_max, double v[], 

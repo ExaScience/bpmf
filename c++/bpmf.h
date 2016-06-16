@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2014-2016, imec
+ * All rights reserved.
+ */
+
+
 #ifndef BPMF_H
 #define BPMF_H
 
