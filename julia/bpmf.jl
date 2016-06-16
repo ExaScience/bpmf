@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2014-2016, imec
+# All rights reserved.
+#
+
 using MAT, Distributions, MatrixMarket
 
 macro default_value(sym, value)
