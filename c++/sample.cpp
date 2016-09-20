@@ -3,7 +3,6 @@
  * All rights reserved.
  */
 
-
 #include "bpmf.h"
 
 #include <random>
@@ -11,6 +10,14 @@
 #include <memory>
 #include <cstdio>
 #include <iostream>
+#include <climits>
+#include <stdexcept>
+
+#ifdef SNIPER
+#include <sim_api.h>
+#endif
+
+#include <unsupported/Eigen/SparseExtra>
 
 #ifdef BPMF_TBB_SCHED
 #include <tbb/combinable.h>
@@ -27,9 +34,31 @@ typedef tbb::blocked_range<VectorNd::Index> Range;
 #pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out += omp_in) initializer(omp_priv = MatrixNNd::Zero())
 #endif
 
+static const bool measure_perf = false;
+
+std::ostream *Sys::os;
 int Sys::procid;
 int Sys::nprocs;
 int Sys::nthrds;
+
+int Sys::nsims;
+int Sys::burnin;
+
+bool Sys::permute = true;
+
+unsigned Sys::grain_size;
+enum Sys::Method Sys::method;
+
+void assert_transpose(SparseMatrixD &A, SparseMatrixD &B)
+{
+    SparseMatrixD At = A.transpose();
+    SparseMatrixD Bt = B.transpose();
+    assert(At.cols() == B.cols());
+    assert(A.cols() == Bt.cols());
+
+    for(int i=0; i<B.cols(); ++i) assert(At.col(i).nonZeros() == B.col(i).nonZeros());
+    for(int i=0; i<A.cols(); ++i) assert(Bt.col(i).nonZeros() == A.col(i).nonZeros());
+}
 
 void Sys::SetupThreads(int n)
 {
@@ -55,13 +84,39 @@ void Sys::SetupThreads(int n)
 
 }
 
+
+template <typename T>
+T le2h(T u)
+{
+    static_assert (CHAR_BIT == 8, "CHAR_BIT != 8");
+
+    volatile uint32_t i=0x01234567;
+    // return 0 for big endian, 1 for little endian.
+    if ((*((uint8_t*)(&i))) == 0x67) return u;
+
+    union { T u; unsigned char u8[sizeof(T)]; } source, dest;
+
+    source.u = u;
+
+    for (size_t k = 0; k < sizeof(T); k++)
+        dest.u8[k] = source.u8[sizeof(T) - k - 1];
+
+    return dest.u;
+}
+
+
 void read_sparse_float64(SparseMatrixD &m, std::string fname) 
 {
     FILE *f = fopen(fname.c_str(), "r");
+    if (!f) throw std::runtime_error(std::string("Could not open " + fname));
     uint64_t nrow, ncol, nnz;
     fread(&nrow, sizeof(uint64_t), 1, f);
     fread(&ncol, sizeof(uint64_t), 1, f);
     fread(&nnz , sizeof(uint64_t), 1, f);
+
+    nrow = le2h<uint64_t>(nrow);
+    ncol = le2h<uint64_t>(ncol);
+    nnz  = le2h<uint64_t>(nnz);
 
     std::vector<uint32_t> rows(nnz), cols(nnz);
     std::vector<double> vals(nnz);
@@ -70,6 +125,13 @@ void read_sparse_float64(SparseMatrixD &m, std::string fname)
     fread(vals.data(), sizeof(double), nnz, f);
 
     struct sparse_vec_iterator {
+ 	sparse_vec_iterator(
+		std::vector<uint32_t> &rows,
+		std::vector<uint32_t> &cols,
+		std::vector<double> &vals,
+		uint64_t pos)
+            : rows(rows), cols(cols), vals(vals), pos(pos) {}
+
         std::vector<uint32_t> &rows, &cols;
         std::vector<double> &vals;
         uint64_t pos;
@@ -81,14 +143,20 @@ void read_sparse_float64(SparseMatrixD &m, std::string fname)
         }
         sparse_vec_iterator &operator++() { pos++; return *this; }
         typedef Eigen::Triplet<double> T;
-        std::unique_ptr<T> operator->() {
+        T v;
+        T* operator->() {
             // also convert from 1-base to 0-base
-            return std::unique_ptr<T>(new T(rows.at(pos) - 1, cols.at(pos) - 1, vals.at(pos)));
+            // also convert from little endian to host endian
+            uint32_t row = le2h(rows.at(pos)) - 1;
+            uint32_t col = le2h(cols.at(pos)) - 1;
+	    double val = le2h(vals.at(pos));
+            v = T(row, col, val);
+            return &v;
         }
     };
 
-    sparse_vec_iterator begin = {rows, cols, vals, 0};
-    sparse_vec_iterator end =   {rows, cols, vals, nnz};
+    sparse_vec_iterator begin(rows, cols, vals, 0);
+    sparse_vec_iterator end(rows, cols, vals, nnz);
     m.resize(nrow, ncol);
     m.setFromTriplets(begin, end);
 }
@@ -97,122 +165,215 @@ double tick() {
     return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now().time_since_epoch()).count(); 
 }
 
-Eval::Eval(std::string probename, double mean_rating, int burnin)
-: mean_rating(mean_rating), burnin(burnin)
+void Sys::predict(Sys& other, bool all)
 {
-    SparseMatrixD tmp;
-    read_sparse_float64(tmp, probename);
-    P = T = tmp.transpose(); // reference and predictions
-}
-
-void Eval::predict(int n, Sys& movies, Sys& users)
-{
-    iter = n;
-    n = (n < burnin) ? 0 : (n - burnin);
-    
+    int n = (iter < burnin) ? 0 : (iter - burnin);
+   
 #ifdef BPMF_TBB_SCHED
     tbb::combinable<double> se(0.0); // squared err
     tbb::combinable<double> se_avg(0.0); // squared avg err
+        tbb::combinable<unsigned> nump(0);
 
     tbb::parallel_for( 
         tbb::blocked_range<int>(0, T.outerSize()),
         [&](const tbb::blocked_range<int>& r) {
             for (int k=r.begin(); k<r.end(); ++k) {
-                for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
-                {
-                    const double pred = movies.items().col(it.row()).dot(users.items().col(it.col())) + mean_rating;
-                    se.local() += sqr(it.value() - pred);
+                if (all || (proc(k) == Sys::procid)) {
+                    for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
+                    {
+                        auto m = items().col(it.col());
+                        auto u = other.items().col(it.row());
 
-                    // update average prediction
-                    double &avg = P.coeffRef(it.row(), it.col());
-                    avg = (n == 0) ? pred : (avg + (pred - avg) / n);
-                    se_avg.local() += sqr(it.value() - avg);
+#if defined(BPMF_MPI_NO_COMM) || defined(BPMF_ONLY_COMM)
+#else
+                        assert(m.norm() > 0.0);
+                        assert(u.norm() > 0.0);
+#endif
+
+                        const double pred = m.dot(u) + mean_rating;
+                        se.local() += sqr(it.value() - pred);
+
+                        // update average + variance of prediction
+                        double &avg = Pavg.coeffRef(it.row(), it.col());
+                        double delta = pred - avg;
+                        avg = (n == 0) ? pred : (avg + delta/n);
+                        double &m2 = Pm2.coeffRef(it.row(), it.col());
+                        m2 = (n == 0) ? 0 : m2 + delta * (pred - avg);
+
+                        se_avg.local() += sqr(it.value() - avg);
+
+                        nump.local()++;
+                    }
                 }
             }
         }
     );
 
-    rmse = sqrt( se.combine(std::plus<double>()) / T.nonZeros() );
-    rmse_avg = sqrt( se_avg.combine(std::plus<double>()) / T.nonZeros() );
-#elif defined(BPMF_OMP_SCHED)
+    auto tot = nump.combine(std::plus<unsigned>());
+    rmse = sqrt( se.combine(std::plus<double>()) / tot );
+    rmse_avg = sqrt( se_avg.combine(std::plus<double>()) / tot );
+#elif defined(BPMF_OMP_SCHED) || defined(BPMF_SER_SCHED)
     double se(0.0); // squared err
     double se_avg(0.0); // squared avg err
+    unsigned nump(0); // number of predictions
 
-#pragma omp parallel for reduction(+:se,se_avg)
-    for(int k=0; k<T.outerSize(); ++k) {
+//#ifdef BPMF_OMP_SCHED
+//#pragma omp parallel for reduction(+:se,se_avg,nump)
+//#endif
+    int lo = all ? 0 : from();
+    int hi = all ? num() : to();
+    for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
-            const double pred = movies.items().col(it.row()).dot(users.items().col(it.col())) + mean_rating;
+            auto m = items().col(it.col());
+            auto u = other.items().col(it.row());
+
+#if defined(BPMF_MPI_NO_COMM) || defined(BPMF_ONLY_COMM)
+#else
+            assert(m.norm() > 0.0);
+            assert(u.norm() > 0.0);
+#endif
+
+            const double pred = m.dot(u) + mean_rating;
             se += sqr(it.value() - pred);
 
             // update average prediction
-            double &avg = P.coeffRef(it.row(), it.col());
-            avg = (n == 0) ? pred : (avg + (pred - avg) / n);
+            double &avg = Pavg.coeffRef(it.row(), it.col());
+            double delta = pred - avg;
+            avg = (n == 0) ? pred : (avg + delta/n);
+            double &m2 = Pm2.coeffRef(it.row(), it.col());
+            m2 = (n == 0) ? 0 : m2 + delta * (pred - avg);
             se_avg += sqr(it.value() - avg);
+
+            nump++;
         }
     }
 
-    rmse = sqrt( se / T.nonZeros() );
-    rmse_avg = sqrt( se_avg / T.nonZeros() );
-
-#elif defined(BPMF_SER_SCHED)
-#error not implemented yet
+    rmse = sqrt( se / nump );
+    rmse_avg = sqrt( se_avg / nump );
 #else
 #error No sched predict
 #endif
 }
 
-void Eval::print(double samples_per_sec, double norm_u, double norm_m) {
-  printf("%d: Iteration %d:\t RMSE: %3.2f\tavg RMSE: %3.2f\tFU(%6.2f)\tFM(%6.2f)\tSamples/sec: %6.2f\n",
-                    Sys::procid, iter, rmse, rmse_avg, norm_u, norm_m, samples_per_sec);
+void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, double norm_m) {
+  char buf[1024];
+  sprintf(buf, "%d: Iteration %d:\t RMSE: %3.2f\tavg RMSE: %3.2f\tFU(%6.2f)\tFM(%6.2f)\titems/sec: %6.2f\tratings/sec: %6.2fM\n",
+                    Sys::procid, iter, rmse, rmse_avg, norm_u, norm_m, items_per_sec, ratings_per_sec / 1e6);
+  Sys::cout() << buf;
 }
 
-Sys::Sys(std::string name, std::string fname) : name(name) {
-    read_sparse_float64(M, fname);
+Sys::Sys(std::string name, std::string fname, std::string probename) : name(name), iter(-1), assigned(false), dom(nprocs+1) {
+
+    if (fname.find(".mbin") != std::string::npos) read_sparse_float64(M, fname);
+    else if (fname.find(".mtx") != std::string::npos) loadMarket(M, fname);
+    else Sys::cout() << "input filename: expecing .mbin or .mtx, got " << fname << std::endl;
+
+    if (probename.find(".mbin") != std::string::npos) read_sparse_float64(T, probename);
+    else if (probename.find(".mtx") != std::string::npos) loadMarket(T, probename);
+    else Sys::cout() << "input filename: expecing .mbin or .mtx, got " << probename << std::endl;
+
+    auto rows = std::max(M.rows(), T.rows());
+    auto cols = std::max(M.cols(), T.cols());
+    M.conservativeResize(rows,cols);
+    T.conservativeResize(rows,cols);
+    Pm2 = Pavg = T; // reference ratings and predicted ratings
+    assert(M.rows() == Pavg.rows());
+    assert(M.cols() == Pavg.cols());
+    assert(Sys::nprocs <= (int)Sys::max_procs);
 }
 
-Sys::Sys(std::string name, const SparseMatrixD &Mt) : name(name) {
+Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt) : name(name), iter(-1), assigned(false), dom(nprocs+1) {
     M = Mt.transpose();
+    Pm2 = Pavg = T = Pt.transpose(); // reference ratings and predicted ratings
+    assert(M.rows() == Pavg.rows());
+    assert(M.cols() == Pavg.cols());
 }
 
-void Sys::init(const Sys &other)
+Sys::~Sys() 
+{
+    if (measure_perf) {
+        Sys::cout() << " --------------------\n";
+        Sys::cout() << name << ": sampling times on " << procid << "\n";
+        for(int i = from(); i<to(); ++i) 
+        {
+            Sys::cout() << "\t" << nnz(i) << "\t" << sample_time.at(i) / nsims  << "\n";
+        }
+        Sys::cout() << " --------------------\n\n";
+    }
+}
+
+typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
+
+void Sys::permuteCols(const PermMatrix &perm)
+{
+    T = T * perm;
+    Pavg = Pavg * perm;
+    Pm2 = Pm2 * perm;
+    M = M * perm;
+}
+
+void Sys::init()
 {
     //-- M
     assert(M.rows() > 0 && M.cols() > 0);
     mean_rating = M.sum() / M.nonZeros();
-    std::cout << "mean rating = " << mean_rating << std::endl;
     items().setZero();
     sum_map().setZero();
     cov_map().setZero();
     norm_map().setZero();
 
-    std::cout << "assigning " << name << " other assigned? " << other.assigned() << std::endl;
+    if (Sys::procid == 0) {
+        Sys::cout() << "mean rating = " << mean_rating << std::endl;
+        Sys::cout() << "num " << name << ": " << num() << std::endl;
+    }
 
-    //-- assign items to procs according to NNZ
-    const auto nprocs = Sys::nprocs;
-    const auto tot = M.nonZeros();
-    std::multimap<unsigned, unsigned, std::greater<unsigned>> nnz_per_col;
-    for(int i=0; i<num(); i++) nnz_per_col.insert(std::make_pair(M.col(i).nonZeros(), i));
+    if (measure_perf) sample_time.resize(num(), .0);
+}
+
+void Sys::assign(Sys &other)
+{
+    if (nprocs == 1) { dom[0] = 0; dom[1] = num(); return; }
+    if (!permute) { 
+        int p = num() / nprocs;
+        int i=0; for(; i<nprocs; ++i) dom[i] = i*p;
+        dom[i] = num();
+        return;
+    }
+
+    std::vector<std::vector<double>> comm_cost(num());
+    if (other.assigned) {
+        // comm_cost[i][j] == communication cost if item i is assigned to processor j
+        for(int i=0; i<num(); ++i) {
+            std::vector<unsigned> comm_per_proc(nprocs);
+            const int count = M.innerVector(i).nonZeros();
+            for (SparseMatrixD::InnerIterator it(M,i); it; ++it) comm_per_proc.at(other.proc(it.row()))++;
+            for(int j=0; j<nprocs; j++) comm_cost.at(i).push_back(count - comm_per_proc.at(j));
+        }
+    }
 
     std::vector<unsigned> nnz_per_proc(nprocs);
     std::vector<unsigned> items_per_proc(nprocs);
-    item_to_proc.resize(num());
-    proc_to_item.resize(nprocs);
-    unsigned total_nnz = 0;
-    unsigned total_items = 0;
+    std::vector<double>   work_per_proc(nprocs);
 
-    auto best = [&](int idx) {
+    std::vector<int> item_to_proc(num(), -1);
 
-        const int count = M.innerVector(idx).nonZeros();
-        std::vector<unsigned> comm_per_proc(Sys::nprocs);
-        if (other.assigned()) for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) comm_per_proc[other.proc(it.row())]++;
+    unsigned total_nnz   = 1;
+    unsigned total_items = 1;
+    double   total_work  = 0.01;
+    unsigned total_comm  = 0;
 
+    auto best = [&](int idx, double r1, double r2) {
         double min_cost = 1e9;
         int best_proc = -1;
         for(int i=0; i<nprocs; ++i) {
-            double load_unbalance = std::max((double)nnz_per_proc[i] / (double)total_nnz, (double)items_per_proc[i] / (double)total_items);
-            double comm_cost = comm_per_proc.at(i) / ((double)count + 0.0001);
-            double total_cost = load_unbalance + 100 * comm_cost;
+            //double nnz_unbalance = (double)nnz_per_proc[i] / total_nnz;
+            //double items_unbalance =  (double)items_per_proc[i] / total_items;
+            //double work_unbalance = std::max(nnz_unbalance, items_unbalance);
+            double work_unbalance = work_per_proc[i] / total_work;
+
+            double comm = other.assigned ? comm_cost.at(idx).at(i) : 0.0;
+            double total_cost = r1 * work_unbalance + r2 * comm;
             if (total_cost > min_cost) continue;
             best_proc = i;
             min_cost = total_cost;
@@ -220,49 +381,196 @@ void Sys::init(const Sys &other)
         return best_proc;
     };
 
-    for(auto p : nnz_per_col) {
-        auto proc = best(p.second);
-        item_to_proc[p.second] = proc;
-        proc_to_item[proc].push_back(p.second);
-
-        nnz_per_proc  [proc] += p.first;
+    auto assign = [&](int item, int proc) {
+        const int nnz = M.innerVector(item).nonZeros();
+        double work = 10.0 + nnz; // one item is as expensive as  NZs
+        item_to_proc[item] = proc;
+        nnz_per_proc  [proc] += nnz;
         items_per_proc[proc]++;
-
-        total_nnz += p.first;
+        work_per_proc [proc] += work;
+        total_nnz += nnz;
         total_items++;
-    }
+        total_work+= work;
+        total_comm += (other.assigned ? comm_cost.at(item).at(proc) : 0);
+    };
 
-    if(Sys::procid == 0) for (unsigned i=0; i<nnz_per_proc.size(); ++i) {
-        std::cout << name << "@" << i << ": nnz: " << nnz_per_proc.at(i) << " (" << 100.0 * nnz_per_proc.at(i) / tot << " %)\n";
-        std::cout << name << "@" << i << ": items: " << items_per_proc.at(i) << " (" << 100.0 * items_per_proc.at(i) / num() << " %)\n";
+    auto unassign = [&](int item) {
+        int proc = item_to_proc[item];
+        if (proc < 0) return;
+        const int nnz = M.innerVector(item).nonZeros();
+        double work = 7.1 + nnz;
+        item_to_proc[item] = -1;
+        nnz_per_proc  [proc] -= nnz;
+        items_per_proc[proc]--;
+        work_per_proc [proc] -= work;
+        total_nnz -= nnz;
+        total_items--;
+        total_work -= work;
+        total_comm -= (other.assigned ? comm_cost.at(item).at(proc) : 0);
+        
+    };
+
+    // iterate once
+    auto print = [&](int iter) {
+        Sys::cout() << name << " -- iter " << iter << " -- \n";
+        if (Sys::procid == 0) {
+            int max_nnz = *std::max_element(nnz_per_proc.begin(), nnz_per_proc.end());
+            int min_nnz = *std::min_element(nnz_per_proc.begin(), nnz_per_proc.end());
+            int avg_nnz = nnz() / nprocs;
+
+            int max_items = *std::max_element(items_per_proc.begin(), items_per_proc.end());
+            int min_items = *std::min_element(items_per_proc.begin(), items_per_proc.end());
+            int avg_items = num() / nprocs;
+
+            double max_work = *std::max_element(work_per_proc.begin(), work_per_proc.end());
+            double min_work = *std::min_element(work_per_proc.begin(), work_per_proc.end());
+            double avg_work = total_work / nprocs;
+
+            Sys::cout() << name << ": comm cost " << 100.0 * total_comm / nnz() / nprocs << "%\n";
+            Sys::cout() << name << ": nnz unbalance: " << (int)(100.0 * Sys::nprocs * (max_nnz - min_nnz) / nnz()) << "%"
+                << "\t(" << max_nnz << " <-> " << avg_nnz << " <-> " << min_nnz << ")\n";
+            Sys::cout() << name << ": items unbalance: " << (int)(100.0 * Sys::nprocs * (max_items - min_items) / num()) << "%"
+                << "\t(" << max_items << " <-> " << avg_items << " <-> " << min_items << ")\n";
+            Sys::cout() << name << ": work unbalance: " << (int)(100.0 * Sys::nprocs * (max_work - min_work) / total_work) << "%"
+                << "\t(" << max_work << " <-> " << avg_work << " <-> " << min_work << ")\n\n";
+        }
+
+        Sys::cout() << name << ": nnz:\t" << nnz_per_proc[procid] << " / " << nnz() << "\n";
+        Sys::cout() << name << ": items:\t" << items_per_proc[procid] << " / " << num() << "\n";
+        Sys::cout() << name << ": work:\t" << work_per_proc[procid] << " / " << total_work << "\n";
+    };
+
+    for(int j=0; j<3; ++j) {
+        for(int i=0; i<num(); ++i) {
+            unassign(i); 
+            assign(i, best(i, 10000, 0));
+        }
+        print(j);
     }
+    
+    std::vector<std::vector<unsigned>> proc_to_item(nprocs);
+    for(int i=0; i<num(); ++i) proc_to_item[item_to_proc[i]].push_back(i);
+
+    // permute T
+    unsigned pos = 0;
+    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> perm(num());
+    for(auto p: proc_to_item) for(auto i: p) perm.indices()(pos++) = i;
+    auto oldT = T;
+
+    this->permuteCols(perm);
+    other.M = M.transpose();
+    other.Pavg = Pavg.transpose();
+    other.Pm2 = Pm2.transpose();
+    other.T = T.transpose();
+
+    int i = 0;
+    int n = 0;
+    dom[0] = 0;
+    for(auto p : items_per_proc) dom[++i] = (n += p);
+
+#ifndef NDEBUG
+    int j = 0;
+    for(auto i : proc_to_item.at(0)) assert(T.col(j++).nonZeros() == oldT.col(i).nonZeros());
+#endif
+
+    Sys::cout() << name << " domain:" << std::endl;
+    print_dom(Sys::cout());
+    Sys::cout() << std::endl;
+
+    assigned = true;
 }
 
-void Sys::build_conn(const Sys& to)
+void Sys::update_conn(Sys& other)
 {
     unsigned tot = 0;
+    conn_map.clear();
+    conn_count_map.clear();
+    assert(nprocs <= (int)max_procs);
+
     conn_map.resize(num());
     for (int k=0; k<num(); ++k) {
         std::bitset<max_procs> &bm = conn_map[k];
-        for (SparseMatrixD::InnerIterator it(M,k); it; ++it) bm.set(to.proc(it.row()));
-        // not to self
-        bm.reset(Sys::procid);
+        for (SparseMatrixD::InnerIterator it(M,k); it; ++it) bm.set(other.proc(it.row()));
+        for (SparseMatrixD::InnerIterator it(Pavg,k); it; ++it) bm.set(other.proc(it.row()));
+        bm.reset(proc(k)); // not to self
         tot += bm.count();
+
+        // keep track of how may proc to proc sends
+        auto from_proc = proc(k);
+        for(int to_proc=0; to_proc<Sys::nprocs; to_proc++) {
+            if (!bm.test(to_proc)) continue;
+            conn_count_map[std::make_pair(from_proc, to_proc)]++;
+        }
     }
 
-    std::cout << name << "@" << Sys::procid << ": avg comm: " << (double)tot / (double)num() << std::endl;
+    if (Sys::procid == 0) {
+        Sys::cout() << name << ": avg items to send per iter: " << tot << " / " << num() << " = " << (double)tot / (double)num() << std::endl;
+
+        Sys::cout() << name << ": messages from -> to proc\n";
+        for(int i=0; i<Sys::nprocs; ++i) Sys::cout() << "\t" << i;
+        Sys::cout() << "\n";
+        for(int i=0; i<Sys::nprocs; ++i) {
+            Sys::cout() << i;
+            for(int j=0; j<Sys::nprocs; ++j) Sys::cout() << "\t" << conn_count(i,j);
+            Sys::cout() << "\n";
+        }
+
+        
+        //Sys::cout() << name << ": bitmaps " << std::endl;
+        //for(int i=0; i<num(); ++i) {
+        //    std::bitset<max_procs> &bm = conn_map[i];
+        //    Sys::cout() << i << ": " << bm << std::endl;
+        //}
+
+        
+    }
 }
 
-void Sys::alloc_and_init(const Sys &other)
+void Sys::opt_conn(Sys& other)
 {
-    items_ptr = (double *)malloc(sizeof(double) * num_feat * num());
-    sum_ptr = (double *)malloc(sizeof(double) * num_feat * Sys::nprocs);
-    cov_ptr = (double *)malloc(sizeof(double) * num_feat * num_feat * Sys::nprocs);
-    norm_ptr = (double *)malloc(sizeof(double) * Sys::nprocs);
+    // sort internally according to hamming distance
+    PermMatrix perm(num());
+    perm.setIdentity();
 
-    init(other);
+    std::vector<std::string> s(num());
+
+    auto v = perm.indices().data();
+#ifdef BPMF_TBB_SCHED
+    tbb::parallel_for(tbb::blocked_range<int>(0, nprocs, 1),
+        [&](const tbb::blocked_range<int>& r) {
+            for(auto p = r.begin(); p<r.end(); ++p) {
+                for(int i=from(p); i<to(p); ++i) s[i] = conn(i).to_string();
+                std::sort(v + from(p), v + to(p), [&](const int& a, const int& b) { return (s[a] < s[b]); });
+            }
+        }
+    );
+#elif defined(BPMF_OMP_SCHED) || defined (BPMF_SER_SCHED)
+#if defined(BPMF_OMP_SCHED)
+#pragma omp parallel for 
+#endif
+    for(auto p = 0; p < nprocs; ++p) {
+	for(int i=from(p); i<to(p); ++i) s[i] = conn(i).to_string();
+        std::sort(v + from(p), v + to(p), [&](const int& a, const int& b) { return (s[a] < s[b]); });
+    }
+#else
+#error opt_conn
+#endif
+
+    permuteCols(perm);
+    other.M = M.transpose();
+    other.Pavg = Pavg.transpose();
+    other.Pm2 = Pm2.transpose();
+    other.T = T.transpose();
 }
 
+
+void Sys::build_conn(Sys& other)
+{
+    if (nprocs == 1) return;
+    update_conn(other);
+    //opt_conn(other);
+    //update_conn(other);
+}
 
 class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 {
@@ -272,17 +580,25 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 
 VectorNd Sys::sample(long idx, const MapNXd in)
 {
-    // auto start = tick();
+#ifdef BPMF_ONLY_COMM
+    return VectorNd::Zero();
+#endif
+
+#ifdef SNIPER
+    // randomly sample 1 out of 1000
+    if (645 == (idx % 1000)) SimRoiStart();
+#endif
+
+    auto start = tick();
     const double alpha = 2;
     const int breakpoint1 = 1000;
     const int breakpoint2 = 1000;
     const int count = M.innerVector(idx).nonZeros();
 
-    VectorNd rr;
+    VectorNd rr = hp.LambdaF * hp.mu;
     PrecomputedLLT chol;
 
     if( count < breakpoint1 ) {
-        rr.setZero();
         chol = hp.LambdaL;
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
             auto col = in.col(it.row());
@@ -290,7 +606,6 @@ VectorNd Sys::sample(long idx, const MapNXd in)
             rr.noalias() += col * ((it.value() - mean_rating) * alpha);
         }
     } else if (count < breakpoint2) {
-        rr.setZero();
         MatrixNNd MM; MM.setZero();
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
             auto col = in.col(it.row());
@@ -321,13 +636,14 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         );                    
 
         // return sum and covariance
-        rr = s.combine(std::plus<VectorNd>());
+        rr += s.combine(std::plus<VectorNd>());
         MatrixNNd MM = p.combine(std::plus<MatrixNNd>());
-#elif defined(BPMF_OMP_SCHED)
-        rr.setZero();
+#elif defined(BPMF_OMP_SCHED) || defined(BPMF_SER_SCHED)
         MatrixNNd MM(MatrixNNd::Zero()); // outer prod
 
-#pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM)
+//#ifdef BPMF_OMP_SCHED
+//#pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM)
+//#endif
         for(int i = from; i<to; ++i) {
             auto val = M.valuePtr()[i];
             auto idx = M.innerIndexPtr()[i];
@@ -336,8 +652,6 @@ VectorNd Sys::sample(long idx, const MapNXd in)
             rr.noalias() += col * ((val - mean_rating) * alpha);
         }
 
-#elif defined(BPMF_SER_SCHED)
-#error not implemented yet
 #else
 #error No sched sample_one
 #endif
@@ -345,40 +659,51 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         chol.compute(hp.LambdaF + alpha * MM);
     }
 
-    if(chol.info() != Eigen::Success)
-        throw std::runtime_error("Cholesky Decomposition failed!");
+    if(chol.info() != Eigen::Success) abort();
 
-    rr += hp.LambdaF * hp.mu;
     chol.matrixL().solveInPlace(rr);
     rr += nrandn();
     chol.matrixU().solveInPlace(rr);
     items().col(idx) = rr;
 
-    // auto stop = tick();
-    //std::cout << "  " << count << ": " << 1e6*(stop - start) << std::endl;
+    auto stop = tick();
+    register_time(idx, 1e6 * (stop - start));
+    //Sys::cout() << "  " << count << ": " << 1e6*(stop - start) << std::endl;
 
+    assert(rr.norm() > .0);
+
+#ifdef SNIPER
+    if (645 == (idx % 1000)) SimRoiEnd();
+#endif
+    
     return rr;
 }
 
 
 void Sys::sample(Sys &in) 
 {
+    iter++;
+
+#ifdef SNIPER
+    SimRoiStart();
+#endif
+
 #ifdef BPMF_TBB_SCHED
     tbb::combinable<VectorNd>  s(VectorNd::Zero()); // sum
     tbb::combinable<double>    n(0.0); // squared norm
     tbb::combinable<MatrixNNd> p(MatrixNNd::Zero()); // outer prod
 
     tbb::parallel_for( 
-        tbb::blocked_range<VectorNd::Index>(0, num()),
+        tbb::blocked_range<VectorNd::Index>(from(), to(), grain_size),
         [&](const tbb::blocked_range<typename VectorNd::Index>& r) {
             for(auto i = r.begin(); i<r.end(); ++i) {
-                if (proc(i) != Sys::procid) continue;
+                assert (proc(i) == Sys::procid);
                 auto r = sample(i,in.items()); 
                 p.local() += (r * r.transpose());
                 s.local() += r;
                 n.local() += r.squaredNorm();
-                send_item(i);
             }
+            send_items(r.begin(), r.end());
         }
     );                    
 
@@ -391,26 +716,28 @@ void Sys::sample(Sys &in)
     double    norm(0.0); // squared norm
     MatrixNNd prod(MatrixNNd::Zero()); // outer prod
 
-#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm)
-    for(unsigned i = 0; i<my_items().size(); ++i) {
-        auto r = sample(my_items().at(i),in.items()); 
+#ifdef BPMF_OMP_SCHED
+#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic, 1)
+#endif
+    for(int i = from(); i<to(); ++i) {
+        auto r = sample(i,in.items()); 
         prod += (r * r.transpose());
         sum += r;
         norm += r.squaredNorm();
-        send_item(my_items().at(i));
+        send_items(i,i+1);
     }
 #elif defined(BPMF_SER_SCHED)
     // serial 
     VectorNd sum(VectorNd::Zero()); // sum
     MatrixNNd prod(MatrixNNd::Zero()); // outer prod
     double    norm(0.0); // squared norm
-    for(int i=0; i<num(); ++i) {
-        if (proc(i) != Sys::procid) continue;
+    for(int i=from(); i<to(); ++i) {
+        assert (proc(i) == Sys::procid);
         auto r = sample(i,in.items());
         prod += (r * r.transpose());
         sum += r;
         norm += r.squaredNorm();
-        send_item(i);
+        send_items(i,i+1);
     }
 #else
 #error No sched sample_all
@@ -420,4 +747,9 @@ void Sys::sample(Sys &in)
     local_sum() = sum;
     local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
     local_norm() = norm;
+}
+
+void Sys::register_time(int i, double t)
+{
+    if (measure_perf) sample_time.at(i) += t;
 }

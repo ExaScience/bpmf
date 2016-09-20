@@ -4,7 +4,6 @@
  */
 
 
-
 /*
  * From:
  * http://stackoverflow.com/questions/6142576/sample-from-multivariate-normal-gaussian-distribution-in-c
@@ -27,15 +26,13 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-#ifndef __clang__
-thread_local
+#ifdef BPMF_SER_SCHED
+#define TL 
+#else
+#define TL thread_local
 #endif
-static std::mt19937 rng;
-
-#ifndef __clang__
-thread_local
-#endif
-static normal_distribution<> nd;
+static TL std::mt19937 rng;
+static TL normal_distribution<> nd;
 
 double randn(double) {
 #ifdef TEST_RND

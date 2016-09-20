@@ -3,7 +3,6 @@
  * All rights reserved.
  */
 
-
 #ifdef BPMF_PROFILING
 
 #include <string>
@@ -14,6 +13,7 @@
 struct Counter {
     std::string name;
     double start, stop, diff; // wallclock time
+    long long count;
 
     bool total_counter;
 

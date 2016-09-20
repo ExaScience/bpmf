@@ -3,7 +3,6 @@
  * All rights reserved.
  */
 
-
 #ifndef BPMF_H
 #define BPMF_H
 
@@ -23,8 +22,10 @@ typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_feat, num_feat> MatrixNNd;
 typedef Eigen::Matrix<double, num_feat, Eigen::Dynamic> MatrixNXd;
 typedef Eigen::Matrix<double, num_feat, 1> VectorNd;
-typedef Eigen::Map<MatrixNXd> MapNXd;
-typedef Eigen::Map<Eigen::VectorXd> MapXd;
+typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
+typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
+
+void assert_transpose(SparseMatrixD &A, SparseMatrixD &B);
 
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
@@ -69,68 +70,82 @@ struct HyperParams {
 
 struct Sys;
 
-struct Eval {
-    Eval(std::string probename, double mean_rating, int burnin);
-
-    const double mean_rating;
-    const int burnin;
-    SparseMatrixD T, P;
-   
-    // state 
-    Eigen::VectorXd predictions;
-    double rmse, rmse_avg;
-    int iter;
-
-    // funcs
-    void predict(int n, Sys& movies, Sys& users);
-    void print(double, double, double); 
-};
 
 struct Sys {
     //-- static info
+    static bool permute;
     static int nprocs, procid, nthrds;
+    static int burnin, nsims;
     static void Init();
     static void Finalize();
     static void Abort(int);
     static void SetupThreads(int);
     static void sync();
-    
 
+    static std::ostream *os;
+    static std::ostream &cout() { os->flush(); return *os; }
+    
     //-- c'tor
     std::string name;
-    Sys(std::string name, std::string fname);
-    Sys(std::string name, const SparseMatrixD &M);
-    virtual ~Sys() {}
-    void init(const Sys &);
-    virtual void alloc_and_init(const Sys &);
+    int iter;
+    Sys(std::string name, std::string fname, std::string pname);
+    Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &Pavg);
+    virtual ~Sys();
+    void init();
+    virtual void alloc_and_init() = 0;
 
     //-- sparse matrix
     SparseMatrixD M;
     double mean_rating;
     int num() const { return M.cols(); }
+    int nnz() const { return M.nonZeros(); }
+    int nnz(int i) const { return M.col(i).nonZeros(); }
 
     // assignment and connectivity
-    std::vector<std::vector<unsigned>> proc_to_item;
-    std::vector<unsigned> item_to_proc;
-    int proc(unsigned pos) const { return item_to_proc.at(pos); }
-    const std::vector<unsigned> &items_at(unsigned proc) const { return proc_to_item.at(proc); }
-    const std::vector<unsigned> &my_items() const { return proc_to_item.at(procid); }
-    bool assigned() const { return !item_to_proc.empty(); }
+    typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
+    void permuteCols(const PermMatrix &);
+    void permuteRows(const PermMatrix &);
+    void assign(Sys &);
+    bool assigned;
+
+    std::vector<int> dom;
+    int proc(int pos) const {
+        int proc = 0;
+        while (dom[proc+1] <= pos) proc++;
+        return proc;
+    }
+    int num(int i) const { return to(i) - from(i); }
+    int from(int i = procid) const { return dom.at(i); }
+    int to(int i = procid) const { return dom.at(i+1); }
+    void print_dom(std::ostream &os) {
+	for(int i=0; i<nprocs; ++i) os << i << ": [" << from(i) << ":" << to(i) << "[" << std::endl;
+    }
 
     // connectivity
-    void build_conn(const Sys& to);
-    static const unsigned max_procs = 64;
+    void opt_conn(Sys& to);
+    void update_conn(Sys& to);
+    void build_conn(Sys& to);
+    static const unsigned max_procs = 1024;
     typedef std::bitset<max_procs> bm;
-    const bm &conn(unsigned idx) const { return conn_map.at(idx); }
+    const bm &conn(unsigned idx) const { assert(nprocs>1); return conn_map.at(idx); }
+    bool conn(unsigned from, int to) { return (nprocs>1) && conn_map.at(from).test(to); }
     std::vector<bm> conn_map;
+    std::map<std::pair<unsigned, unsigned>, unsigned> conn_count_map;
+    unsigned conn_count(int from, int to) { assert(nprocs>1);  return conn_count_map[std::make_pair(from, to)]; }
+    unsigned send_count(int to) { return conn_count(Sys::procid, to); }
+    unsigned recv_count(int from) { return conn_count(from, Sys::procid); }
 
     //-- factors
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_feat, num()); }
     VectorNd sample(long idx, const MapNXd in);
-    virtual void send_items(int, int) {};
-    virtual void send_item(int) {};
+    virtual void send_items(int, int) = 0;
+    virtual void bcast_items() = 0;
     virtual void sample(Sys &in);
+    static unsigned grain_size;
+
+    enum Method { OR, WL, WR };
+    static enum Method method;
 
     //-- covariance
     double *sum_ptr;
@@ -159,6 +174,24 @@ struct Sys {
     //-- hyper params
     HyperParams hp;
     virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
+
+    // prediction 
+    SparseMatrixD T, Pavg, Pm2;
+    double rmse, rmse_avg;
+    void predict(Sys& other, bool all = false);
+    void print(double, double, double, double); 
+
+    // performance counting
+    std::vector<double> sample_time;
+    void register_time(int i, double t);
 };
+
+#ifdef BPMF_TBB_SCHED
+#include <tbb/mutex.h>
+typedef tbb::mutex working_mutex;
+#else
+#include <mutex>
+typedef std::mutex working_mutex;
+#endif
 
 #endif

@@ -4,7 +4,6 @@
  */
 
 
-
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -12,75 +11,131 @@
 #include <random>
 #include <unistd.h>
 
+#include <unsupported/Eigen/SparseExtra>
+
 #include "bpmf.h"
 
 using namespace std;
 using namespace Eigen;
 
 #ifdef BPMF_GPI_COMM
-#include "bpmf_gaspi.h"
-#elif defined(BPMF_MPI_COMM)
-#include "bpmf_mpi.h"
-//#include "bpmf_mpi_bcast.h"
-#else 
-#include "bpmf_nocomm.h"
+#include "gaspi.h"
+#elif defined(BPMF_MPI_PUT_COMM)
+#define BPMF_MPI_COMM
+#include "mpi_put.h"
+#elif defined(BPMF_MPI_BCAST_COMM)
+#define BPMF_MPI_COMM
+#include "mpi_bcast.h"
+#elif defined(BPMF_MPI_ISENDIRECV_COMM)
+#define BPMF_MPI_COMM
+#include "mpi_isendirecv.h"
+#elif defined(BPMF_MPI_NO_COMM)
+#define BPMF_MPI_COMM
+#include "mpi_nocomm.h"
+#elif defined(BPMF_NO_COMM)
+#include "nocomm.h"
+#else
+#error no comm include
 #endif
+
+const char *usage = "Usage: bpmf [-t <threads>] [ -i <niters> ] -n <samples.mtx> -p <probe.mtx> -u <u.mtx> -v <v.mtx> -o <pred.mtx> -s <m2.mtx>\n";
 
 int main(int argc, char *argv[])
 {
-    Sys::Init();
-
+  Sys::Init();
+  {
     int ch;
-    string fname;
-    string probename;
+    string fname, probename, uname, vname, oname, sname;
+    string method_str;
     int nthrds = -1;
-    int nsims = 20;
-    int burnin = 5;
-
-    while((ch = getopt(argc, argv, "n:t:r:p:i:")) != -1)
+    bool redirect = false;
+    Sys::nsims = 20;
+    Sys::burnin = 5;
+    Sys::grain_size = 1;
+    
+ 
+    while((ch = getopt(argc, argv, "krn:t:p:i:g:w:u:v:o:s:")) != -1)
     {
         switch(ch)
         {
-            case 'i': nsims = atoi(optarg); break;
+            case 'i': Sys::nsims = atoi(optarg); break;
+            case 'g': Sys::grain_size = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
             case 'n': fname = optarg; break;
             case 'p': probename = optarg; break;
+            case 'u': uname = optarg; break;
+            case 'v': vname = optarg; break;
+            case 'o': oname = optarg; break;
+            case 's': sname = optarg; break;
+
+            case 'r': redirect = true; break;
+            case 'k': Sys::permute = false; break;
+            case 'w': method_str = optarg; break;
             case '?':
-            default:
-                      cout << "Usage: " << argv[0] << " [-t <threads>] " 
-                          << "[ -i <niters> ] -n <samples.mtx> -p <probe.mtx>"
-                          << endl;
-                      Sys::Abort(1);
+            default : std::cout << usage; Sys::Abort(1);
         }
     }
 
+         if (method_str == "or") Sys::method = Sys::OR;
+    else if (method_str == "wl") Sys::method = Sys::WL;
+    else if (method_str == "wr") Sys::method = Sys::WR;
+    else if (method_str.empty()) Sys::method = Sys::WR;
+    else assert(false);
+ 
+    if (Sys::nprocs >1 || redirect) {
+        std::stringstream ofname;
+        ofname << "bpmf_" << Sys::procid << ".out";
+        Sys::os = new std::ofstream(ofname.str());
+    } else {
+        Sys::os = &std::cout;
+    }
+
     if (fname.empty() || probename.empty()) { 
-        cout << "Usage: " << argv[0] << " [-t <threads>] [-i <iterations>]" << " -n <samples.mtx> -p <probe.mtx>" << endl;
+        Sys::cout() << usage;
         Sys::Abort(1);
     }
 
-    SYS movies("movs", fname);
-    SYS users("users", movies.M);
-    movies.alloc_and_init(users);
-    users.alloc_and_init(movies);
+    SYS movies("movs", fname, probename);
+    SYS users("users", movies.M, movies.Pavg);
+
+    movies.alloc_and_init();
+    users.alloc_and_init();
+
+    movies.assign(users);
+    users.assign(movies);
+    movies.assign(users);
+    users.assign(movies);
+
     users.build_conn(movies);
     movies.build_conn(users);
+    assert(movies.nnz() == users.nnz());
 
-    Eval eval(probename, movies.mean_rating, burnin);
     Sys::SetupThreads(nthrds);
 
-    long double average_sampling_sec =0;
+    long double average_items_sec = .0;
+    long double average_ratings_sec = .0;
+    
+    char name[1024];
+    gethostname(name, 1024);
+    Sys::cout() << "hostname: " << name << endl;
+    Sys::cout() << "pid: " << getpid() << endl;
+    if (getenv("PBS_JOBID")) Sys::cout() << "jobid: " << getenv("PBS_JOBID") << endl;
+ 
     if(Sys::procid == 0)
     {
-        cout << "num_feat: " << num_feat<<endl;
-        cout << "nprocs: " << Sys::nprocs << endl;
-        cout << "nthrds: " << Sys::nthrds << endl;
+        Sys::cout() << "num_feat: " << num_feat<<endl;
+        Sys::cout() << "nprocs: " << Sys::nprocs << endl;
+        Sys::cout() << "nthrds: " << Sys::nthrds << endl;
+        Sys::cout() << "nsims: " << Sys::nsims << endl;
+        Sys::cout() << "burnin: " << Sys::burnin << endl;
+        Sys::cout() << "grain_size: " << Sys::grain_size << endl;
     }
 
+    Sys::sync();
 
     auto begin = tick();
 
-    for(int i=0; i<nsims; ++i) {
+    for(int i=0; i<Sys::nsims; ++i) {
         BPMF_COUNTER("main");
         auto start = tick();
 
@@ -88,12 +143,17 @@ int main(int argc, char *argv[])
         { BPMF_COUNTER("movies"); movies.sample(users); }
         users.sample_hp();
         { BPMF_COUNTER("users");  users.sample(movies); }
-        { BPMF_COUNTER("eval");   eval.predict(i, movies, users); }
+
+#ifndef BPMF_ONLY_COMM
+        { BPMF_COUNTER("eval");   movies.predict(users); }
+#endif
 
         auto stop = tick();
-        double samples_per_sec = (users.num() + movies.num()) / (stop - start);
-        eval.print(samples_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
-        average_sampling_sec += samples_per_sec;
+        double items_per_sec = (users.num() + movies.num()) / (stop - start);
+        double ratings_per_sec = (users.nnz()) / (stop - start);
+        movies.print(items_per_sec, ratings_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
+        average_items_sec += items_per_sec;
+        average_ratings_sec += ratings_per_sec;
     }
 
     Sys::sync();
@@ -101,12 +161,29 @@ int main(int argc, char *argv[])
     auto end = tick();
     auto elapsed = end - begin;
 
-    if (Sys::procid == 0) {
-        cout << "Total time: " << elapsed <<endl <<flush;
-        cout << "Average Samples/sec: " << average_sampling_sec / nsims << endl <<flush;
+    //-- if we need to generate output files, collect all data on proc 0
+    if (sname.size() || oname.size() || uname.size() || vname.size()) {
+        users.bcast_items();
+        movies.bcast_items();
+        movies.predict(users, true);
     }
 
-    Sys::Finalize();
+    if (Sys::procid == 0) {
+        Sys::cout() << "Total time: " << elapsed <<endl <<flush;
+        Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
+        Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
 
-    return 0;
+        if (oname.size()) { saveMarket(movies.Pavg, oname); }
+        if (sname.size()) { saveMarket(movies.Pm2, sname); }
+        if (uname.size()) { std::ofstream os(uname); os << users.items(); }
+        if (vname.size()) { std::ofstream os(vname); os << movies.items(); }
+
+
+    }
+  }
+  Sys::Finalize();
+  if (Sys::nprocs >1) delete Sys::os;
+
+
+   return 0;
 }
