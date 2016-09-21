@@ -143,7 +143,6 @@ void GASPI_Sys::actual_send(int from, int to)
 
 void GASPI_Sys::process_queue() 
 {
-#ifdef BPMF_HYBRID_COMM
     int main_thread;
     MPI_Is_thread_main(&main_thread);
     if (!main_thread) return;
@@ -161,9 +160,6 @@ void GASPI_Sys::process_queue()
             actual_send(from,to);
 	}
     }
-#else
-#error need MPI+GASPI
-#endif
 }
 
 static void gaspi_bcast(int seg, int offset, int size) {
@@ -233,7 +229,6 @@ void GASPI_Sys::sample_hp()
 
 void Sys::Init()
 {
-#ifdef BPMF_HYBRID_COMM
     int provided;
     MPI_Init_thread(0, 0, MPI_THREAD_SERIALIZED, &provided);
     assert(provided == MPI_THREAD_SERIALIZED);
@@ -254,20 +249,6 @@ void Sys::Init()
     gaspi_number_t size;
     gaspi_group_size(GASPI_GROUP_ALL,&size);
     assert(Sys::nprocs == (int)size);
-#else
-   gaspi_rank_t rank;
-   gaspi_config_t c;
-   gaspi_config_get(&c);
-   c.queue_depth = 4096;
-   c.queue_num = 1;
-   gaspi_config_set(c);
-   gaspi_proc_init(GASPI_BLOCK);
-   gaspi_proc_rank(&rank);
-   Sys::procid = rank;
-   gaspi_number_t size;
-   gaspi_group_size(GASPI_GROUP_ALL,&size);
-   Sys::nprocs = size;
-#endif
 }
 
 void Sys::Finalize()
@@ -276,18 +257,12 @@ void Sys::Finalize()
     perf_data.print();
 #endif
     gaspi_proc_term(GASPI_BLOCK);
-
-#ifdef BPMF_HYBRID_COMM
     MPI_Finalize();
-#endif
 }
 
 void Sys::sync()
 {
-#ifdef BPMF_HYBRID_COMM
     MPI_Barrier(MPI_COMM_WORLD);
-#endif
-    gaspi_barrier(GASPI_GROUP_ALL,GASPI_BLOCK);
 }
 
 void Sys::Abort(int err)

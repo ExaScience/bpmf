@@ -11,6 +11,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <chrono>
 
 #include "bpmf.h"
 

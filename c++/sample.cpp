@@ -6,7 +6,6 @@
 #include "bpmf.h"
 
 #include <random>
-#include <chrono>
 #include <memory>
 #include <cstdio>
 #include <iostream>
