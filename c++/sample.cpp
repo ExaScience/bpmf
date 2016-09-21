@@ -79,10 +79,6 @@ void Sys::SetupThreads(int n)
 
 }
 
-double tick() {
-    return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now().time_since_epoch()).count(); 
-}
-
 void Sys::predict(Sys& other, bool all)
 {
     int n = (iter < burnin) ? 0 : (iter - burnin);

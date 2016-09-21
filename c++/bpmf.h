@@ -37,7 +37,6 @@ inline auto nrandn() -> decltype( VectorNd::NullaryExpr(std::ptr_fun(randn)) ) {
     return VectorNd::NullaryExpr(std::ptr_fun(randn)); 
 }
 
-double tick();
 inline double sqr(double x) { return x*x; }
 
 struct HyperParams {

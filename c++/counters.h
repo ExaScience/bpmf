@@ -3,6 +3,8 @@
  * All rights reserved.
  */
 
+double tick();
+
 #ifdef BPMF_PROFILING
 
 #include <string>
