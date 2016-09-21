@@ -21,7 +21,7 @@ A sample Makefile is provided in the c++/build directory. Eigen, including the u
 
 The C++ version takes more arguments:
 
-`bpmf [-t <threads>] [ -i <niters> ] -n <samples.mtx> -p <probe.mtx> -u <u.mtx> -v <v.mtx> -o <pred.mtx> -s <m2.mtx>`
+`bpmf [-t <threads>] [ -i <niters> ] -n <samples.mtx> [-p <probe.mtx>] [-u <u.mtx>] [-v <v.mtx>] [-o <pred.mtx>] [-s <m2.mtx>]`
 
 Where
  - `[-t <threads>]`: Number of OpenMP or TBB threads to used.
