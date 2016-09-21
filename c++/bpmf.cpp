@@ -43,7 +43,6 @@ int main(int argc, char *argv[])
   {
     int ch;
     string fname, probename, uname, vname, oname, sname;
-    string method_str;
     int nthrds = -1;
     bool redirect = false;
     Sys::nsims = 20;
@@ -67,18 +66,11 @@ int main(int argc, char *argv[])
 
             case 'r': redirect = true; break;
             case 'k': Sys::permute = false; break;
-            case 'w': method_str = optarg; break;
             case '?':
             default : std::cout << usage; Sys::Abort(1);
         }
     }
 
-         if (method_str == "or") Sys::method = Sys::OR;
-    else if (method_str == "wl") Sys::method = Sys::WL;
-    else if (method_str == "wr") Sys::method = Sys::WR;
-    else if (method_str.empty()) Sys::method = Sys::WR;
-    else assert(false);
- 
     if (Sys::nprocs >1 || redirect) {
         std::stringstream ofname;
         ofname << "bpmf_" << Sys::procid << ".out";

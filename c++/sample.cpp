@@ -43,7 +43,6 @@ int Sys::burnin;
 bool Sys::permute = true;
 
 unsigned Sys::grain_size;
-enum Sys::Method Sys::method;
 
 void assert_transpose(SparseMatrixD &A, SparseMatrixD &B)
 {
@@ -82,25 +81,6 @@ void Sys::SetupThreads(int n)
 
 
 template <typename T>
-T le2h(T u)
-{
-    static_assert (CHAR_BIT == 8, "CHAR_BIT != 8");
-
-    volatile uint32_t i=0x01234567;
-    // return 0 for big endian, 1 for little endian.
-    if ((*((uint8_t*)(&i))) == 0x67) return u;
-
-    union { T u; unsigned char u8[sizeof(T)]; } source, dest;
-
-    source.u = u;
-
-    for (size_t k = 0; k < sizeof(T); k++)
-        dest.u8[k] = source.u8[sizeof(T) - k - 1];
-
-    return dest.u;
-}
-
-
 void read_sparse_float64(SparseMatrixD &m, std::string fname) 
 {
     FILE *f = fopen(fname.c_str(), "r");
@@ -109,10 +89,6 @@ void read_sparse_float64(SparseMatrixD &m, std::string fname)
     fread(&nrow, sizeof(uint64_t), 1, f);
     fread(&ncol, sizeof(uint64_t), 1, f);
     fread(&nnz , sizeof(uint64_t), 1, f);
-
-    nrow = le2h<uint64_t>(nrow);
-    ncol = le2h<uint64_t>(ncol);
-    nnz  = le2h<uint64_t>(nnz);
 
     std::vector<uint32_t> rows(nnz), cols(nnz);
     std::vector<double> vals(nnz);
@@ -142,10 +118,9 @@ void read_sparse_float64(SparseMatrixD &m, std::string fname)
         T v;
         T* operator->() {
             // also convert from 1-base to 0-base
-            // also convert from little endian to host endian
-            uint32_t row = le2h(rows.at(pos)) - 1;
-            uint32_t col = le2h(cols.at(pos)) - 1;
-	    double val = le2h(vals.at(pos));
+            uint32_t row = rows.at(pos) - 1;
+            uint32_t col = cols.at(pos) - 1;
+	    double val = vals.at(pos);
             v = T(row, col, val);
             return &v;
         }
@@ -504,14 +479,6 @@ void Sys::update_conn(Sys& other)
             for(int j=0; j<Sys::nprocs; ++j) Sys::cout() << "\t" << conn_count(i,j);
             Sys::cout() << "\n";
         }
-
-        
-        //Sys::cout() << name << ": bitmaps " << std::endl;
-        //for(int i=0; i<num(); ++i) {
-        //    std::bitset<max_procs> &bm = conn_map[i];
-        //    Sys::cout() << i << ": " << bm << std::endl;
-        //}
-
         
     }
 }
@@ -557,9 +524,10 @@ void Sys::opt_conn(Sys& other)
 void Sys::build_conn(Sys& other)
 {
     if (nprocs == 1) return;
+
     update_conn(other);
-    //opt_conn(other);
-    //update_conn(other);
+    opt_conn(other);
+    update_conn(other);
 }
 
 class PrecomputedLLT : public Eigen::LLT<MatrixNNd>

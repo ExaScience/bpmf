@@ -144,9 +144,6 @@ struct Sys {
     virtual void sample(Sys &in);
     static unsigned grain_size;
 
-    enum Method { OR, WL, WR };
-    static enum Method method;
-
     //-- covariance
     double *sum_ptr;
     MapNXd sum_map() const { return MapNXd(sum_ptr, num_feat, Sys::nprocs); }

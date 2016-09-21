@@ -131,63 +131,13 @@ void GASPI_Sys::actual_send(int from, int to)
     BPMF_COUNTER("send_items");
 
     int free = gaspi_wait_for_queue(0);
-    switch (method) {
-        case OR:
-            for(int k = 0; k < Sys::nprocs; k++) {
-                bool send = false;
-                for(int i = from; i<to; ++i) send |= conn(i, k);
-                if (!send) continue;
 
-                auto offset = from * num_feat * sizeof(double);
-                auto size = num_feat * sizeof(double) * (to -  from);
-                SUCCESS_OR_DIE(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
-                if (--free <= 0) free = gaspi_wait_for_queue(0);
-            }
-            break;
-        case WL:
-            {
-                gaspi_number_t max;
-                gaspi_rw_list_elem_max (&max); 
-                auto size = num_feat * sizeof(double);
-                std::vector<gaspi_size_t> sizes(to-from, size);
-                std::vector<gaspi_segment_id_t> segs(to-from, items_seg);
-                for(int k = 0; k < Sys::nprocs; k++) {
-                    std::vector<gaspi_offset_t> offs;
-                    int num = 0;
-		    assert(num < free);
-                    for(int i = from; i<to; ++i)  {
-                        assert(num == offs.size());
-                        if (!conn(i, k)) continue;
-                        offs.push_back(i * num_feat * sizeof(double));
-                        num++;
-		        if (num == free || num == (int)max) {
-			    SUCCESS_OR_DIE(gaspi_write_list(num, segs.data(), offs.data(), k, segs.data(), offs.data(), sizes.data(), 0, GASPI_BLOCK));
-			    if (num == free) free = gaspi_wait_for_queue(0);
-			    offs.clear();
-			    num = 0;
-			}
-                    }
-                    if (num > 0) {
-			    assert(num <= free);
-			    assert(num <= max);
-			    SUCCESS_OR_DIE(gaspi_write_list(num, segs.data(), offs.data(), k, segs.data(), offs.data(), sizes.data(), 0, GASPI_BLOCK));
-			    assert(gaspi_free(0) == free - num);
-			    free -= num;
-			}
-                }
-            }
-            break;
-        case WR:
-            for(int i = from; i < to; ++i) for(int k = 0; k < Sys::nprocs; k++) {
-                auto offset = i * num_feat * sizeof(double);
-                auto size = num_feat * sizeof(double);
-                SUCCESS_OR_DIE(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
-		assert((free - 1) == gaspi_free(0));
-                if (--free <= 0) free = gaspi_wait_for_queue(0);
-            }
-            break;
-        default:
-            assert(false);
+    for(int i = from; i < to; ++i) for(int k = 0; k < Sys::nprocs; k++) {
+        auto offset = i * num_feat * sizeof(double);
+        auto size = num_feat * sizeof(double);
+        SUCCESS_OR_DIE(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
+        assert((free - 1) == gaspi_free(0));
+        if (--free <= 0) free = gaspi_wait_for_queue(0);
     }
 }
 
