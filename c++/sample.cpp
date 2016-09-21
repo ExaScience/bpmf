@@ -79,59 +79,6 @@ void Sys::SetupThreads(int n)
 
 }
 
-
-template <typename T>
-void read_sparse_float64(SparseMatrixD &m, std::string fname) 
-{
-    FILE *f = fopen(fname.c_str(), "r");
-    if (!f) throw std::runtime_error(std::string("Could not open " + fname));
-    uint64_t nrow, ncol, nnz;
-    fread(&nrow, sizeof(uint64_t), 1, f);
-    fread(&ncol, sizeof(uint64_t), 1, f);
-    fread(&nnz , sizeof(uint64_t), 1, f);
-
-    std::vector<uint32_t> rows(nnz), cols(nnz);
-    std::vector<double> vals(nnz);
-    fread(rows.data(), sizeof(uint32_t), nnz, f);
-    fread(cols.data(), sizeof(uint32_t), nnz, f);
-    fread(vals.data(), sizeof(double), nnz, f);
-
-    struct sparse_vec_iterator {
- 	sparse_vec_iterator(
-		std::vector<uint32_t> &rows,
-		std::vector<uint32_t> &cols,
-		std::vector<double> &vals,
-		uint64_t pos)
-            : rows(rows), cols(cols), vals(vals), pos(pos) {}
-
-        std::vector<uint32_t> &rows, &cols;
-        std::vector<double> &vals;
-        uint64_t pos;
-        bool operator!=(const sparse_vec_iterator &other) const { 
-            assert(&rows == &(other.rows));
-            assert(&cols == &(other.cols));
-            assert(&vals == &(other.vals));
-            return pos != other.pos;
-        }
-        sparse_vec_iterator &operator++() { pos++; return *this; }
-        typedef Eigen::Triplet<double> T;
-        T v;
-        T* operator->() {
-            // also convert from 1-base to 0-base
-            uint32_t row = rows.at(pos) - 1;
-            uint32_t col = cols.at(pos) - 1;
-	    double val = vals.at(pos);
-            v = T(row, col, val);
-            return &v;
-        }
-    };
-
-    sparse_vec_iterator begin(rows, cols, vals, 0);
-    sparse_vec_iterator end(rows, cols, vals, nnz);
-    m.resize(nrow, ncol);
-    m.setFromTriplets(begin, end);
-}
-
 double tick() {
     return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now().time_since_epoch()).count(); 
 }
@@ -230,13 +177,8 @@ void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, dou
 
 Sys::Sys(std::string name, std::string fname, std::string probename) : name(name), iter(-1), assigned(false), dom(nprocs+1) {
 
-    if (fname.find(".mbin") != std::string::npos) read_sparse_float64(M, fname);
-    else if (fname.find(".mtx") != std::string::npos) loadMarket(M, fname);
-    else Sys::cout() << "input filename: expecing .mbin or .mtx, got " << fname << std::endl;
-
-    if (probename.find(".mbin") != std::string::npos) read_sparse_float64(T, probename);
-    else if (probename.find(".mtx") != std::string::npos) loadMarket(T, probename);
-    else Sys::cout() << "input filename: expecing .mbin or .mtx, got " << probename << std::endl;
+    loadMarket(M, fname);
+    loadMarket(T, probename);
 
     auto rows = std::max(M.rows(), T.rows());
     auto cols = std::max(M.cols(), T.cols());
