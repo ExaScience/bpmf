@@ -1,4 +1,4 @@
-ROOT=../../c++
+ROOT=../../../c++
 
 CXX=mpicxx
 CFLAGS+=-DBPMF_MPI_ISENDIRECV_COMM  -DBPMF_TBB_SCHED -DBPMF_PROFILING
@@ -8,4 +8,4 @@ CFLAGS+=-I/usr/local/include
 LDFLAGS+=-L/usr/local/lib -ltbb
 
 
-include ../Makefile.common
+include ../../Makefile.common
