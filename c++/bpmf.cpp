@@ -29,9 +29,6 @@ using namespace Eigen;
 #elif defined(BPMF_MPI_ISENDIRECV_COMM)
 #define BPMF_MPI_COMM
 #include "mpi_isendirecv.h"
-#elif defined(BPMF_MPI_NO_COMM)
-#define BPMF_MPI_COMM
-#include "mpi_nocomm.h"
 #elif defined(BPMF_NO_COMM)
 #include "nocomm.h"
 #else

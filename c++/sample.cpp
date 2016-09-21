@@ -13,10 +13,6 @@
 #include <climits>
 #include <stdexcept>
 
-#ifdef SNIPER
-#include <sim_api.h>
-#endif
-
 #include <unsupported/Eigen/SparseExtra>
 
 #ifdef BPMF_TBB_SCHED
@@ -184,11 +180,8 @@ void Sys::predict(Sys& other, bool all)
                         auto m = items().col(it.col());
                         auto u = other.items().col(it.row());
 
-#if defined(BPMF_MPI_NO_COMM) || defined(BPMF_ONLY_COMM)
-#else
                         assert(m.norm() > 0.0);
                         assert(u.norm() > 0.0);
-#endif
 
                         const double pred = m.dot(u) + mean_rating;
                         se.local() += sqr(it.value() - pred);
@@ -228,11 +221,8 @@ void Sys::predict(Sys& other, bool all)
             auto m = items().col(it.col());
             auto u = other.items().col(it.row());
 
-#if defined(BPMF_MPI_NO_COMM) || defined(BPMF_ONLY_COMM)
-#else
             assert(m.norm() > 0.0);
             assert(u.norm() > 0.0);
-#endif
 
             const double pred = m.dot(u) + mean_rating;
             se += sqr(it.value() - pred);
@@ -580,15 +570,6 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 
 VectorNd Sys::sample(long idx, const MapNXd in)
 {
-#ifdef BPMF_ONLY_COMM
-    return VectorNd::Zero();
-#endif
-
-#ifdef SNIPER
-    // randomly sample 1 out of 1000
-    if (645 == (idx % 1000)) SimRoiStart();
-#endif
-
     auto start = tick();
     const double alpha = 2;
     const int breakpoint1 = 1000;
@@ -672,10 +653,6 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 
     assert(rr.norm() > .0);
 
-#ifdef SNIPER
-    if (645 == (idx % 1000)) SimRoiEnd();
-#endif
-    
     return rr;
 }
 
@@ -683,10 +660,6 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 void Sys::sample(Sys &in) 
 {
     iter++;
-
-#ifdef SNIPER
-    SimRoiStart();
-#endif
 
 #ifdef BPMF_TBB_SCHED
     tbb::combinable<VectorNd>  s(VectorNd::Zero()); // sum
