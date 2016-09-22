@@ -3,6 +3,10 @@
 This part can be performed on your own machine (laptop) or on the ARCHER
 supercomputer of EPCC.
 
+When you compile on your own machine you need to have a recent GCC installed (>= 4.9)
+and you will have to have TBB installed (https://www.threadingbuildingblocks.org/).
+Additionally you might to have to adapt the makefile to point to the correct compilers
+and TBB directory.
 
 ## Compile and test
 
@@ -10,7 +14,7 @@ supercomputer of EPCC.
 
 Login on ARCHER.
 
-Do not forget to switch the the GNU programming environment:
+Do not forget to switch to the GNU programming environment:
 
 `module switch PrgEnv-cray PrgEnv-gnu`
 
@@ -47,5 +51,8 @@ Open `sample.cpp` and look for breakpoint1 and breakpoint2. Examine how these se
 the nested thread-level parallelism of TBB. Play with the values of breakpoint1 and breakpoint2
 to influence this parallelism and see how this influences performance. 
 
+## OpenMP
 
+Compile and run the OpenMP version in `bpmf/build/[generic,archer]/nocomm-tbb` in the same way
+you did for the TBB version. Examine and explain the performance difference. Improve the OpenMP version :)
 

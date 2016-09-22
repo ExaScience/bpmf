@@ -33,6 +33,8 @@ you log in, you need to execute this command:
 Please have a look at the README.md file if you want general information
 on how to run BPMF and how obtain additional data files.
 
+This package is specific for the BPMF tutorial. It contains:
+
  - c++: C++ source code of BPMF
  - data: MovieLens and Chembl20 input files
  - build/archer:  Makefiles and job submission scripts for ARCHER

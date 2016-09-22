@@ -8,7 +8,7 @@ This part can only be performed on the ARCHER supercomputer of EPCC.
 
 Login on ARCHER.
 
-Do not forget to switch the the GNU programming environment:
+Do not forget to switch to the GNU programming environment:
 
 `module switch PrgEnv-cray PrgEnv-gnu`
 
@@ -23,7 +23,7 @@ Submit a small job to test: `qsub -q R3941496.sdb ./bpmf_2_mpiisend.cmd`
 
 Verify that the job is running, is queued or has finished:
 
-`vanderaa@eslogin004:~/tmp/bpmf/build/archer/mpiisend-tbb> qstat -u `whoami`
+`$> qstat -u `whoami`
 
 sdb:
                                                             Req'd  Req'd   Elap
@@ -34,6 +34,7 @@ Job ID          Username Queue    Jobname    SessID NDS TSK Memory Time  S Time
 Once the job has finished, go to the output directory and look at the output:
 
 `cd /work/y14/y14/$USER/eurompi/mpi-tbb/latest/
+
 cat bpmf_0.out`
 
 ## Test strong scaling
