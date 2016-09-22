@@ -1,12 +1,10 @@
-# Single Node, Multi-threaded BPMF
+# Distributed BPMF
 
-This part can be performed on your own machine (laptop) or on the ARCHER
-supercomputer of EPCC.
-
+This part can only be performed on the ARCHER supercomputer of EPCC.
 
 ## Compile and test
 
-### Compiling the TBB version on ARCHER
+### Compiling the MPI + TBB version on ARCHER
 
 Login on ARCHER.
 
@@ -14,39 +12,38 @@ Do not forget to switch the the GNU programming environment:
 
 `module switch PrgEnv-cray PrgEnv-gnu`
 
-Go to `bpmf/build/archer/nocomm-tbb` and type `make`
+Go to `bpmf/build/archer/mpiisend-tbb` and type `make`
 
-### Compiling the TBB version on your machine 
+### Submit a small test job to ARCHER
 
-Go to `bpmf/build/generic/nocomm-tbb` and type `make`
+Generate a set of job description jobs: `./gen_cmd.sh`. These cmd-files are generated based on 
+the `bpmf.cmd.tmpl` template. Have a look a the template if you want.
 
-### Test compilation and make a base case
+Submit a small job to test: `qsub -q R3941496.sdb ./bpmf_2_mpiisend.cmd`
 
-In the same directory, type `make test` to verify that the code runs on a small example.
+Verify that the job is running, is queued or has finished:
 
-Also run on a larger example:
+`vanderaa@eslogin004:~/tmp/bpmf/build/archer/mpiisend-tbb> qstat -u `whoami`
 
-`./bpmf -i 20 -n ../../../data/chembl_20/chembl-train-IC50.mtx -p ../../../data/chembl_20/chembl-test-IC50.mtx`
+sdb:
+                                                            Req'd  Req'd   Elap
+Job ID          Username Queue    Jobname    SessID NDS TSK Memory Time  S Time
+--------------- -------- -------- ---------- ------ --- --- ------ ----- - -----
+3953089.sdb     vanderaa standard bpmf_mpiis    --    2  48    --  00:15 Q   --`
 
+Once the job has finished, go to the output directory and look at the output:
 
-Note down the performance results, namely these lines of the output:
+`cd /work/y14/y14/$USER/eurompi/mpi-tbb/latest/
+cat bpmf_0.out`
 
-`Average items/sec: 732060
-Average ratings/sec: 1.2253e+06
+## Test strong scaling
 
-Totals on 0:
->> eval:	     0.0192	(1%) in	2
->> main:	     2.6766	(100%) in	2
->> movies:	     0.4702	(18%) in	2
->> users:	     2.1796	(81%) in	2`
+Submit a set of jobs with 1, 2 and 4 nodes. And see how performance scales.
 
-And calculate the time per single user and the time per single movie. Explain why this is different.
+## Effect of item to node assignment
 
-## Load Balancing
+Adapt the `bpmf.cmd.tmpl` such that bpmf runs with the additional option `-k`.
+This option make that item to node assignment is not optimized. 
 
-Open `sample.cpp` and look for breakpoint1 and breakpoint2. Examine how these settings influence 
-the nested thread-level parallelism of TBB. Play with the values of breakpoint1 and breakpoint2
-to influence this parallelism and see how this influences performance. 
-
-
+Verify the effect of this on performance.
 

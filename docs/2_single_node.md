@@ -20,14 +20,13 @@ Go to `bpmf/build/archer/nocomm-tbb` and type `make`
 
 Go to `bpmf/build/generic/nocomm-tbb` and type `make`
 
-### Test compilation and make a base case
-
 In the same directory, type `make test` to verify that the code runs on a small example.
+
+### Measure performance
 
 Also run on a larger example:
 
 `./bpmf -i 20 -n ../../../data/chembl_20/chembl-train-IC50.mtx -p ../../../data/chembl_20/chembl-test-IC50.mtx`
-
 
 Note down the performance results, namely these lines of the output:
 
