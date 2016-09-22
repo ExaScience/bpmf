@@ -15,7 +15,7 @@ If you download from GitHub, do not forget to checkout the EuroMPI16 branch.
 
 and also has been preloaded on ARCHER.
 
-### Logging in to ARCHER
+### Getting the files on ARCHER
 
 Run this command on ARCHER to expand the tutorial in a subdirectory called `bpmf`:
 
