@@ -4,7 +4,7 @@
 #PBS -l walltime=00:15:00
 #PBS -N bpmf_mpiisend_@NN@
 
-WORK=/work/y14/y14/$USER/eurompi/chemogen/work/mpi-tbb
+WORK=/work/y14/y14/$USER/eurompi/mpi-tbb
 mkdir -p $WORK
 cd $WORK
 
@@ -14,7 +14,7 @@ N=`wc -l $PBS_NODEFILE | cut -d ' ' -f 1`
 SUB=${PBS_JOBID}_${N}
 
 DATA=/work/y14/shared/eurompi/chemogen/data
-BIN=$HOME/chemogen/build/archer/mpiisend-tbb/bpmf
+BIN=@PWD@/bpmf
 # CMD="$BIN -n $DATA/movielens/ml-20m-train.mbin -p $DATA/movielens/ml-20m-test.mbin -i 20 -r -t 24"
 CMD="$BIN -n $DATA/chembl_20/chembl-train-IC50.mbin -p $DATA/chembl_20/chembl-test-IC50.mbin -i 20 -r -t 24"
 
