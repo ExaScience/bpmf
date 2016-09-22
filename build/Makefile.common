@@ -8,7 +8,7 @@ CXXFLAGS+=-O3 -ffast-math -g -fstrict-aliasing -DNDEBUG -march=native
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 OUTPUT_OPTION=-MMD -MP -o $@
 
-.PHONY: all clean distclean
+.PHONY: all clean test
 
 all: bpmf
 
@@ -19,6 +19,9 @@ bpmf: mvnormal.o bpmf.o sample.o counters.o
 clean:
 	rm -f */*.o *.o */*.d *.d
 	rm -f bpmf 
+
+test: bpmf
+	./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx -p ../../../data/movielens/ml-test.mtx
  
 # DFILES 
 DFILES=$(CCFILES:.cpp=.d)
