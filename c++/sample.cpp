@@ -18,13 +18,11 @@
 #include <tbb/combinable.h>
 #include <tbb/parallel_for.h>
 #include "tbb/task_scheduler_init.h"
-
 typedef tbb::blocked_range<VectorNd::Index> Range;
+
 #elif defined(BPMF_OMP_SCHED)
 #include "omp.h"
-#endif
 
-#ifdef BPMF_OMP_SCHED
 #pragma omp declare reduction (VectorPlus : VectorNd : omp_out += omp_in) initializer(omp_priv = VectorNd::Zero())
 #pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out += omp_in) initializer(omp_priv = MatrixNNd::Zero())
 #endif
@@ -43,6 +41,7 @@ bool Sys::permute = true;
 
 unsigned Sys::grain_size;
 
+// verifies that A is transpose of B
 void assert_transpose(SparseMatrixD &A, SparseMatrixD &B)
 {
     SparseMatrixD At = A.transpose();
@@ -78,6 +77,10 @@ void Sys::SetupThreads(int n)
 
 }
 
+//
+// Does predictions for prediction matrix T
+// Computes RMSE (Root Means Square Error)
+//
 void Sys::predict(Sys& other, bool all)
 {
     int n = (iter < burnin) ? 0 : (iter - burnin);
@@ -163,6 +166,9 @@ void Sys::predict(Sys& other, bool all)
 #endif
 }
 
+//
+// Prints sampling progress
+//
 void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, double norm_m) {
   char buf[1024];
   sprintf(buf, "%d: Iteration %d:\t RMSE: %3.2f\tavg RMSE: %3.2f\tFU(%6.2f)\tFM(%6.2f)\titems/sec: %6.2f\tratings/sec: %6.2fM\n",
@@ -170,7 +176,12 @@ void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, dou
   Sys::cout() << buf;
 }
 
-Sys::Sys(std::string name, std::string fname, std::string probename) : name(name), iter(-1), assigned(false), dom(nprocs+1) {
+//
+// Constructor with that reads MTX files
+// 
+Sys::Sys(std::string name, std::string fname, std::string probename)
+    : name(name), iter(-1), assigned(false), dom(nprocs+1)
+{
 
     loadMarket(M, fname);
     loadMarket(T, probename);
@@ -185,6 +196,9 @@ Sys::Sys(std::string name, std::string fname, std::string probename) : name(name
     assert(Sys::nprocs <= (int)Sys::max_procs);
 }
 
+//
+// Constructs Sys as transpose of existing Sys
+//
 Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt) : name(name), iter(-1), assigned(false), dom(nprocs+1) {
     M = Mt.transpose();
     Pm2 = Pavg = T = Pt.transpose(); // reference ratings and predicted ratings
@@ -215,6 +229,9 @@ void Sys::permuteCols(const PermMatrix &perm)
     M = M * perm;
 }
 
+//
+// Intializes internal Matrices and Vectors
+//
 void Sys::init()
 {
     //-- M
@@ -233,9 +250,18 @@ void Sys::init()
     if (measure_perf) sample_time.resize(num(), .0);
 }
 
+//
+// Distributes users/movies accros several nodes
+// takes into account load balance and communication cost
+//
 void Sys::assign(Sys &other)
 {
-    if (nprocs == 1) { dom[0] = 0; dom[1] = num(); return; }
+    if (nprocs == 1) {
+        dom[0] = 0; 
+        dom[1] = num(); 
+        return; 
+    }
+
     if (!permute) { 
         int p = num() / nprocs;
         int i=0; for(; i<nprocs; ++i) dom[i] = i*p;
@@ -265,6 +291,7 @@ void Sys::assign(Sys &other)
     double   total_work  = 0.01;
     unsigned total_comm  = 0;
 
+    // computes best node to assign movie/user idx
     auto best = [&](int idx, double r1, double r2) {
         double min_cost = 1e9;
         int best_proc = -1;
@@ -283,6 +310,7 @@ void Sys::assign(Sys &other)
         return best_proc;
     };
 
+    // update cost function when item is assigned to proc
     auto assign = [&](int item, int proc) {
         const int nnz = M.innerVector(item).nonZeros();
         double work = 10.0 + nnz; // one item is as expensive as  NZs
@@ -296,6 +324,7 @@ void Sys::assign(Sys &other)
         total_comm += (other.assigned ? comm_cost.at(item).at(proc) : 0);
     };
 
+    // update cost function when item is removed from proc
     auto unassign = [&](int item) {
         int proc = item_to_proc[item];
         if (proc < 0) return;
@@ -312,7 +341,7 @@ void Sys::assign(Sys &other)
         
     };
 
-    // iterate once
+    // print cost after iterating once
     auto print = [&](int iter) {
         Sys::cout() << name << " -- iter " << iter << " -- \n";
         if (Sys::procid == 0) {
@@ -353,7 +382,7 @@ void Sys::assign(Sys &other)
     std::vector<std::vector<unsigned>> proc_to_item(nprocs);
     for(int i=0; i<num(); ++i) proc_to_item[item_to_proc[i]].push_back(i);
 
-    // permute T
+    // permute T, P  based on assignment done before
     unsigned pos = 0;
     Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> perm(num());
     for(auto p: proc_to_item) for(auto i: p) perm.indices()(pos++) = i;
@@ -382,6 +411,10 @@ void Sys::assign(Sys &other)
     assigned = true;
 }
 
+//
+// Update connectivity map (where to send certain items)
+// based on assignment to nodes
+//
 void Sys::update_conn(Sys& other)
 {
     unsigned tot = 0;
@@ -420,6 +453,9 @@ void Sys::update_conn(Sys& other)
     }
 }
 
+//
+// try to keep items that have to be sent to the same node next to eachothe
+//
 void Sys::opt_conn(Sys& other)
 {
     // sort internally according to hamming distance
@@ -463,8 +499,8 @@ void Sys::build_conn(Sys& other)
     if (nprocs == 1) return;
 
     update_conn(other);
-    opt_conn(other);
-    update_conn(other);
+    //opt_conn(other);
+    //update_conn(other);
 }
 
 class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
@@ -473,6 +509,10 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
     void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
 };
 
+
+//
+// Update ONE movie or one user
+//
 VectorNd Sys::sample(long idx, const MapNXd in)
 {
     auto start = tick();
@@ -484,6 +524,8 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     VectorNd rr = hp.LambdaF * hp.mu;
     PrecomputedLLT chol;
 
+    // if this user movie has less than 1K ratings,
+    // we do a serial rank update
     if( count < breakpoint1 ) {
         chol = hp.LambdaL;
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
@@ -491,6 +533,8 @@ VectorNd Sys::sample(long idx, const MapNXd in)
             chol.rankUpdate(col, alpha);
             rr.noalias() += col * ((it.value() - mean_rating) * alpha);
         }
+    // else we do a serial full cholesky decomposition
+    // (not used since breakpoint1 == breakpoint2)
     } else if (count < breakpoint2) {
         MatrixNNd MM; MM.setZero();
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
@@ -500,6 +544,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         }
         chol.compute(hp.LambdaF + alpha * MM);
 
+    // for > 1K ratings, we have additional thread-level parallellism
     } else {
         auto from = M.outerIndexPtr()[idx];
         auto to = M.outerIndexPtr()[idx+1];
@@ -562,6 +607,9 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 }
 
 
+// 
+// update ALL movies / users in parallel
+//
 void Sys::sample(Sys &in) 
 {
     iter++;

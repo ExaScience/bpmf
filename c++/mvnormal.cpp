@@ -5,10 +5,8 @@
 
 
 /*
- * From:
- * http://stackoverflow.com/questions/6142576/sample-from-multivariate-normal-gaussian-distribution-in-c
+ * Sampling from WishHart and Normal distributions
  */
-
 
 #include <numeric>
 #include <functional>

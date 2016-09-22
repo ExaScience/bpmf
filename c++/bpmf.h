@@ -39,6 +39,9 @@ inline auto nrandn() -> decltype( VectorNd::NullaryExpr(std::ptr_fun(randn)) ) {
 
 inline double sqr(double x) { return x*x; }
 
+//
+// sampled hyper parameters for priors
+//
 struct HyperParams {
     // fixed params
     const int b0 = 2;
@@ -69,12 +72,16 @@ struct HyperParams {
 
 struct Sys;
 
-
+// 
+// System represent all things related to the movies OR users
+// Hence a classic matrix factorization always has TWO Sys objects
+// for the two factors
 struct Sys {
     //-- static info
     static bool permute;
     static int nprocs, procid, nthrds;
     static int burnin, nsims;
+
     static void Init();
     static void Finalize();
     static void Abort(int);
@@ -94,7 +101,7 @@ struct Sys {
     virtual void alloc_and_init() = 0;
 
     //-- sparse matrix
-    SparseMatrixD M;
+    SparseMatrixD M; // known ratings
     double mean_rating;
     int num() const { return M.cols(); }
     int nnz() const { return M.nonZeros(); }
@@ -102,7 +109,7 @@ struct Sys {
 
     // assignment and connectivity
     typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
-    void permuteCols(const PermMatrix &);
+    void permuteCols(const PermMatrix &); 
     void permuteRows(const PermMatrix &);
     void assign(Sys &);
     bool assigned;
@@ -113,14 +120,17 @@ struct Sys {
         while (dom[proc+1] <= pos) proc++;
         return proc;
     }
-    int num(int i) const { return to(i) - from(i); }
-    int from(int i = procid) const { return dom.at(i); }
+
+    // assignment domain of users/movies to nodes
+    // assignment is continues: node i is assigned items from(i) until to(i)
+    int num(int i) const { return to(i) - from(i); } // number of items on node i
+    int from(int i = procid) const { return dom.at(i); } 
     int to(int i = procid) const { return dom.at(i+1); }
     void print_dom(std::ostream &os) {
 	for(int i=0; i<nprocs; ++i) os << i << ": [" << from(i) << ":" << to(i) << "[" << std::endl;
     }
 
-    // connectivity
+    // connectivity matrix tells what what items need to be sent to what nodes
     void opt_conn(Sys& to);
     void update_conn(Sys& to);
     void build_conn(Sys& to);
@@ -134,10 +144,12 @@ struct Sys {
     unsigned send_count(int to) { return conn_count(Sys::procid, to); }
     unsigned recv_count(int from) { return conn_count(from, Sys::procid); }
 
-    //-- factors
+    //-- factors of the MF
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_feat, num()); }
     VectorNd sample(long idx, const MapNXd in);
+    
+    // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_items(int, int) = 0;
     virtual void bcast_items() = 0;
     virtual void sample(Sys &in);
@@ -171,8 +183,9 @@ struct Sys {
     HyperParams hp;
     virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
 
-    // prediction 
-    SparseMatrixD T, Pavg, Pm2;
+    // output predictions
+    SparseMatrixD T; // test matrix (input)
+    SparseMatrixD Pavg, Pm2; // predictions for items in T (output)`
     double rmse, rmse_avg;
     void predict(Sys& other, bool all = false);
     void print(double, double, double, double); 

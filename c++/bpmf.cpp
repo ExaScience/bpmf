@@ -90,11 +90,13 @@ int main(int argc, char *argv[])
     movies.alloc_and_init();
     users.alloc_and_init();
 
+    // assign users and movies to the computation nodes
     movies.assign(users);
     users.assign(movies);
     movies.assign(users);
     users.assign(movies);
 
+    // after assignment, re-arrange 
     users.build_conn(movies);
     movies.build_conn(users);
     assert(movies.nnz() == users.nnz());
@@ -133,9 +135,7 @@ int main(int argc, char *argv[])
         users.sample_hp();
         { BPMF_COUNTER("users");  users.sample(movies); }
 
-#ifndef BPMF_ONLY_COMM
         { BPMF_COUNTER("eval");   movies.predict(users); }
-#endif
 
         auto stop = tick();
         double items_per_sec = (users.num() + movies.num()) / (stop - start);

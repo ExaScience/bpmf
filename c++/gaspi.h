@@ -220,10 +220,7 @@ void GASPI_Sys::bcast_items()
 
 void GASPI_Sys::sample_hp()
 {
-#ifndef BPMF_GPI_ONLY_COMM
     { BPMF_COUNTER("compute"); Sys::sample_hp(); }
-#endif
-  
     nsim++;
 }
 
