@@ -11,6 +11,8 @@ The code and documents are available on GitHub:
 
 https://github.com/ExaScience/bpmf/tree/EuroMPI16
 
+If you download from GitHub, do not forget to checkout the EuroMPI16 branch.
+
 and also has been preloaded on ARCHER.
 
 ### Logging in to ARCHER
