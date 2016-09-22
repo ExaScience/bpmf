@@ -41,6 +41,23 @@ Run this command on ARCHER to expand the tutorial in your home directory:
  - docs: Tutorial slides and documents 
  - julia: Julia source code of BPMF
 
+## Running the C++ version
+
+The C++ version takes more arguments:
+
+`bpmf [-t <threads>] [ -i <niters> ] -n <samples.mtx> [-p <probe.mtx>] [-u <u.mtx>] [-v <v.mtx>] [-o <pred.mtx>] [-s <m2.mtx>]`
+
+Where
+ - `[-t <threads>]`: Number of OpenMP or TBB threads to used.
+ - `[-i <niters> ]`: Number of sampling iterations
+ - `-n <samples.mtx>`: Training input data
+ - `-p <probe.mtx>`: Test input data
+ - `[-u <u.mtx>]`: Model output U matrix
+ - `[-v <v.mtx>]`: Model output V matrix
+ - `[-o <pred.mtx>]`: Predictions for test input data
+ - `[-s <m2.mtx>]`: Full `UxV` matrix
+
+
 ### Data Files
 
 The input of BPMF is a set of two sparse matrices. These matrices
