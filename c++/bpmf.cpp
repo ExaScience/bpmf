@@ -35,7 +35,7 @@ using namespace Eigen;
 #error no comm include
 #endif
 
-const char *usage = "Usage: bpmf [-t <threads>] [-i <niters>] -n <samples.mtx> -p <probe.mtx> [-u <u.mtx>] [-v <v.mtx>] [-o <pred.mtx>] [-s <m2.mtx>]\n";
+const char *usage = "Usage: bpmf [-k] [-t <threads>] [-i <niters>] -n <samples.mtx> -p <probe.mtx> [-u <u.mtx>] [-v <v.mtx>] [-o <pred.mtx>] [-s <m2.mtx>]\n";
 
 int main(int argc, char *argv[])
 {
