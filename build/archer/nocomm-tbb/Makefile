@@ -1,14 +1,9 @@
 ROOT=../../../c++
 
 CXX=g++
-CFLAGS+=-DBPMF_MPI_ISENDIRECV_COMM  -DBPMF_TBB_SCHED -DBPMF_PROFILING
+CFLAGS+=-DBPMF_NO_COMM  -DBPMF_TBB_SCHED -DBPMF_PROFILING
 
 SUPPORT=/work/y14/shared/eurompi/support
-
-# for MPICH
-CFLAGS+=-I$(CRAY_MPICH_DIR)/include
-LDFLAGS+=-Wl,-rpath=$(CRAY_MPICH_DIR)/lib 
-LDFLAGS+=-L$(CRAY_MPICH_DIR)/lib -lmpich
 
 # for tbb
 CFLAGS+=-I$(SUPPORT)/tbb/include
