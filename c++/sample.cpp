@@ -534,7 +534,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
             rr.noalias() += col * ((it.value() - mean_rating) * alpha);
         }
     // else we do a serial full cholesky decomposition
-    // (not used since breakpoint1 == breakpoint2)
+    // (not used if breakpoint1 == breakpoint2)
     } else if (count < breakpoint2) {
         MatrixNNd MM; MM.setZero();
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {

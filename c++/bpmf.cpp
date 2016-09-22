@@ -96,7 +96,8 @@ int main(int argc, char *argv[])
     movies.assign(users);
     users.assign(movies);
 
-    // after assignment, re-arrange 
+    // build connectivity matrix
+    // contains what items needs to go to what nodes
     users.build_conn(movies);
     movies.build_conn(users);
     assert(movies.nnz() == users.nnz());
