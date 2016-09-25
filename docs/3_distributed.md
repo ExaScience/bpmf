@@ -36,7 +36,7 @@ Job ID          Username Queue    Jobname    SessID NDS TSK Memory Time  S Time
 Once the job has finished, go to the output directory and look at the output:
 
 ```
-cd /work/y14/y14/$USER/eurompi/mpi-tbb/latest/
+cd /work/y14/y14/$USER/eurompi/mpi-tbb/<jobid>
 cat bpmf_0.out
 ```
 
