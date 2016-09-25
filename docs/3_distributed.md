@@ -23,19 +23,22 @@ Submit a small job to test: `qsub -q R3941496 ./bpmf_2_mpiisend.cmd`
 
 Verify that the job is running, is queued or has finished:
 
-`$> qstat -u $USER
+```
+$> qstat -u $USER
 
 sdb:
                                                             Req'd  Req'd   Elap
 Job ID          Username Queue    Jobname    SessID NDS TSK Memory Time  S Time
 --------------- -------- -------- ---------- ------ --- --- ------ ----- - -----
-3953089.sdb     vanderaa standard bpmf_mpiis    --    2  48    --  00:15 Q   --`
+3953089.sdb     vanderaa standard bpmf_mpiis    --    2  48    --  00:15 Q   --
+```
 
 Once the job has finished, go to the output directory and look at the output:
 
-`cd /work/y14/y14/$USER/eurompi/mpi-tbb/latest/
-
-cat bpmf_0.out`
+```
+cd /work/y14/y14/$USER/eurompi/mpi-tbb/latest/
+cat bpmf_0.out
+```
 
 ## Test strong scaling
 
