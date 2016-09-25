@@ -13,10 +13,10 @@ https://github.com/ExaScience/bpmf/tree/EuroMPI16
 
 If you download from GitHub, do not forget to checkout the EuroMPI16 branch.
 
-and also has been preloaded on ARCHER.
 
 ### Getting the files on ARCHER
 
+The files also have been preloaded on ARCHER.
 Run this command on ARCHER to expand the tutorial in a subdirectory called `bpmf`:
 
 `tar xzf /work/y14/shared/eurompi/bpmf.tar.gz`
