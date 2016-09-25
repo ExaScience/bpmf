@@ -1,8 +1,8 @@
 
 CXXFLAGS=$(CFLAGS) -std=c++11
 CXXFLAGS+=-Wall -Wextra -Wfatal-errors -I$(ROOT)
-CXXFLAGS+=-O3 -ffast-math -g -fstrict-aliasing -DNDEBUG -march=native 
-#CXXFLAGS+=-O3 -ffast-math -g -fstrict-aliasing
+CXXFLAGS+=-O3 -ffast-math -g -DNDEBUG 
+#CXXFLAGS+=-O2 -g 
 #CXXFLAGS+=-O0 -g
 
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
