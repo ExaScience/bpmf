@@ -19,11 +19,11 @@ Go to `bpmf/build/archer/mpiisend-tbb` and type `make`
 Generate a set of job description jobs: `./gen_cmd.sh`. These cmd-files are generated based on 
 the `bpmf.cmd.tmpl` template. Have a look a the template if you want.
 
-Submit a small job to test: `qsub -q R3941496.sdb ./bpmf_2_mpiisend.cmd`
+Submit a small job to test: `qsub -q R3941496 ./bpmf_2_mpiisend.cmd`
 
 Verify that the job is running, is queued or has finished:
 
-`$> qstat -u `whoami`
+`$> qstat -u $USER
 
 sdb:
                                                             Req'd  Req'd   Elap
