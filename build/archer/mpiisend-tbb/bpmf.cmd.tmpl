@@ -15,8 +15,8 @@ SUB=${PBS_JOBID}_${N}
 
 DATA=/work/y14/shared/eurompi/chemogen/data
 BIN=@PWD@/bpmf
-# CMD="$BIN -n $DATA/movielens/ml-20m-train.mbin -p $DATA/movielens/ml-20m-test.mbin -i 20 -r -t 24"
-CMD="$BIN -n $DATA/chembl_20/chembl-train-IC50.mbin -p $DATA/chembl_20/chembl-test-IC50.mbin -i 20 -r -t 24"
+# CMD="$BIN -n $DATA/movielens/ml-20m-train.mtx -p $DATA/movielens/ml-20m-test.mtx -i 20 -r -t 24"
+CMD="$BIN -n $DATA/chembl_20/chembl-train-IC50.mtx -p $DATA/chembl_20/chembl-test-IC50.mtx -i 20 -r -t 24"
 
 mkdir -p $SUB
 cd $SUB
