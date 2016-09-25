@@ -36,7 +36,8 @@ Also run on a larger example:
 
 Note down the performance results, namely these lines of the output:
 
-```Average items/sec: 732060
+```
+Average items/sec: 732060
 Average ratings/sec: 1.2253e+06
 
 Totals on 0:
