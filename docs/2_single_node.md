@@ -36,14 +36,14 @@ Also run on a larger example:
 
 Note down the performance results, namely these lines of the output:
 
-```Average items/sec: 732060
+~~~~ Average items/sec: 732060
 Average ratings/sec: 1.2253e+06
 
 Totals on 0:
 >> eval:	     0.0192	(1%) in	2
 >> main:	     2.6766	(100%) in	2
 >> movies:	     0.4702	(18%) in	2
->> users:	     2.1796	(81%) in	2```
+>> users:	     2.1796	(81%) in	2 ~~~~
 
 And calculate the time per single user and the time per single movie. Explain why this is different.
 
