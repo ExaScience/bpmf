@@ -15,6 +15,7 @@ all: bpmf
 # bpmf
 vpath %.cpp $(ROOT)
 bpmf: mvnormal.o bpmf.o sample.o counters.o
+	$(LINK.o) $^ $(LDFLAGS) -o $@
 
 clean:
 	rm -f */*.o *.o */*.d *.d

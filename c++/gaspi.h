@@ -79,13 +79,6 @@ void GASPI_Sys::alloc_and_init()
     Sys::cout() << "gaspi queue depth: " << max << std::endl;
     gaspi_rw_list_elem_max (&max); 
     Sys::cout() << "gaspi rw list max: " << max << std::endl;
-    Sys::cout() << "gaspi method: ";
-    switch (method) {
-        case (OR): Sys::cout() << "or\n"; break;
-        case (WL): Sys::cout() << "wl\n"; break;
-        case (WR): Sys::cout() << "wr\n"; break;
-        default: assert(false);
-    }
 
     nsim = 1;
     sync_time.resize(Sys::nprocs);
