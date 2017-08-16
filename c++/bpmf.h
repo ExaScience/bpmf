@@ -11,8 +11,8 @@
 #define EIGEN_RUNTIME_NO_MALLOC 1
 #define EIGEN_DONT_PARALLELIZE 1
 
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
+#include "Eigen/Dense"
+#include "Eigen/Sparse"
 
 #include "counters.h"
 

@@ -41,6 +41,11 @@ bool Sys::permute = true;
 
 unsigned Sys::grain_size;
 
+//SHAMAKINA: begin
+void calc_upper_part(MatrixNNd &m, VectorNd v);         // function for calcutation of an upper part of a symmetric matrix: m = v * v.transpose(); 
+void copy_lower_part(MatrixNNd &m);                     // function to copy an upper part of a symmetric matrix to a lower part
+//SHAMAKINA: end
+
 // verifies that A is transpose of B
 void assert_transpose(SparseMatrixD &A, SparseMatrixD &B)
 {
@@ -516,38 +521,60 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 VectorNd Sys::sample(long idx, const MapNXd in)
 {
     auto start = tick();
-    const double alpha = 2;
-    const int breakpoint1 = 1000;
-    const int breakpoint2 = 1000;
-    const int count = M.innerVector(idx).nonZeros();
+    const double alpha = 2;       // Gaussian noice
 
-    VectorNd rr = hp.LambdaF * hp.mu;
-    PrecomputedLLT chol;
+//SHAMAKINA: begin
+    int breakpoint1 = 24; 
+    int breakpoint2 = 10500; 
+// SHAMAKINA: end    
+    
+    const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
+                                                     // (how many movies watched idx-th user?).
 
+    VectorNd rr = hp.LambdaF * hp.mu;                // vector num_feat x 1, we will use it in formula (14) from the paper
+    PrecomputedLLT chol;                             // matrix num_feat x num_feat, chol="lambda_i with *" from formula (14) 
+    
     // if this user movie has less than 1K ratings,
     // we do a serial rank update
     if( count < breakpoint1 ) {
+
         chol = hp.LambdaL;
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
             auto col = in.col(it.row());
             chol.rankUpdate(col, alpha);
             rr.noalias() += col * ((it.value() - mean_rating) * alpha);
         }
+
     // else we do a serial full cholesky decomposition
     // (not used if breakpoint1 == breakpoint2)
     } else if (count < breakpoint2) {
-        MatrixNNd MM; MM.setZero();
+
+//SHAMAKINA: begin
+        //MatrixNNd MM; MM.setZero();
+        MatrixNNd MM(MatrixNNd::Zero());
+// SHAMAKINA: end
+ 
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
             auto col = in.col(it.row());
-            MM.noalias() += col * col.transpose();
+            
+// SHAMAKINA: begin
+            //MM.noalias() += col * col.transpose();
+            calc_upper_part(MM, col);
+// SHAMAKINA: end
+            
             rr.noalias() += col * ((it.value() - mean_rating) * alpha);
         }
-        chol.compute(hp.LambdaF + alpha * MM);
 
+// SHAMAKINA: begin
+        // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
+        copy_lower_part(MM);
+// SHAMAKINA: end
+
+        chol.compute(hp.LambdaF + alpha * MM);
     // for > 1K ratings, we have additional thread-level parallellism
     } else {
-        auto from = M.outerIndexPtr()[idx];
-        auto to = M.outerIndexPtr()[idx+1];
+        auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix 
+        auto to = M.outerIndexPtr()[idx+1];   // "to"   belongs to [1..m], m - number of movies in M matrix
 
 #ifdef BPMF_TBB_SCHED
         tbb::combinable<VectorNd> s(VectorNd::Zero()); // sum
@@ -569,33 +596,60 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         // return sum and covariance
         rr += s.combine(std::plus<VectorNd>());
         MatrixNNd MM = p.combine(std::plus<MatrixNNd>());
-#elif defined(BPMF_OMP_SCHED) || defined(BPMF_SER_SCHED)
-        MatrixNNd MM(MatrixNNd::Zero()); // outer prod
 
-//#ifdef BPMF_OMP_SCHED
-//#pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM)
-//#endif
-        for(int i = from; i<to; ++i) {
-            auto val = M.valuePtr()[i];
-            auto idx = M.innerIndexPtr()[i];
-            auto col = in.col(idx);
-            MM.noalias() += col * col.transpose();
-            rr.noalias() += col * ((val - mean_rating) * alpha);
+#elif defined(BPMF_OMP_SCHED) || defined(BPMF_SER_SCHED)
+        MatrixNNd MM(MatrixNNd::Zero());               // matrix num_feat x num_feat 
+ 
+#ifdef BPMF_OMP_SCHED
+
+// SHAMAKINA: begin
+        omp_set_nested(1);
+        // #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM)
+        #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM) num_threads(12) schedule(dynamic,200)
+// SHAMAKINA: end
+#endif
+        for(int j = from; j<to; ++j) {                 // for each nonzeros elemen in the i-th row of M matrix
+            auto val = M.valuePtr()[j];                // value of the j-th nonzeros element from idx-th row of M matrix
+            auto idx = M.innerIndexPtr()[j];           // index "j" of the element [i,j] from M matrix in compressed M matrix 
+            auto col = in.col(idx);                    // vector num_feat x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:] 
+
+// SHAMAKINA: begin
+            //MM.noalias() += col * col.transpose();     // outer product
+            calc_upper_part(MM, col);
+// SHAMAKINA: end
+            rr.noalias() += col * ((val - mean_rating) * alpha); // vector num_feat x 1
         }
+
+// SHAMAKINA: begin
+        copy_lower_part(MM);
+// SHAMAKINA: end
 
 #else
 #error No sched sample_one
 #endif
 
-        chol.compute(hp.LambdaF + alpha * MM);
+        chol.compute(hp.LambdaF + alpha * MM);         // matrix num_feat x num_feat
+                                                       // chol="lambda_i with *" from formula (14)
+                                                       // lambda_i with * = LambdaU + alpha * MM
     }
 
     if(chol.info() != Eigen::Success) abort();
 
-    chol.matrixL().solveInPlace(rr);
-    rr += nrandn();
-    chol.matrixU().solveInPlace(rr);
-    items().col(idx) = rr;
+    // now we should calculate formula (14) from the paper
+    // u_i for k-th iteration = Gaussian distribution N(u_i | mu_i with *, [lambda_i with *]^-1) =
+    //                        = mu_i with * + s * [U]^-1, 
+    //                        where 
+    //                              s is a random vector with N(0, I),
+    //                              mu_i with * is a vector num_feat x 1, 
+    //                              mu_i with * = [lambda_i with *]^-1 * rr,
+    //                              lambda_i with * = L * U       
+
+    // Expression u_i = U \ (s + (L \ rr)) in Matlab looks for Eigen library like: 
+
+    chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
+    rr += nrandn();                                     // rr=s+(L\rr), we store result again in rr vector
+    chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
+    items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
     auto stop = tick();
     register_time(idx, 1e6 * (stop - start));
@@ -605,7 +659,6 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 
     return rr;
 }
-
 
 // 
 // update ALL movies / users in parallel
@@ -643,15 +696,30 @@ void Sys::sample(Sys &in)
     MatrixNNd prod(MatrixNNd::Zero()); // outer prod
 
 #ifdef BPMF_OMP_SCHED
-#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic, 1)
+
+// SHAMAKINA: begin
+//#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic, 1)
+#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) num_threads(24) schedule(dynamic,1) 
+// SHAMAKINA: end
+
 #endif
     for(int i = from(); i<to(); ++i) {
         auto r = sample(i,in.items()); 
-        prod += (r * r.transpose());
+
+// SHAMAKINA: begin
+        //prod += (r * r.transpose());
+        calc_upper_part(prod, r);
+// SHAMAKINA: end
+
         sum += r;
         norm += r.squaredNorm();
         send_items(i,i+1);
     }
+
+// SHAMAKINA: begin
+        copy_lower_part(prod);
+// SHAMAKINA: end
+
 #elif defined(BPMF_SER_SCHED)
     // serial 
     VectorNd sum(VectorNd::Zero()); // sum
@@ -679,3 +747,29 @@ void Sys::register_time(int i, double t)
 {
     if (measure_perf) sample_time.at(i) += t;
 }
+
+// SHAMAKINA: begin
+void calc_upper_part(MatrixNNd &m, VectorNd v)
+{
+  // we use the formula: m = m + v * v.transpose(), but we calculate only an upper part of m matrix
+  for (int j=0; j<num_feat; j++)          // columns
+  {
+    for(int i=0; i<=j; i++)              // rows
+    {
+      m(i,j) = m(i,j) + v[j] * v[i];
+    }
+  }
+}
+
+void copy_lower_part(MatrixNNd &m)
+{
+  // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
+  for (int j=1; j<num_feat; j++)          // columns
+  {
+    for(int i=0; i<=j-1; i++)            // rows
+    {
+      m(j,i) = m(i,j);
+    }
+  }
+}
+// SHAMAKINA: end
