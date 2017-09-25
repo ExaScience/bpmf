@@ -5,6 +5,10 @@ recommender method that allows to predict for example movie ratings. The method 
 
 Input is in the form of a sparse matrix of values (e.g. movie ratings) `R` . The outputs are two smaller matrices `U` and `V` such that `U * V` forms a prediction matrix.
 
+## Tutorial
+
+in [docs/](docs/)
+
 ## Julia version
 
 The Julia version takes two command line arguments:
