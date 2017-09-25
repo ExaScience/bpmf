@@ -1,24 +1,11 @@
 # Single Node, Multi-threaded BPMF
 
-This part can be performed on your own machine (laptop) or on the ARCHER
-supercomputer of EPCC.
-
 When you compile on your own machine you need to have a recent GCC installed (>= 4.9)
 and you will have to have TBB installed (https://www.threadingbuildingblocks.org/).
 Additionally you might to have to adapt the makefile to point to the correct compilers
 and TBB directory.
 
 ## Compile and test
-
-### Compiling the TBB version on ARCHER
-
-Login on ARCHER.
-
-Do not forget to switch to the GNU programming environment:
-
-`module switch PrgEnv-cray PrgEnv-gnu`
-
-Go to `bpmf/build/archer/nocomm-tbb` and type `make`
 
 ### Compiling the TBB version on your machine 
 
