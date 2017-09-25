@@ -9,24 +9,7 @@ In this section:
 
 The code and documents are available on GitHub:
 
-https://github.com/ExaScience/bpmf/tree/EuroMPI16
-
-If you download from GitHub, do not forget to checkout the EuroMPI16 branch.
-
-
-### Getting the files on ARCHER
-
-The files also have been preloaded on ARCHER.
-Run this command on ARCHER to expand the tutorial in a subdirectory called `bpmf`:
-
-`tar xzf /work/y14/shared/eurompi/bpmf.tar.gz`
-
-### Compiling on ARCHER
-
-We will use the GNU compilers and not the CRAY compilers. Hence everytime
-you log in, you need to execute this command:
-
-`module switch PrgEnv-cray PrgEnv-gnu`
+https://github.com/ExaScience/bpmf
 
 ### Contents of the package
 
