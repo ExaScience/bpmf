@@ -7,5 +7,5 @@ The tutorial is split in several parts:
  2. the analysis of the single-node multi-threaded version of BPMF, and 
  3. analysis of the distributed version of BPMF. 
  
- The slides are in https://github.com/ExaScience/bpmf/blob/master/docs/2016-09-ParallelMatrixFactorization.pdf
+ The slides are in [2016-09-ParallelMatrixFactorization.pdf](2016-09-ParallelMatrixFactorization.pdf)
 
