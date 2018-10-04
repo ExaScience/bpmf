@@ -5,6 +5,7 @@
 
 #include <mpi.h>
 #include <GASPI.h>
+#include <GASPI_Ext.h>
 
 #include <thread>
 
@@ -229,7 +230,7 @@ void Sys::Init()
     gaspi_rank_t rank;
     gaspi_config_t c;
     gaspi_config_get(&c);
-    c.queue_depth = 4096;
+    c.queue_size_max = 4096;
     c.queue_num = 1;
     gaspi_config_set(c);
     gaspi_proc_init(GASPI_BLOCK);
