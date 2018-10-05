@@ -82,6 +82,20 @@ void Sys::SetupThreads(int n)
 
 }
 
+bool Sys::isMasterThread()
+{
+#ifdef BPMF_TBB_SCHED
+    assert(0);
+#elif defined(BPMF_OMP_SCHED)
+    return  omp_get_thread_num() == 0;
+#elif defined(BPMF_SER_SCHED)
+    return true;
+#else
+#error No sched SetupThreads
+#endif
+}
+
+
 //
 // Does predictions for prediction matrix T
 // Computes RMSE (Root Means Square Error)

@@ -3,7 +3,10 @@
  * All rights reserved.
  */
 
+#ifdef BPMF_HYBRID_COMM
 #include <mpi.h>
+#endif
+
 #include <GASPI.h>
 #include <GASPI_Ext.h>
 
@@ -137,9 +140,7 @@ void GASPI_Sys::actual_send(int from, int to)
 
 void GASPI_Sys::process_queue() 
 {
-    int main_thread;
-    MPI_Is_thread_main(&main_thread);
-    if (!main_thread) return;
+    if (!Sys::isMasterThread()) return;
 
     {
         BPMF_COUNTER("process_queue");
@@ -207,9 +208,11 @@ void GASPI_Sys::sample(Sys &in)
 
 void GASPI_Sys::bcast_items()
 {
+#ifdef BPMF_HYBRID_COMM
     for(int i = 0; i < num(); i++) {
         MPI_Bcast(items().col(i).data(), num_feat, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
     }
+#endif
 }
 
 void GASPI_Sys::sample_hp()
@@ -220,12 +223,14 @@ void GASPI_Sys::sample_hp()
 
 void Sys::Init()
 {
+#ifdef BPMF_HYBRID_COMM
     int provided;
     MPI_Init_thread(0, 0, MPI_THREAD_SERIALIZED, &provided);
     assert(provided == MPI_THREAD_SERIALIZED);
     MPI_Comm_rank(MPI_COMM_WORLD, &Sys::procid);
     MPI_Comm_size(MPI_COMM_WORLD, &Sys::nprocs);
     MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
+#endif
 
     gaspi_rank_t rank;
     gaspi_config_t c;
@@ -248,12 +253,18 @@ void Sys::Finalize()
     perf_data.print();
 #endif
     gaspi_proc_term(GASPI_BLOCK);
+#ifdef BPMF_HYBRID_COMM
     MPI_Finalize();
+#endif
 }
 
 void Sys::sync()
 {
+#ifdef BPMF_HYBRID_COMM
     MPI_Barrier(MPI_COMM_WORLD);
+#else
+    gaspi_barrier(GASPI_GROUP_ALL,GASPI_BLOCK);
+#endif
 }
 
 void Sys::Abort(int err)

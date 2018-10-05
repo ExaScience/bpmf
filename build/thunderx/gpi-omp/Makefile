@@ -1,7 +1,7 @@
 ROOT=../../../c++
 
 CXX=armclang++
-CFLAGS+=-DBPMF_HYBRID_COMM -DBPMF_GPI_COMM -DBPMF_OMP_SCHED -DBPMF_PROFILING
+CFLAGS+=-DBPMF_GPI_COMM -DBPMF_OMP_SCHED -DBPMF_PROFILING
 
 # for EIGEN3
 CFLAGS+=$(EIGEN3_INCL)
@@ -10,10 +10,10 @@ CFLAGS+=$(EIGEN3_INCL)
 CFLAGS+=-fopenmp
 
 # for MPI
-MPIROOT=/apps/openmpi/1.10.2
-CFLAGS+=-I$(MPIROOT)/include
-LDFLAGS+=-Wl,-rpath=$(MPIROOT)/lib 
-LDFLAGS+=-L$(MPIROOT)/lib -lmpi
+# MPIROOT=/apps/openmpi/3.0.1
+# CFLAGS+=-I$(MPIROOT)/include
+# LDFLAGS+=-Wl,-rpath=$(MPIROOT)/lib 
+# LDFLAGS+=-L$(MPIROOT)/lib -lmpi
 
 # for GPI2
 GPIROOT=$(HOME)/euroexa/unimem-gpi

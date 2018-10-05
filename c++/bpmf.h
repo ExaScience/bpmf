@@ -86,6 +86,7 @@ struct Sys {
     static void Finalize();
     static void Abort(int);
     static void SetupThreads(int);
+    static bool isMasterThread();
     static void sync();
 
     static std::ostream *os;
