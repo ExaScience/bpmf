@@ -35,8 +35,11 @@ do  { \
 } while (0);
 
 static double* gaspi_malloc(gaspi_segment_id_t seg, size_t size) {
-        gaspi_segment_create(seg, size, GASPI_GROUP_ALL, GASPI_BLOCK, GASPI_MEM_UNINITIALIZED);
+	assert(size > 0);
+	Sys::cout() << "alloc id " << (int)seg << " with size " << (int)size << std::endl;
+        SUCCESS_OR_DIE(gaspi_segment_create(seg, size, GASPI_GROUP_ALL, GASPI_BLOCK, GASPI_MEM_UNINITIALIZED));
         void *ptr;
+	Sys::cout() << "ptr = " << &ptr << std::endl;
         SUCCESS_OR_DIE(gaspi_segment_ptr(seg, &ptr));
         return (double*)ptr;
 }
@@ -240,11 +243,25 @@ void Sys::Init()
     gaspi_config_set(c);
     gaspi_proc_init(GASPI_BLOCK);
     gaspi_proc_rank(&rank);
-    assert(rank == Sys::procid);
+    if (Sys::procid >= 0)
+    {
+	    assert(rank == Sys::procid);
+    }
+    else
+    {
+	    Sys::procid = rank;
+    }
 
     gaspi_number_t size;
     gaspi_group_size(GASPI_GROUP_ALL,&size);
-    assert(Sys::nprocs == (int)size);
+    if (Sys::nprocs > 0)
+    {
+	    assert(Sys::nprocs == (int)size);
+    }
+    else
+    {
+	    Sys::nprocs = size;
+    }
 }
 
 void Sys::Finalize()

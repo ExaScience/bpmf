@@ -30,9 +30,9 @@ typedef tbb::blocked_range<VectorNd::Index> Range;
 static const bool measure_perf = false;
 
 std::ostream *Sys::os;
-int Sys::procid;
-int Sys::nprocs;
-int Sys::nthrds;
+int Sys::procid = -1;
+int Sys::nprocs = -1;
+int Sys::nthrds = -1;
 
 int Sys::nsims;
 int Sys::burnin;
@@ -213,6 +213,7 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
     assert(M.rows() == Pavg.rows());
     assert(M.cols() == Pavg.cols());
     assert(Sys::nprocs <= (int)Sys::max_procs);
+    cout() << rows << " x " << cols << " " << name << std::endl;
 }
 
 //
