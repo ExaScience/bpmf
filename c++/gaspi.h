@@ -235,12 +235,7 @@ void Sys::Init()
 #endif
 
     gaspi_rank_t rank;
-    gaspi_config_t c;
-    gaspi_config_get(&c);
-    c.queue_size_max = 4096;
-    c.queue_num = 1;
-    gaspi_config_set(c);
-    gaspi_proc_init(GASPI_BLOCK);
+    SUCCESS_OR_DIE(gaspi_proc_init(GASPI_BLOCK));
     gaspi_proc_rank(&rank);
     if (Sys::procid >= 0)
     {
@@ -259,6 +254,7 @@ void Sys::Init()
     }
     else
     {
+            assert(size > 0);
 	    Sys::nprocs = size;
     }
 }
