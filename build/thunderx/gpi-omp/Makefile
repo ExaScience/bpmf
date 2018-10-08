@@ -18,7 +18,7 @@ CFLAGS+=-fopenmp
 # for GPI2
 GPIROOT=$(HOME)/euroexa/unimem-gpi
 CFLAGS+=-I$(GPIROOT)/include
-LDFLAGS+=-L$(GPIROOT)/lib64 -lGPI2
+LDFLAGS+=-L$(GPIROOT)/lib64 -lGPI2-dbg
 
 include ../../Makefile.common
 

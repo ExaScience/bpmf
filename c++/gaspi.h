@@ -35,7 +35,6 @@ do  { \
 } while (0);
 
 static double* gaspi_malloc(gaspi_segment_id_t seg, size_t size) {
-	assert(size > 0);
 	Sys::cout() << "alloc id " << (int)seg << " with size " << (int)size << std::endl;
         SUCCESS_OR_DIE(gaspi_segment_create(seg, size, GASPI_GROUP_ALL, GASPI_BLOCK, GASPI_MEM_UNINITIALIZED));
         void *ptr;
@@ -269,7 +268,9 @@ void Sys::Finalize()
 #ifdef BPMF_PROFILING
     perf_data.print();
 #endif
+
     gaspi_proc_term(GASPI_BLOCK);
+
 #ifdef BPMF_HYBRID_COMM
     MPI_Finalize();
 #endif

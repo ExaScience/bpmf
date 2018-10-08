@@ -5,12 +5,12 @@ CXXFLAGS+=-Wall -Wextra -Wfatal-errors -I$(ROOT)
 
 #CXXFLAGS+=-w -O3 -g -DNDEBUG
 #CXXFLAGS+=-no-inline-max-size -no-inline-max-total-size -O3 -g -DNDEBUG # -w=1 #-axSSSE3 # Intel Compiler
-CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG  # original line
+#CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG  # original line
 #CXXFLAGS+=-fopt-info-optimized=gnu_fopt_info_optimized.txt -O3 -g -DNDEBUG -ffast-math #-fopt-info-vec #-ftree-loop-optimize # Report for GNU
 #CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG # report for Cray Compiler
 
 #CXXFLAGS+=-O2 -g 
-#CXXFLAGS+=-O0 -g
+CXXFLAGS+=-O0 -g
 
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 OUTPUT_OPTION=-MMD -MP -o $@
