@@ -10,13 +10,13 @@
 set -e
 set -x
 
-cd $SLURM_SUBMIT_DIR
+BASEDIR=$SLURM_SUBMIT_DIR
 
 CONFIG=$1
 test -z "$CONFIG" && CONFIG=gpi-omp
  
 BPMF=$CONFIG/bpmf
-ARGS="-n data/movielens/ml-train.mtx -p data/movielesn/ml-test.mtx"
+ARGS="-n $BASEDIR/data/movielens/ml-train.mtx -p $BASEDIR/data/movielesn/ml-test.mtx"
 
 ldd $BPMF
 
@@ -25,6 +25,8 @@ srun -l /bin/hostname | sort -n | awk '{print $2}' > $MACHINEFILE
 
 GASPIRUN=$HOME/euroexa/unimem-gpi/bin/gaspi_run
 
-CMD="$GASPIRUN -m $MACHINEFILE $BPMF $ARGS"
+RUNME=$BASEDIR/gaspi_run_me.sh
+
+CMD="$GASPIRUN -m $MACHINEFILE $RUNME $BASEDIR"
 
 $CMD
