@@ -213,7 +213,6 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
     assert(M.rows() == Pavg.rows());
     assert(M.cols() == Pavg.cols());
     assert(Sys::nprocs <= (int)Sys::max_procs);
-    cout() << rows << " x " << cols << " " << name << std::endl;
 }
 
 //

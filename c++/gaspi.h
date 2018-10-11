@@ -35,10 +35,10 @@ do  { \
 } while (0);
 
 static double* gaspi_malloc(gaspi_segment_id_t seg, size_t size) {
-	Sys::cout() << "alloc id " << (int)seg << " with size " << (int)size << std::endl;
+	// Sys::cout() << "alloc id " << (int)seg << " with size " << (int)size << std::endl;
         SUCCESS_OR_DIE(gaspi_segment_create(seg, size, GASPI_GROUP_ALL, GASPI_BLOCK, GASPI_MEM_UNINITIALIZED));
         void *ptr;
-	Sys::cout() << "ptr = " << &ptr << std::endl;
+	//Sys::cout() << "ptr = " << &ptr << std::endl;
         SUCCESS_OR_DIE(gaspi_segment_ptr(seg, &ptr));
         return (double*)ptr;
 }
