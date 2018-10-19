@@ -20,5 +20,8 @@ GPIROOT=$(HOME)/euroexa/unimem-gpi
 CFLAGS+=-I$(GPIROOT)/include
 LDFLAGS+=-L$(GPIROOT)/lib64 -lGPI2-dbg
 
+LDFLAGS+=-Wl,-rpath,/apps/ARM/hpcCompiler/18.3/lib
+LDFLAGS+=-Wl,-rpath,/apps/gcc/7.1.0/lib64
+
 include ../../Makefile.common
 

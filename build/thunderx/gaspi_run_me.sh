@@ -6,7 +6,7 @@ cd $BASEDIR
 
 BPMF=gpi-omp/bpmf
 
-ARGS="-n $BASEDIR/data/movielens/ml-train.mtx -p $BASEDIR/data/movielesn/ml-test.mtx"
+ARGS="-n $BASEDIR/data/movielens/ml-train.mtx -p $BASEDIR/data/movielens/ml-test.mtx"
 
 ldd $BPMF
 
