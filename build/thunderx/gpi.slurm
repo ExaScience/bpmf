@@ -8,7 +8,6 @@
 #SBATCH --time=01:00:00
 
 set -e
-set -x
 
 BASEDIR=$SLURM_SUBMIT_DIR
 
