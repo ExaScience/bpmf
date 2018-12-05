@@ -155,6 +155,9 @@ int main(int argc, char *argv[])
         movies.print(items_per_sec, ratings_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
         average_items_sec += items_per_sec;
         average_ratings_sec += ratings_per_sec;
+
+        if (uname.size()) { std::ofstream os(std::to_string(i) + "-" + uname); os << users.items(); }
+        if (vname.size()) { std::ofstream os(std::to_string(i) + "-" + vname); os << movies.items(); }
     }
 
     Sys::sync();
@@ -176,8 +179,6 @@ int main(int argc, char *argv[])
 
         if (oname.size()) { saveMarket(movies.Pavg, oname); }
         if (sname.size()) { saveMarket(movies.Pm2, sname); }
-        if (uname.size()) { std::ofstream os(uname); os << users.items(); }
-        if (vname.size()) { std::ofstream os(vname); os << movies.items(); }
 
 
     }

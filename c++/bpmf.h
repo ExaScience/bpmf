@@ -100,7 +100,6 @@ struct Sys {
     virtual ~Sys();
     void init();
     virtual void alloc_and_init() = 0;
-    void add_prop_posterior(std::string);
 
     //-- sparse matrix
     SparseMatrixD M; // known ratings
@@ -129,7 +128,8 @@ struct Sys {
     int from(int i = procid) const { return dom.at(i); } 
     int to(int i = procid) const { return dom.at(i+1); }
     void print_dom(std::ostream &os) {
-	for(int i=0; i<nprocs; ++i) os << i << ": [" << from(i) << ":" << to(i) << "[" << std::endl;
+        for (int i = 0; i < nprocs; ++i)
+            os << i << ": [" << from(i) << ":" << to(i) << "[" << std::endl;
     }
 
     // connectivity matrix tells what what items need to be sent to what nodes
@@ -151,7 +151,10 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_feat, num()); }
     VectorNd sample(long idx, const MapNXd in);
 
+    //-- for propagated posterior
     Eigen::MatrixXd propMu, propLambda;
+    void add_prop_posterior(std::string);
+    bool has_prop_posterior() const;
     
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_items(int, int) = 0;

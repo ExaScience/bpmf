@@ -238,6 +238,11 @@ Sys::~Sys()
     }
 }
 
+bool Sys::has_prop_posterior() const
+{
+    return propMu.nonZeros() > 0;
+}
+
 void Sys::add_prop_posterior(std::string mtx)
 {
     if (mtx.empty()) return;
@@ -269,6 +274,8 @@ void Sys::permuteCols(const PermMatrix &perm)
     Pavg = Pavg * perm;
     Pm2 = Pm2 * perm;
     M = M * perm;
+    propMu * perm;
+    propLambda * perm;
 }
 
 //
@@ -287,6 +294,10 @@ void Sys::init()
     if (Sys::procid == 0) {
         Sys::cout() << "mean rating = " << mean_rating << std::endl;
         Sys::cout() << "num " << name << ": " << num() << std::endl;
+        if (has_prop_posterior())
+        {
+            Sys::cout() << "with propagated posterior" << std::endl;
+        }
     }
 
     if (measure_perf) sample_time.resize(num(), .0);
@@ -560,6 +571,20 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     auto start = tick();
     const double alpha = 2;       // Gaussian noice
 
+    VectorNd hp_mu;
+    MatrixNNd hp_Lambda; 
+    if (has_prop_posterior())
+    {
+        hp_mu = propMu.col(idx);
+        hp_Lambda = Eigen::Map<MatrixNNd>(propLambda.col(idx).data()); 
+    }
+    else
+    {
+        hp_mu = hp.mu;
+        hp_Lambda = hp.LambdaF; 
+    }
+
+
 //SHAMAKINA: begin
     int breakpoint1 = 24; 
     int breakpoint2 = 10500; 
@@ -568,14 +593,14 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).
 
-    VectorNd rr = hp.LambdaF * hp.mu;                // vector num_feat x 1, we will use it in formula (14) from the paper
+    VectorNd rr = hp_Lambda * hp.mu;                 // vector num_feat x 1, we will use it in formula (14) from the paper
     PrecomputedLLT chol;                             // matrix num_feat x num_feat, chol="lambda_i with *" from formula (14) 
     
     // if this user movie has less than 1K ratings,
     // we do a serial rank update
     if( count < breakpoint1 ) {
 
-        chol = hp.LambdaL;
+        chol = hp_Lambda;
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
             auto col = in.col(it.row());
             chol.rankUpdate(col, alpha);
@@ -607,7 +632,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         copy_lower_part(MM);
 // SHAMAKINA: end
 
-        chol.compute(hp.LambdaF + alpha * MM);
+        chol.compute(hp_Lambda + alpha * MM);
     // for > 1K ratings, we have additional thread-level parallellism
     } else {
         auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix 
@@ -665,7 +690,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 #error No sched sample_one
 #endif
 
-        chol.compute(hp.LambdaF + alpha * MM);         // matrix num_feat x num_feat
+        chol.compute(hp_Lambda + alpha * MM);         // matrix num_feat x num_feat
                                                        // chol="lambda_i with *" from formula (14)
                                                        // lambda_i with * = LambdaU + alpha * MM
     }
