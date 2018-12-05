@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
   Sys::Init();
   {
     int ch;
-    string fname, probename, uname, vname, oname, sname;
+    string fname, probename, uname, vname, oname, sname, mname, lname;
     int nthrds = -1;
     bool redirect = false;
     Sys::nsims = 20;
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     Sys::grain_size = 1;
     
  
-    while((ch = getopt(argc, argv, "krn:t:p:i:g:w:u:v:o:s:")) != -1)
+    while((ch = getopt(argc, argv, "krn:t:p:i:g:w:u:v:o:s:m:l:")) != -1)
     {
         switch(ch)
         {
@@ -67,6 +67,9 @@ int main(int argc, char *argv[])
             case 'v': vname = optarg; break;
             case 'o': oname = optarg; break;
             case 's': sname = optarg; break;
+
+            case 'm': mname = optarg; break;
+            case 'l': lname = optarg; break;
 
             case 'r': redirect = true; break;
             case 'k': Sys::permute = false; break;
@@ -88,8 +91,12 @@ int main(int argc, char *argv[])
         Sys::Abort(1);
     }
 
+
     SYS movies("movs", fname, probename);
     SYS users("users", movies.M, movies.Pavg);
+
+    movies.add_prop_posterior(mname);
+    users.add_prop_posterior(lname);
 
     movies.alloc_and_init();
     users.alloc_and_init();

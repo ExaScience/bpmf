@@ -238,6 +238,29 @@ Sys::~Sys()
     }
 }
 
+void Sys::add_prop_posterior(std::string mtx)
+{
+    if (mtx.empty()) return;
+
+    char *cp = 0; // copy of mtx
+    strcpy(cp, mtx.c_str());
+    std::string mu_name = strtok (cp, ",");
+    std::string lambda_name = strtok(cp, ",");
+
+    SparseMatrixD temp;
+    loadMarket(temp, mu_name);
+    propMu = temp.toDense();
+    loadMarket(temp, lambda_name);
+    propLambda = temp.toDense();
+
+    assert(propMu.cols() == num());
+    assert(propLambda.cols() == num());
+
+    assert(propMu.rows() == num_feat);
+    assert(propLambda.rows() == num_feat * num_feat);
+
+}
+
 typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
 
 void Sys::permuteCols(const PermMatrix &perm)

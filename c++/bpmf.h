@@ -100,6 +100,7 @@ struct Sys {
     virtual ~Sys();
     void init();
     virtual void alloc_and_init() = 0;
+    void add_prop_posterior(std::string);
 
     //-- sparse matrix
     SparseMatrixD M; // known ratings
@@ -149,6 +150,8 @@ struct Sys {
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_feat, num()); }
     VectorNd sample(long idx, const MapNXd in);
+
+    Eigen::MatrixXd propMu, propLambda;
     
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_items(int, int) = 0;
