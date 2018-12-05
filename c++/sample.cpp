@@ -12,7 +12,7 @@
 #include <climits>
 #include <stdexcept>
 
-#include <unsupported/Eigen/SparseExtra>
+#include "io.h"
 
 #ifdef BPMF_TBB_SCHED
 #include <tbb/combinable.h>
@@ -202,8 +202,8 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
     : name(name), iter(-1), assigned(false), dom(nprocs+1)
 {
 
-    loadMarket(M, fname);
-    loadMarket(T, probename);
+    read_matrix(fname, M);
+    read_matrix(probename, T);
 
     auto rows = std::max(M.rows(), T.rows());
     auto cols = std::max(M.cols(), T.cols());
@@ -252,11 +252,8 @@ void Sys::add_prop_posterior(std::string mtx)
     std::string mu_name = strtok (cp, ",");
     std::string lambda_name = strtok(cp, ",");
 
-    SparseMatrixD temp;
-    loadMarket(temp, mu_name);
-    propMu = temp.toDense();
-    loadMarket(temp, lambda_name);
-    propLambda = temp.toDense();
+    read_matrix(mu_name, propMu);
+    read_matrix(lambda_name, propLambda);
 
     assert(propMu.cols() == num());
     assert(propLambda.cols() == num());

@@ -23,7 +23,7 @@ all: bpmf
 
 # bpmf
 vpath %.cpp $(ROOT)
-bpmf: mvnormal.o bpmf.o sample.o counters.o
+bpmf: mvnormal.o bpmf.o sample.o counters.o io.o
 	$(LINK.o) $^ $(LDFLAGS) -o $@
 
 clean:

@@ -11,8 +11,7 @@
 #include <random>
 #include <unistd.h>
 
-#include "unsupported/Eigen/SparseExtra"
-
+#include "io.h"
 #include "bpmf.h"
 
 using namespace std;
@@ -177,8 +176,8 @@ int main(int argc, char *argv[])
         Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
         Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
 
-        if (oname.size()) { saveMarket(movies.Pavg, oname); }
-        if (sname.size()) { saveMarket(movies.Pm2, sname); }
+        if (oname.size()) { write_matrix(oname, movies.Pavg); }
+        if (sname.size()) { write_matrix(sname, movies.Pm2); }
 
 
     }
