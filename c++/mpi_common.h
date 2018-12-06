@@ -37,15 +37,15 @@ void Sys::Abort(int err)
 void MPI_Sys::bcast_items()
 {
     for(int i = 0; i < num(); i++) {
-        MPI_Bcast(items().col(i).data(), num_feat, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
     }
 }
 
 void MPI_Sys::alloc_and_init()
 {
-    items_ptr = (double *)malloc(sizeof(double) * num_feat * num());
-    sum_ptr = (double *)malloc(sizeof(double) * num_feat * MPI_Sys::nprocs);
-    cov_ptr = (double *)malloc(sizeof(double) * num_feat * num_feat * MPI_Sys::nprocs);
+    items_ptr = (double *)malloc(sizeof(double) * num_latent * num());
+    sum_ptr = (double *)malloc(sizeof(double) * num_latent * MPI_Sys::nprocs);
+    cov_ptr = (double *)malloc(sizeof(double) * num_latent * num_latent * MPI_Sys::nprocs);
     norm_ptr = (double *)malloc(sizeof(double) * MPI_Sys::nprocs);
 
     init();

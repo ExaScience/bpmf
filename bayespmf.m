@@ -23,25 +23,25 @@ if restart==1
   iter=0; 
   num_m = 3952;
   num_p = 6040;
-  num_feat = 10;
+  num_latent = 10;
 
   % Initialize hierarchical priors 
   beta=2; % observation noise (precision) 
-  mu_u = zeros(num_feat,1);
-  mu_m = zeros(num_feat,1);
-  alpha_u = eye(num_feat);
-  alpha_m = eye(num_feat);  
+  mu_u = zeros(num_latent,1);
+  mu_m = zeros(num_latent,1);
+  alpha_u = eye(num_latent);
+  alpha_m = eye(num_latent);  
 
   % parameters of Inv-Whishart distribution (see paper for details) 
-  WI_u = eye(num_feat);
+  WI_u = eye(num_latent);
   b0_u = 2;
-  df_u = num_feat;
-  mu0_u = zeros(num_feat,1);
+  df_u = num_latent;
+  mu0_u = zeros(num_latent,1);
 
-  WI_m = eye(num_feat);
+  WI_m = eye(num_latent);
   b0_m = 2;
-  df_m = num_feat;
-  mu0_m = zeros(num_feat,1);
+  df_m = num_latent;
+  mu0_m = zeros(num_latent,1);
 
   load moviedata
   mean_rating = mean(train_vec(:,3));
@@ -63,7 +63,7 @@ if restart==1
   % Initialization using MAP solution found by PMF. 
   %% Do simple fit
   mu_u = mean(w1_P1_sample)';
-  d=num_feat;
+  d=num_latent;
   alpha_u = inv(cov(w1_P1_sample));
 
   mu_m = mean(w1_M1_sample)';
@@ -92,7 +92,7 @@ for epoch = epoch:maxepoch
   alpha_m = wishrnd(WI_post,df_mpost);   
   mu_temp = (b0_m*mu0_m + N*x_bar)/(b0_m+N);  
   lam = chol( inv((b0_m+N)*alpha_m) ); lam=lam';
-  mu_m = lam*randn(num_feat,1)+mu_temp;
+  mu_m = lam*randn(num_latent,1)+mu_temp;
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   %%% Sample from user hyperparams
@@ -107,7 +107,7 @@ for epoch = epoch:maxepoch
   alpha_u = wishrnd(WI_post,df_mpost);
   mu_temp = (b0_u*mu0_u + N*x_bar)/(b0_u+N);
   lam = chol( inv((b0_u+N)*alpha_u) ); lam=lam';
-  mu_u = lam*randn(num_feat,1)+mu_temp;
+  mu_u = lam*randn(num_latent,1)+mu_temp;
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % Start doing Gibbs updates over user and 
@@ -126,7 +126,7 @@ for epoch = epoch:maxepoch
        covar = inv((alpha_m+beta*MM'*MM));
        mean_m = covar * (beta*MM'*rr+alpha_m*mu_m);
        lam = chol(covar); lam=lam'; 
-       w1_M1_sample(mm,:) = lam*randn(num_feat,1)+mean_m;
+       w1_M1_sample(mm,:) = lam*randn(num_latent,1)+mean_m;
      end
 
     %%% Infer posterior distribution over all user feature vectors 
@@ -139,7 +139,7 @@ for epoch = epoch:maxepoch
        covar = inv((alpha_u+beta*MM'*MM));
        mean_u = covar * (beta*MM'*rr+alpha_u*mu_u);
        lam = chol(covar); lam=lam'; 
-       w1_P1_sample(uu,:) = lam*randn(num_feat,1)+mean_u;
+       w1_P1_sample(uu,:) = lam*randn(num_latent,1)+mean_u;
      end
    end 
 

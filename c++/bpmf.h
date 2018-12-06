@@ -17,12 +17,12 @@
 #include "counters.h"
 #include "thread_vector.h"
 
-const int num_feat = 100;
+const int num_latent = 100;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
-typedef Eigen::Matrix<double, num_feat, num_feat> MatrixNNd;
-typedef Eigen::Matrix<double, num_feat, Eigen::Dynamic> MatrixNXd;
-typedef Eigen::Matrix<double, num_feat, 1> VectorNd;
+typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
+typedef Eigen::Matrix<double, num_latent, Eigen::Dynamic> MatrixNXd;
+typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
 typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
 
@@ -46,7 +46,7 @@ inline double sqr(double x) { return x*x; }
 struct HyperParams {
     // fixed params
     const int b0 = 2;
-    const int df = num_feat;
+    const int df = num_latent;
     VectorNd mu0;
     MatrixNNd WI;
 
@@ -147,13 +147,16 @@ struct Sys {
 
     //-- factors of the MF
     double* items_ptr;
-    MapNXd items() const { return MapNXd(items_ptr, num_feat, num()); }
+    MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, const MapNXd in);
 
     //-- for propagated posterior
     Eigen::MatrixXd propMu, propLambda;
     void add_prop_posterior(std::string);
     bool has_prop_posterior() const;
+
+    //-- for aggregated posterior
+    Eigen::MatrixXd aggrMu, aggrLambda;
     
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_items(int, int) = 0;
@@ -163,14 +166,14 @@ struct Sys {
 
     //-- covariance
     double *sum_ptr;
-    MapNXd sum_map() const { return MapNXd(sum_ptr, num_feat, Sys::nprocs); }
+    MapNXd sum_map() const { return MapNXd(sum_ptr, num_latent, Sys::nprocs); }
     MapNXd::ColXpr sum(int i)  const { return sum_map().col(i); }
     MapNXd::ColXpr local_sum() const { return sum(Sys::procid); }
     VectorNd aggr_sum() const { return sum_map().rowwise().sum(); }
 
     double *cov_ptr;
-    MapNXd cov_map() const { return MapNXd(cov_ptr, num_feat, Sys::nprocs * num_feat); }
-    MapNXd cov(int i) const { return MapNXd(cov_ptr + i*num_feat*num_feat, num_feat, num_feat); }
+    MapNXd cov_map() const { return MapNXd(cov_ptr, num_latent, Sys::nprocs * num_latent); }
+    MapNXd cov(int i) const { return MapNXd(cov_ptr + i*num_latent*num_latent, num_latent, num_latent); }
     MapNXd local_cov() { return cov(Sys::procid); }
     MatrixNNd aggr_cov() const { 
         MatrixNNd ret(MatrixNNd::Zero());

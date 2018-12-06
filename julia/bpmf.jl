@@ -16,7 +16,7 @@ macro default_value(sym, value)
   end
 end
 
-@default_value(num_feat, 10)
+@default_value(num_latent, 10)
 @default_value(alpha, 2) # observation noise (precision)
 @default_value(skip_load, false)
 @default_value(nsims, 10)
@@ -41,25 +41,25 @@ if ! skip_load
   mean_rating = sum(Am)/nnz(Am)
 end
 
-sample_u = zeros(num_p, num_feat)
-sample_m = zeros(num_m, num_feat)
+sample_u = zeros(num_p, num_latent)
+sample_m = zeros(num_m, num_latent)
 
 # Initialize hierarchical priors
-mu_u = zeros(num_feat,1)
-mu_m = zeros(num_feat,1)
-Lambda_u = eye(num_feat)
-Lambda_m = eye(num_feat)
+mu_u = zeros(num_latent,1)
+mu_m = zeros(num_latent,1)
+Lambda_u = eye(num_latent)
+Lambda_m = eye(num_latent)
 
 # parameters of Inv-Whishart distribution (see paper for details)
-WI_u = eye(num_feat)
+WI_u = eye(num_latent)
 b0_u = 2
-df_u = num_feat
-mu0_u = zeros(num_feat,1)
+df_u = num_latent
+mu0_u = zeros(num_latent,1)
 
-WI_m = eye(num_feat)
+WI_m = eye(num_latent)
 b0_m = 2
-df_m = num_feat
-mu0_m = zeros(num_feat,1)
+df_m = num_latent
+mu0_m = zeros(num_latent,1)
 
 function pred(P, sample_m, sample_u, mean_rating)
   (I, J, Vin) = findnz(P)
@@ -94,7 +94,7 @@ function sample_movie(mm, Am, mean_rating, sample_u, alpha, mu_m, Lambda_m)
 
   # Sample from normal distribution
   L = chol(Lambda_m + alpha * MM'*MM, :L)
-  L' \ (randn(num_feat) + (L \ (alpha * MM'*rr + Lambda_m * mu_m)))
+  L' \ (randn(num_latent) + (L \ (alpha * MM'*rr + Lambda_m * mu_m)))
 end
 
 function sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
@@ -104,7 +104,7 @@ function sample_user(uu, Au, mean_rating, sample_m, alpha, mu_u, Lambda_u)
 
   # Sample from normal distribution
   L = chol(Lambda_u + alpha * MM'*MM, :L)
-  L' \ (randn(num_feat) + (L \ (alpha * MM'*rr + Lambda_u * mu_u)))
+  L' \ (randn(num_latent) + (L \ (alpha * MM'*rr + Lambda_u * mu_u)))
 end
 
 tic()

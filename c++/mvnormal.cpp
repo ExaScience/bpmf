@@ -58,11 +58,11 @@ VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const Vecto
 void WishartUnitChol(int df, MatrixNNd & c) {
     c.setZero();
 
-    for ( int i = 0; i < num_feat; i++ ) {
+    for ( int i = 0; i < num_latent; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
         c(i,i) = sqrt(2.0 * gam(rng()));
-        VectorXd r = nrandn(num_feat-i-1);
-        for(int j=i+1;j<num_feat;j++) c.coeffRef(i,j) = randn();
+        VectorXd r = nrandn(num_latent-i-1);
+        for(int j=i+1;j<num_latent;j++) c.coeffRef(i,j) = randn();
     }
 }
 

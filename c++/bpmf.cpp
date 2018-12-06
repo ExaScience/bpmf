@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
  
     if(Sys::procid == 0)
     {
-        Sys::cout() << "num_feat: " << num_feat<<endl;
+        Sys::cout() << "num_latent: " << num_latent<<endl;
         Sys::cout() << "nprocs: " << Sys::nprocs << endl;
         Sys::cout() << "nthrds: " << threads::get_max_threads() << endl;
         Sys::cout() << "nsims: " << Sys::nsims << endl;

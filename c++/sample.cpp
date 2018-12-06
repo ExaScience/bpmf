@@ -34,10 +34,8 @@ bool Sys::permute = true;
 
 unsigned Sys::grain_size;
 
-//SHAMAKINA: begin
 void calc_upper_part(MatrixNNd &m, VectorNd v);         // function for calcutation of an upper part of a symmetric matrix: m = v * v.transpose(); 
 void copy_lower_part(MatrixNNd &m);                     // function to copy an upper part of a symmetric matrix to a lower part
-//SHAMAKINA: end
 
 // verifies that A is transpose of B
 void assert_transpose(SparseMatrixD &A, SparseMatrixD &B)
@@ -170,8 +168,8 @@ void Sys::add_prop_posterior(std::string mtx)
     assert(propMu.cols() == num());
     assert(propLambda.cols() == num());
 
-    assert(propMu.rows() == num_feat);
-    assert(propLambda.rows() == num_feat * num_feat);
+    assert(propMu.rows() == num_latent);
+    assert(propLambda.rows() == num_latent * num_latent);
 
 }
 
@@ -199,6 +197,9 @@ void Sys::init()
     sum_map().setZero();
     cov_map().setZero();
     norm_map().setZero();
+
+    aggrMu = Eigen::MatrixXd::Zero(num_latent, num());
+    aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
 
     if (Sys::procid == 0) {
         Sys::cout() << "mean rating = " << mean_rating << std::endl;
@@ -483,16 +484,14 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     }
 
 
-//SHAMAKINA: begin
     int breakpoint1 = 24; 
     int breakpoint2 = 10500; 
-// SHAMAKINA: end    
     
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).
 
-    VectorNd rr = hp_Lambda * hp.mu;                 // vector num_feat x 1, we will use it in formula (14) from the paper
-    PrecomputedLLT chol;                             // matrix num_feat x num_feat, chol="lambda_i with *" from formula (14) 
+    VectorNd rr = hp_Lambda * hp.mu;                 // vector num_latent x 1, we will use it in formula (14) from the paper
+    PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14) 
     
     // if this user movie has less than 1K ratings,
     // we do a serial rank update
@@ -513,45 +512,37 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
             auto col = in.col(it.row());
             
-// SHAMAKINA: begin
             //MM.noalias() += col * col.transpose();
             calc_upper_part(MM, col);
-// SHAMAKINA: end
             
             rr.noalias() += col * ((it.value() - mean_rating) * alpha);
         }
 
-// SHAMAKINA: begin
         // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
         copy_lower_part(MM);
-// SHAMAKINA: end
 
         chol.compute(hp_Lambda + alpha * MM);
     // for > 1K ratings, we have additional thread-level parallellism
     } else {
         auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix 
         auto to = M.outerIndexPtr()[idx+1];   // "to"   belongs to [1..m], m - number of movies in M matrix
-        MatrixNNd MM(MatrixNNd::Zero());               // matrix num_feat x num_feat 
+        MatrixNNd MM(MatrixNNd::Zero());               // matrix num_latent x num_latent 
  
         // #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM)
         #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM) schedule(dynamic,200)
         for(int j = from; j<to; ++j) {                 // for each nonzeros elemen in the i-th row of M matrix
             auto val = M.valuePtr()[j];                // value of the j-th nonzeros element from idx-th row of M matrix
             auto idx = M.innerIndexPtr()[j];           // index "j" of the element [i,j] from M matrix in compressed M matrix 
-            auto col = in.col(idx);                    // vector num_feat x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:] 
+            auto col = in.col(idx);                    // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:] 
 
-// SHAMAKINA: begin
             //MM.noalias() += col * col.transpose();     // outer product
             calc_upper_part(MM, col);
-// SHAMAKINA: end
-            rr.noalias() += col * ((val - mean_rating) * alpha); // vector num_feat x 1
+            rr.noalias() += col * ((val - mean_rating) * alpha); // vector num_latent x 1
         }
 
-// SHAMAKINA: begin
         copy_lower_part(MM);
-// SHAMAKINA: end
 
-        chol.compute(hp_Lambda + alpha * MM);         // matrix num_feat x num_feat
+        chol.compute(hp_Lambda + alpha * MM);         // matrix num_latent x num_latent
                                                        // chol="lambda_i with *" from formula (14)
                                                        // lambda_i with * = LambdaU + alpha * MM
     }
@@ -563,7 +554,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     //                        = mu_i with * + s * [U]^-1, 
     //                        where 
     //                              s is a random vector with N(0, I),
-    //                              mu_i with * is a vector num_feat x 1, 
+    //                              mu_i with * is a vector num_latent x 1, 
     //                              mu_i with * = [lambda_i with *]^-1 * rr,
     //                              lambda_i with * = L * U       
 
@@ -595,28 +586,24 @@ void Sys::sample(Sys &in)
 
 //#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic, 1)
 #pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic,1) 
-// SHAMAKINA: end
     for(int i = from(); i<to(); ++i) {
-        auto r = sample(i,in.items()); 
+        auto r = sample(i,in.items());
 
-// SHAMAKINA: begin
-        //prod += (r * r.transpose());
-        calc_upper_part(prod, r);
-// SHAMAKINA: end
-
+        MatrixNNd cov = (r * r.transpose());
+        prod += cov;
         sum += r;
         norm += r.squaredNorm();
-        send_items(i,i+1);
-    }
+        aggrMu.col(i) += r;
+        aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
 
-// SHAMAKINA: begin
-        copy_lower_part(prod);
-// SHAMAKINA: end
+        send_items(i, i + 1);
+    }
 
     const int N = num();
     local_sum() = sum;
     local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
     local_norm() = norm;
+
 }
 
 void Sys::register_time(int i, double t)
@@ -624,11 +611,10 @@ void Sys::register_time(int i, double t)
     if (measure_perf) sample_time.at(i) += t;
 }
 
-// SHAMAKINA: begin
 void calc_upper_part(MatrixNNd &m, VectorNd v)
 {
   // we use the formula: m = m + v * v.transpose(), but we calculate only an upper part of m matrix
-  for (int j=0; j<num_feat; j++)          // columns
+  for (int j=0; j<num_latent; j++)          // columns
   {
     for(int i=0; i<=j; i++)              // rows
     {
@@ -640,7 +626,7 @@ void calc_upper_part(MatrixNNd &m, VectorNd v)
 void copy_lower_part(MatrixNNd &m)
 {
   // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
-  for (int j=1; j<num_feat; j++)          // columns
+  for (int j=1; j<num_latent; j++)          // columns
   {
     for(int i=0; i<=j-1; i++)            // rows
     {
@@ -648,4 +634,3 @@ void copy_lower_part(MatrixNNd &m)
     }
   }
 }
-// SHAMAKINA: end

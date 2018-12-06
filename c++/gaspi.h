@@ -90,11 +90,11 @@ void GASPI_Sys::alloc_and_init()
     sync_time.resize(Sys::nprocs);
 
     static gaspi_segment_id_t seg_id_cnt = 0;
-    items_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_feat * num());
+    items_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * num());
     items_seg = seg_id_cnt++;
-    sum_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_feat * Sys::nprocs);
+    sum_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * Sys::nprocs);
     sum_seg = seg_id_cnt++;
-    cov_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_feat * num_feat * Sys::nprocs);
+    cov_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * num_latent * Sys::nprocs);
     cov_seg = seg_id_cnt++;
     norm_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * Sys::nprocs);
     norm_seg = seg_id_cnt++;
@@ -132,8 +132,8 @@ void GASPI_Sys::actual_send(int from, int to)
     int free = gaspi_wait_for_queue(0);
 
     for(int i = from; i < to; ++i) for(int k = 0; k < Sys::nprocs; k++) {
-        auto offset = i * num_feat * sizeof(double);
-        auto size = num_feat * sizeof(double);
+        auto offset = i * num_latent * sizeof(double);
+        auto size = num_latent * sizeof(double);
         SUCCESS_OR_DIE(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
         assert((free - 1) == gaspi_free(0));
         if (--free <= 0) free = gaspi_wait_for_queue(0);
@@ -180,8 +180,8 @@ void GASPI_Sys::sample(Sys &in)
    {
        BPMF_COUNTER("bcast");
        auto base = Sys::procid;
-       gaspi_bcast(sum_seg,  base * num_feat, num_feat);
-       gaspi_bcast(cov_seg,  base * num_feat * num_feat, num_feat * num_feat);
+       gaspi_bcast(sum_seg,  base * num_latent, num_latent);
+       gaspi_bcast(cov_seg,  base * num_latent * num_latent, num_latent * num_latent);
        gaspi_bcast(norm_seg, base, 1);
 
        int free = gaspi_wait_for_queue(0);
@@ -212,7 +212,7 @@ void GASPI_Sys::bcast_items()
 {
 #ifdef BPMF_HYBRID_COMM
     for(int i = 0; i < num(); i++) {
-        MPI_Bcast(items().col(i).data(), num_feat, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
     }
 #endif
 }
