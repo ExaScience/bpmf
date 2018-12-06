@@ -186,7 +186,9 @@ int main(int argc, char *argv[])
 
         if (Sys::verbose)
         {
+            users.bcast();
             write_matrix(odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
+            movies.bcast();
             write_matrix(odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
         }
     }
@@ -198,8 +200,8 @@ int main(int argc, char *argv[])
 
     //-- if we need to generate output files, collect all data on proc 0
     if (odirname.size()) {
-        users.bcast_all();
-        movies.bcast_all();
+        users.bcast();
+        movies.bcast();
         movies.predict(users, true);
 
         if (Sys::procid == 0) {
@@ -208,8 +210,11 @@ int main(int argc, char *argv[])
             write_matrix(odirname + "/Pm2.sdm", movies.Pm2);
 
             // dense
+            users.finalize_mu_lambda();
             write_matrix(odirname + "/U-mu.ddm", users.aggrMu);
             write_matrix(odirname + "/U-Lambda.ddm", users.aggrLambda);
+
+            movies.finalize_mu_lambda();
             write_matrix(odirname + "/V-mu.ddm", movies.aggrMu);
             write_matrix(odirname + "/V-Lambda.ddm", movies.aggrLambda);
         }
@@ -227,4 +232,33 @@ int main(int argc, char *argv[])
 
 
    return 0;
+}
+
+
+void Sys::bcast()
+{
+    for(int i = 0; i < num(); i++) {
+#ifdef BPMF_MPI_COMM
+        MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+#else
+        assert(Sys::nprocs == 1);
+#endif
+    }
+}
+
+
+void Sys::finalize_mu_lambda()
+{
+    // calculate real mu and Lambda
+    for(int i = 0; i < num(); i++) {
+        int nsamples = Sys::nsims - Sys::burnin;
+        auto sum = aggrMu.col(i);
+        auto prod = Eigen::Map<MatrixNNd>(aggrLambda.col(i).data());
+        MatrixNNd cov = (prod - (sum * sum.transpose() / nsamples)) / (nsamples - 1);
+        MatrixNNd prec = cov.inverse(); // precision = covariance^-1
+        aggrLambda.col(i) = Eigen::Map<Eigen::VectorXd>(prec.data(), num_latent * num_latent);
+        aggrMu.col(i) = sum / nsamples;
+    }
 }

@@ -17,7 +17,7 @@
 #include "counters.h"
 #include "thread_vector.h"
 
-const int num_latent = 3;
+const int num_latent = 2;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
@@ -162,8 +162,7 @@ struct Sys {
     
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_items(int, int) = 0;
-    virtual void bcast_items() = 0;
-    void bcast_all();
+    void bcast();
     virtual void sample(Sys &in);
     static unsigned grain_size;
 

@@ -22,7 +22,7 @@ void MPI_Sys::sample(Sys &in)
 
     { 
         BPMF_COUNTER("communicate"); 
-        bcast_items();
+        bcast();
 
         for(int k = 0; k < Sys::nprocs; k++) {
             //sum, cov, norm

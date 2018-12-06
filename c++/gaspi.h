@@ -52,7 +52,6 @@ struct GASPI_Sys : public Sys
     virtual void alloc_and_init();
 
     virtual void send_items(int from, int to);
-    virtual void bcast_items();
     virtual void actual_send(int from, int to);
     virtual void sample(Sys &in);
     virtual void sample_hp();
@@ -206,17 +205,6 @@ void GASPI_Sys::sample(Sys &in)
            sync_time[first_id] += stop - start;
        }
    }
-}
-
-void GASPI_Sys::bcast_items()
-{
-#ifdef BPMF_HYBRID_COMM
-    for(int i = 0; i < num(); i++) {
-        MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-    }
-#else
-    THROW_ERROR("needs mpi")
-#endif
 }
 
 void GASPI_Sys::sample_hp()

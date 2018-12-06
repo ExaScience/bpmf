@@ -13,7 +13,6 @@ struct NC_Sys : public Sys
     virtual void alloc_and_init();
 
     virtual void send_items(int, int) {}
-    virtual void bcast_items() {}
 };
 
 

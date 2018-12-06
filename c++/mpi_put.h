@@ -15,7 +15,6 @@ struct MPI_Sys : public Sys
     virtual void alloc_and_init(const Sys &);
 
     virtual void send_items(int from, int to);
-    virtual void bcast_items();
     virtual void sample(Sys &in);
 
     MPI_Win items_win;

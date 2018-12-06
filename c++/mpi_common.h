@@ -33,15 +33,6 @@ void Sys::Abort(int err)
 {
     MPI_Abort(MPI_COMM_WORLD, err);
 }
-
-void MPI_Sys::bcast_items()
-{
-    for(int i = 0; i < num(); i++) {
-        MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-    }
-}
-
-
 void MPI_Sys::alloc_and_init()
 {
     items_ptr = (double *)malloc(sizeof(double) * num_latent * num());

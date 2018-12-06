@@ -647,23 +647,3 @@ void copy_lower_part(MatrixNNd &m)
     }
   }
 }
-
-void Sys::bcast_all()
-{
-    bcast_items();
-    for(int i = 0; i < num(); i++) {
-#ifdef BPMF_MPI_COMM
-        MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-#endif
-
-        // calculate real mu and Lambda
-        int nsamples = Sys::nsims - Sys::burnin;
-        auto sum = aggrMu.col(i);
-        auto prod = Eigen::Map<MatrixNNd>(aggrLambda.col(i).data());
-        MatrixNNd cov = (prod - (sum * sum.transpose() / nsamples)) / (nsamples - 1);
-        MatrixNNd prec = cov.inverse(); // precision = covariance^-1
-        aggrLambda.col(i) = Eigen::Map<Eigen::VectorXd>(prec.data(), num_latent * num_latent);
-        aggrMu.col(i) = sum / nsamples;
-    }
-}
