@@ -14,7 +14,7 @@
 
 #include "io.h"
 
-#if defined(BPMF_OMP_SCHED)
+#if defined(_OPENMP)
 #include "omp.h"
 
 #pragma omp declare reduction (VectorPlus : VectorNd : omp_out += omp_in) initializer(omp_priv = VectorNd::Zero())
@@ -26,7 +26,6 @@ static const bool measure_perf = false;
 std::ostream *Sys::os;
 int Sys::procid = -1;
 int Sys::nprocs = -1;
-int Sys::nthrds = -1;
 
 int Sys::nsims;
 int Sys::burnin;
@@ -52,42 +51,7 @@ void assert_transpose(SparseMatrixD &A, SparseMatrixD &B)
     for(int i=0; i<A.cols(); ++i) assert(Bt.col(i).nonZeros() == A.col(i).nonZeros());
 }
 
-void Sys::SetupThreads(int n)
-{
-#ifdef BPMF_TBB_SCHED
-    if (n <= 0) {
-        n = tbb::task_scheduler_init::default_num_threads();
-    } else {
-        static tbb::task_scheduler_init init(n);
-    }
-#elif defined(BPMF_OMP_SCHED)
-    if (n <= 0) {
-        n = omp_get_num_threads();
-    } else {
-       omp_set_num_threads(n);
-    }
-#elif defined(BPMF_SER_SCHED)
-    n = 1;
-#else
-#error No sched SetupThreads
-#endif
 
-    Sys::nthrds = n;
-
-}
-
-bool Sys::isMasterThread()
-{
-#ifdef BPMF_TBB_SCHED
-    assert(0);
-#elif defined(BPMF_OMP_SCHED)
-    return  omp_get_thread_num() == 0;
-#elif defined(BPMF_SER_SCHED)
-    return true;
-#else
-#error No sched SetupThreads
-#endif
-}
 
 
 //
@@ -98,56 +62,13 @@ void Sys::predict(Sys& other, bool all)
 {
     int n = (iter < burnin) ? 0 : (iter - burnin);
    
-#ifdef BPMF_TBB_SCHED
-    tbb::combinable<double> se(0.0); // squared err
-    tbb::combinable<double> se_avg(0.0); // squared avg err
-        tbb::combinable<unsigned> nump(0);
-
-    tbb::parallel_for( 
-        tbb::blocked_range<int>(0, T.outerSize()),
-        [&](const tbb::blocked_range<int>& r) {
-            for (int k=r.begin(); k<r.end(); ++k) {
-                if (all || (proc(k) == Sys::procid)) {
-                    for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
-                    {
-                        auto m = items().col(it.col());
-                        auto u = other.items().col(it.row());
-
-                        assert(m.norm() > 0.0);
-                        assert(u.norm() > 0.0);
-
-                        const double pred = m.dot(u) + mean_rating;
-                        se.local() += sqr(it.value() - pred);
-
-                        // update average + variance of prediction
-                        double &avg = Pavg.coeffRef(it.row(), it.col());
-                        double delta = pred - avg;
-                        avg = (n == 0) ? pred : (avg + delta/n);
-                        double &m2 = Pm2.coeffRef(it.row(), it.col());
-                        m2 = (n == 0) ? 0 : m2 + delta * (pred - avg);
-
-                        se_avg.local() += sqr(it.value() - avg);
-
-                        nump.local()++;
-                    }
-                }
-            }
-        }
-    );
-
-    auto tot = nump.combine(std::plus<unsigned>());
-    rmse = sqrt( se.combine(std::plus<double>()) / tot );
-    rmse_avg = sqrt( se_avg.combine(std::plus<double>()) / tot );
-#elif defined(BPMF_OMP_SCHED) || defined(BPMF_SER_SCHED)
     double se(0.0); // squared err
     double se_avg(0.0); // squared avg err
     unsigned nump(0); // number of predictions
 
-//#ifdef BPMF_OMP_SCHED
-//#pragma omp parallel for reduction(+:se,se_avg,nump)
-//#endif
     int lo = all ? 0 : from();
     int hi = all ? num() : to();
+    #pragma omp parallel for reduction(+:se,se_avg,nump)
     for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
@@ -174,9 +95,6 @@ void Sys::predict(Sys& other, bool all)
 
     rmse = sqrt( se / nump );
     rmse_avg = sqrt( se_avg / nump );
-#else
-#error No sched predict
-#endif
 }
 
 //
@@ -509,26 +427,15 @@ void Sys::opt_conn(Sys& other)
     std::vector<std::string> s(num());
 
     auto v = perm.indices().data();
-#ifdef BPMF_TBB_SCHED
-    tbb::parallel_for(tbb::blocked_range<int>(0, nprocs, 1),
-        [&](const tbb::blocked_range<int>& r) {
-            for(auto p = r.begin(); p<r.end(); ++p) {
-                for(int i=from(p); i<to(p); ++i) s[i] = conn(i).to_string();
-                std::sort(v + from(p), v + to(p), [&](const int& a, const int& b) { return (s[a] < s[b]); });
-            }
+#pragma omp parallel for
+    for (auto p = 0; p < nprocs; ++p)
+    {
+        for (int i = from(p); i < to(p); ++i)
+        {
+            s[i] = conn(i).to_string();
         }
-    );
-#elif defined(BPMF_OMP_SCHED) || defined (BPMF_SER_SCHED)
-#if defined(BPMF_OMP_SCHED)
-#pragma omp parallel for 
-#endif
-    for(auto p = 0; p < nprocs; ++p) {
-	for(int i=from(p); i<to(p); ++i) s[i] = conn(i).to_string();
-        std::sort(v + from(p), v + to(p), [&](const int& a, const int& b) { return (s[a] < s[b]); });
+        std::sort(v + from(p), v + to(p), [&](const int &a, const int &b) { return (s[a] < s[b]); });
     }
-#else
-#error opt_conn
-#endif
 
     permuteCols(perm);
     other.M = M.transpose();
@@ -624,39 +531,10 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     } else {
         auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix 
         auto to = M.outerIndexPtr()[idx+1];   // "to"   belongs to [1..m], m - number of movies in M matrix
-
-#ifdef BPMF_TBB_SCHED
-        tbb::combinable<VectorNd> s(VectorNd::Zero()); // sum
-        tbb::combinable<MatrixNNd> p(MatrixNNd::Zero()); // outer prod
-
-        tbb::parallel_for( 
-            tbb::blocked_range<VectorNd::Index>(from, to),
-            [&](const tbb::blocked_range<typename VectorNd::Index>& r) {
-                for(auto i = r.begin(); i<r.end(); ++i) {
-                    auto val = M.valuePtr()[i];
-                    auto idx = M.innerIndexPtr()[i];
-                    auto col = in.col(idx);
-                    p.local().noalias() += col * col.transpose();
-                    s.local().noalias() += col * ((val - mean_rating) * alpha);
-                }
-            }
-        );                    
-
-        // return sum and covariance
-        rr += s.combine(std::plus<VectorNd>());
-        MatrixNNd MM = p.combine(std::plus<MatrixNNd>());
-
-#elif defined(BPMF_OMP_SCHED) || defined(BPMF_SER_SCHED)
         MatrixNNd MM(MatrixNNd::Zero());               // matrix num_feat x num_feat 
  
-#ifdef BPMF_OMP_SCHED
-
-// SHAMAKINA: begin
-        omp_set_nested(1);
         // #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM)
         #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM) num_threads(12) schedule(dynamic,200)
-// SHAMAKINA: end
-#endif
         for(int j = from; j<to; ++j) {                 // for each nonzeros elemen in the i-th row of M matrix
             auto val = M.valuePtr()[j];                // value of the j-th nonzeros element from idx-th row of M matrix
             auto idx = M.innerIndexPtr()[j];           // index "j" of the element [i,j] from M matrix in compressed M matrix 
@@ -672,10 +550,6 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 // SHAMAKINA: begin
         copy_lower_part(MM);
 // SHAMAKINA: end
-
-#else
-#error No sched sample_one
-#endif
 
         chol.compute(hp_Lambda + alpha * MM);         // matrix num_feat x num_feat
                                                        // chol="lambda_i with *" from formula (14)
@@ -715,43 +589,13 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 void Sys::sample(Sys &in) 
 {
     iter++;
-
-#ifdef BPMF_TBB_SCHED
-    tbb::combinable<VectorNd>  s(VectorNd::Zero()); // sum
-    tbb::combinable<double>    n(0.0); // squared norm
-    tbb::combinable<MatrixNNd> p(MatrixNNd::Zero()); // outer prod
-
-    tbb::parallel_for( 
-        tbb::blocked_range<VectorNd::Index>(from(), to(), grain_size),
-        [&](const tbb::blocked_range<typename VectorNd::Index>& r) {
-            for(auto i = r.begin(); i<r.end(); ++i) {
-                assert (proc(i) == Sys::procid);
-                auto r = sample(i,in.items()); 
-                p.local() += (r * r.transpose());
-                s.local() += r;
-                n.local() += r.squaredNorm();
-            }
-            send_items(r.begin(), r.end());
-        }
-    );                    
-
-    // return sum and covariance
-    auto sum = s.combine(std::plus<VectorNd>());
-    auto prod = p.combine(std::plus<MatrixNNd>());
-    auto norm = n.combine(std::plus<double>());
-#elif defined(BPMF_OMP_SCHED)
     VectorNd  sum(VectorNd::Zero()); // sum
     double    norm(0.0); // squared norm
     MatrixNNd prod(MatrixNNd::Zero()); // outer prod
 
-#ifdef BPMF_OMP_SCHED
-
-// SHAMAKINA: begin
 //#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic, 1)
 #pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) num_threads(24) schedule(dynamic,1) 
 // SHAMAKINA: end
-
-#endif
     for(int i = from(); i<to(); ++i) {
         auto r = sample(i,in.items()); 
 
@@ -768,23 +612,6 @@ void Sys::sample(Sys &in)
 // SHAMAKINA: begin
         copy_lower_part(prod);
 // SHAMAKINA: end
-
-#elif defined(BPMF_SER_SCHED)
-    // serial 
-    VectorNd sum(VectorNd::Zero()); // sum
-    MatrixNNd prod(MatrixNNd::Zero()); // outer prod
-    double    norm(0.0); // squared norm
-    for(int i=from(); i<to(); ++i) {
-        assert (proc(i) == Sys::procid);
-        auto r = sample(i,in.items());
-        prod += (r * r.transpose());
-        sum += r;
-        norm += r.squaredNorm();
-        send_items(i,i+1);
-    }
-#else
-#error No sched sample_all
-#endif
 
     const int N = num();
     local_sum() = sum;

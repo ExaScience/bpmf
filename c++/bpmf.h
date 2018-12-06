@@ -15,6 +15,7 @@
 #include "Eigen/Sparse"
 
 #include "counters.h"
+#include "thread_vector.h"
 
 const int num_feat = 100;
 
@@ -79,14 +80,12 @@ struct Sys;
 struct Sys {
     //-- static info
     static bool permute;
-    static int nprocs, procid, nthrds;
+    static int nprocs, procid;
     static int burnin, nsims;
 
     static void Init();
     static void Finalize();
     static void Abort(int);
-    static void SetupThreads(int);
-    static bool isMasterThread();
     static void sync();
 
     static std::ostream *os;

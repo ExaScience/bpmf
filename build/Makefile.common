@@ -11,8 +11,8 @@ CXXFLAGS+=-I/usr/local/include/eigen3
 #CXXFLAGS+=-fopt-info-optimized=gnu_fopt_info_optimized.txt -O3 -g -DNDEBUG -ffast-math #-fopt-info-vec #-ftree-loop-optimize # Report for GNU
 #CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG # report for Cray Compiler
 
-CXXFLAGS+=-O2 -g 
-#CXXFLAGS+=-O0 -g
+#CXXFLAGS+=-O2 -g 
+CXXFLAGS+=-O0 -g
 
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 OUTPUT_OPTION=-MMD -MP -o $@

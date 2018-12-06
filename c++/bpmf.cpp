@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
     movies.build_conn(users);
     assert(movies.nnz() == users.nnz());
 
-    Sys::SetupThreads(nthrds);
+    threads::init(nthrds);
 
     long double average_items_sec = .0;
     long double average_ratings_sec = .0;
@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
     {
         Sys::cout() << "num_feat: " << num_feat<<endl;
         Sys::cout() << "nprocs: " << Sys::nprocs << endl;
-        Sys::cout() << "nthrds: " << Sys::nthrds << endl;
+        Sys::cout() << "nthrds: " << threads::get_max_threads() << endl;
         Sys::cout() << "nsims: " << Sys::nsims << endl;
         Sys::cout() << "burnin: " << Sys::burnin << endl;
         Sys::cout() << "grain_size: " << Sys::grain_size << endl;
