@@ -38,7 +38,30 @@ using namespace Eigen;
 #error no comm include
 #endif
 
-const char *usage = "Usage: bpmf [-k] [-t <threads>] [-i <niters>] -n <samples.mtx> -p <probe.mtx> [-u <u.mtx>] [-v <v.mtx>] [-o <pred.mtx>]\n";
+void usage() 
+{
+    Sys::cout() << "Usage: bpmf -n <MTX> -p <MTX> [-o DIR/] [-i N] [-b N] [-k] [-r] [-t N] [-m MTX,MTX] [-l MTX,MTX]\n"
+                << "\n"
+                << "Paramaters: \n"
+                << "  -n MTX: Training input data\n"
+                << "  -p MTX: Test input data\n"
+                << "  [-o DIR]: Output directory for model and predictions\n"
+                << "  [-i N]: Number of total iterations\n"
+                << "  [-b N]: Number of burnin iterations\n"
+                << "\n"
+                << "  [-k]: Do not optimize item to node assignment\n"
+                << "  [-r]: Redirect stdout to file\n"
+                << "  [-t N]: Number of OpenMP threads to used.\n"
+                << "\n"
+                << "  [-m MTX,MTX]: propagated posterior mu and Lambda matrices for U\n"
+                << "  [-l MTX,MTX]: propagated posterior mu and Lambda matrices for V\n"
+                << "\n"
+                << "Matrix Formats:\n"
+                << "  *.mtx: Sparse or dense Matrix Market format\n"
+                << "  *.sdm: Sparse binary double format\n"
+                << "  *.ddm: Dense binary double format\n"
+                << std::endl;
+}
 
 int main(int argc, char *argv[])
 {
@@ -75,7 +98,8 @@ int main(int argc, char *argv[])
             case 'r': redirect = true; break;
             case 'k': Sys::permute = false; break;
             case '?':
-            default : std::cout << usage; Sys::Abort(1);
+            case 'h': 
+            default : usage(); Sys::Abort(1);
         }
     }
 
@@ -88,7 +112,7 @@ int main(int argc, char *argv[])
     }
 
     if (fname.empty() || probename.empty()) { 
-        Sys::cout() << usage;
+        usage();
         Sys::Abort(1);
     }
 
