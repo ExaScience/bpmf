@@ -157,10 +157,12 @@ struct Sys {
 
     //-- for aggregated posterior
     Eigen::MatrixXd aggrMu, aggrLambda;
+    void finalize_mu_lambda();
     
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_items(int, int) = 0;
     virtual void bcast_items() = 0;
+    void bcast_all();
     virtual void sample(Sys &in);
     static unsigned grain_size;
 

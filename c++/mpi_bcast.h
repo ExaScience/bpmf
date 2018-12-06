@@ -13,7 +13,6 @@ struct MPI_Sys : public Sys
 
     virtual void sample(Sys &in);
     virtual void send_items(int,int) {}
-    virtual void bcast_items();
     virtual void alloc_and_init();
 };
 

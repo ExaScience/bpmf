@@ -41,6 +41,7 @@ void MPI_Sys::bcast_items()
     }
 }
 
+
 void MPI_Sys::alloc_and_init()
 {
     items_ptr = (double *)malloc(sizeof(double) * num_latent * num());

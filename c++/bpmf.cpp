@@ -38,14 +38,16 @@ using namespace Eigen;
 #error no comm include
 #endif
 
-const char *usage = "Usage: bpmf [-k] [-t <threads>] [-i <niters>] -n <samples.mtx> -p <probe.mtx> [-u <u.mtx>] [-v <v.mtx>] [-o <pred.mtx>] [-s <m2.mtx>]\n";
+const char *usage = "Usage: bpmf [-k] [-t <threads>] [-i <niters>] -n <samples.mtx> -p <probe.mtx> [-u <u.mtx>] [-v <v.mtx>] [-o <pred.mtx>]\n";
 
 int main(int argc, char *argv[])
 {
   Sys::Init();
   {
     int ch;
-    string fname, probename, uname, vname, oname, sname, mname, lname;
+    string fname, probename;
+    string odirname;
+    string mname, lname;
     int nthrds = -1;
     bool redirect = false;
     Sys::nsims = 20;
@@ -53,19 +55,19 @@ int main(int argc, char *argv[])
     Sys::grain_size = 1;
     
  
-    while((ch = getopt(argc, argv, "krn:t:p:i:g:w:u:v:o:s:m:l:")) != -1)
+    while((ch = getopt(argc, argv, "krn:t:p:i:b:g:w:u:v:o:s:m:l:")) != -1)
     {
         switch(ch)
         {
             case 'i': Sys::nsims = atoi(optarg); break;
+            case 'b': Sys::burnin = atoi(optarg); break;
             case 'g': Sys::grain_size = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
             case 'n': fname = optarg; break;
             case 'p': probename = optarg; break;
-            case 'u': uname = optarg; break;
-            case 'v': vname = optarg; break;
-            case 'o': oname = optarg; break;
-            case 's': sname = optarg; break;
+
+            //output directory matrices
+            case 'o': odirname = optarg; break;
 
             case 'm': mname = optarg; break;
             case 'l': lname = optarg; break;
@@ -154,9 +156,6 @@ int main(int argc, char *argv[])
         movies.print(items_per_sec, ratings_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
         average_items_sec += items_per_sec;
         average_ratings_sec += ratings_per_sec;
-
-        if (uname.size()) { std::ofstream os(std::to_string(i) + "-" + uname); os << users.items(); }
-        if (vname.size()) { std::ofstream os(std::to_string(i) + "-" + vname); os << movies.items(); }
     }
 
     Sys::sync();
@@ -165,22 +164,27 @@ int main(int argc, char *argv[])
     auto elapsed = end - begin;
 
     //-- if we need to generate output files, collect all data on proc 0
-    if (sname.size() || oname.size() || uname.size() || vname.size()) {
-        users.bcast_items();
-        movies.bcast_items();
+    if (odirname.size()) {
+        users.bcast_all();
+        movies.bcast_all();
         movies.predict(users, true);
+
+        if (Sys::procid == 0) {
+            write_matrix(odirname + "/Pavg.ddm", movies.Pavg);
+            write_matrix(odirname + "/Pm2.ddm", movies.Pm2);
+            write_matrix(odirname + "/U-mu.ddm", users.aggrMu);
+            write_matrix(odirname + "/U-Lambda.ddm", users.aggrLambda);
+            write_matrix(odirname + "/V-mu.ddm", movies.aggrMu);
+            write_matrix(odirname + "/V-Lambda.ddm", movies.aggrLambda);
+        }
     }
 
     if (Sys::procid == 0) {
         Sys::cout() << "Total time: " << elapsed <<endl <<flush;
         Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
         Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
-
-        if (oname.size()) { write_matrix(oname, movies.Pavg); }
-        if (sname.size()) { write_matrix(sname, movies.Pm2); }
-
-
     }
+
   }
   Sys::Finalize();
   if (Sys::nprocs >1) delete Sys::os;

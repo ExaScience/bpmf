@@ -214,6 +214,8 @@ void GASPI_Sys::bcast_items()
     for(int i = 0; i < num(); i++) {
         MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
     }
+#else
+    THROW_ERROR("needs mpi")
 #endif
 }
 

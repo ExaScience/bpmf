@@ -593,8 +593,12 @@ void Sys::sample(Sys &in)
         prod += cov;
         sum += r;
         norm += r.squaredNorm();
-        aggrMu.col(i) += r;
-        aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
+
+        if (iter > burnin)
+        {
+            aggrMu.col(i) += r;
+            aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
+        }
 
         send_items(i, i + 1);
     }
@@ -633,4 +637,23 @@ void copy_lower_part(MatrixNNd &m)
       m(j,i) = m(i,j);
     }
   }
+}
+
+void Sys::bcast_all()
+{
+    bcast_items();
+#ifdef BPMF_MPI_COMM
+    for(int i = 0; i < num(); i++) {
+        MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+
+        // calculate real mu and Lambda
+        int N = Sys::iters - Sys::burnin;
+        auto sum = aggrMu.col(i);
+        auto prod = Eigen::Map<MatrixNNd>(aggrLambda.col(i).data(), num_latent, num_latent);
+        MatrixNNd cov = (prod - (sum * sum.transpose() / N)) / (N-1);
+        aggrLambda.col(i) = Eigen::Map<VectorNd>(cov.data(), num_latent * num_latent);
+        aggrMu.col(i) = sum / N;
+    }
+#endif 
 }
