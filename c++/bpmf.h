@@ -202,12 +202,4 @@ struct Sys {
     void register_time(int i, double t);
 };
 
-#ifdef BPMF_TBB_SCHED
-#include <tbb/mutex.h>
-typedef tbb::mutex working_mutex;
-#else
-#include <mutex>
-typedef std::mutex working_mutex;
-#endif
-
 #endif

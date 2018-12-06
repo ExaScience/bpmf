@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <sstream>
 #include <chrono>
+#include <mutex>
 
 #include "bpmf.h"
 
@@ -26,7 +27,7 @@ Counter::Counter()
 {} 
 
 Counter::~Counter() {
-    static working_mutex mtx;
+    static std::mutex mtx;
 
     if(total_counter) return;
     stop = tick();

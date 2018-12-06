@@ -14,13 +14,7 @@
 
 #include "io.h"
 
-#ifdef BPMF_TBB_SCHED
-#include <tbb/combinable.h>
-#include <tbb/parallel_for.h>
-#include "tbb/task_scheduler_init.h"
-typedef tbb::blocked_range<VectorNd::Index> Range;
-
-#elif defined(BPMF_OMP_SCHED)
+#if defined(BPMF_OMP_SCHED)
 #include "omp.h"
 
 #pragma omp declare reduction (VectorPlus : VectorNd : omp_out += omp_in) initializer(omp_priv = VectorNd::Zero())
@@ -608,11 +602,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     // (not used if breakpoint1 == breakpoint2)
     } else if (count < breakpoint2) {
 
-//SHAMAKINA: begin
-        //MatrixNNd MM; MM.setZero();
         MatrixNNd MM(MatrixNNd::Zero());
-// SHAMAKINA: end
- 
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
             auto col = in.col(it.row());
             

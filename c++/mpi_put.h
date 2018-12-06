@@ -3,9 +3,9 @@
  * All rights reserved.
  */
 
-#include "mpi_common.h"
+#include <mutex>
 
-#include <tbb/mutex.h>
+#include "mpi_common.h"
 
 struct MPI_Sys : public Sys 
 {
@@ -53,7 +53,7 @@ void MPI_Sys::alloc_and_init(const Sys &other)
 void MPI_Sys::send_items(int from, int to)
 {
     BPMF_COUNTER("send_items");
-    static tbb::mutex m;
+    static std::mutex m;
 
     m.lock();
     for(int i=from; i<to; ++i) for(int k = 0; k < Sys::nprocs; k++) {
