@@ -19,6 +19,7 @@ using namespace Eigen;
 
 #ifdef BPMF_HYBRID_COMM
 #define BPMF_GPI_COMM
+#define BPMF_MPI_COMM
 #endif
 
 #ifdef BPMF_GPI_COMM
