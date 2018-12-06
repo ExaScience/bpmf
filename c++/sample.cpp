@@ -100,8 +100,9 @@ void Sys::predict(Sys& other, bool all)
 //
 void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, double norm_m) {
   char buf[1024];
-  sprintf(buf, "%d: Iteration %d:\t RMSE: %3.2f\tavg RMSE: %3.2f\tFU(%6.2f)\tFM(%6.2f)\titems/sec: %6.2f\tratings/sec: %6.2fM\n",
-                    Sys::procid, iter, rmse, rmse_avg, norm_u, norm_m, items_per_sec, ratings_per_sec / 1e6);
+  std::string phase = (iter < Sys::burnin) ? "Burnin" : "Sampling";
+  sprintf(buf, "%d: %s iteration %d:\t RMSE: %3.2f\tavg RMSE: %3.2f\tFU(%6.2f)\tFM(%6.2f)\titems/sec: %6.2f\tratings/sec: %6.2fM\n",
+                    Sys::procid, phase.c_str(), iter, rmse, rmse_avg, norm_u, norm_m, items_per_sec, ratings_per_sec / 1e6);
   Sys::cout() << buf;
 }
 
