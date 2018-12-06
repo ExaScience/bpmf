@@ -7,11 +7,14 @@ from glob import glob
 
 # collect U for all samples
 Us = [ mio.read_matrix(m) for m in glob("output/U-[0123456789].ddm") ]
+print("samples:\n", Us)
 
 # stack them and compute mean
 Ustacked = np.stack(Us)
 mu1 = np.mean(Ustacked, axis = 0)
+print("python mu:\n", mu1)
 mu2 = mio.read_matrix("output/U-mu.ddm")
+print("bpmf mu:\n", mu2)
 print("norm mu1 - mu2: %.4f" % np.linalg.norm(mu1 - mu2))
 
 # Compute covariance and precision, first unstack in different way

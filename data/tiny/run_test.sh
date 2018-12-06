@@ -1,8 +1,12 @@
 #!/bin/sh
 
+set -e
 
 rm -rf output
 mkdir output
 
-../../build/generic/nocomm-omp/bpmf -i 4 -b 0 -v -n train.mtx -p test.mtx -o output/ -t 1
+mpirun -np 4 ../../build/generic/mpi-omp/bpmf -k -i 9 -b 0 -v -n train.mtx -p test.mtx -o output/ -t 1
+# ../../build/generic/nocomm-omp/bpmf -k -i 9 -b 0 -v -n train.mtx -p test.mtx -o output/ -t 1
+
+python compute_mu_lambda.py
 
