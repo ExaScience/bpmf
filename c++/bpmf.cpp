@@ -11,8 +11,7 @@
 #include <random>
 #include <unistd.h>
 
-#include "unsupported/Eigen/SparseExtra"
-
+#include "io.h"
 #include "bpmf.h"
 
 using namespace std;
@@ -113,7 +112,7 @@ int main(int argc, char *argv[])
     movies.build_conn(users);
     assert(movies.nnz() == users.nnz());
 
-    Sys::SetupThreads(nthrds);
+    threads::init(nthrds);
 
     long double average_items_sec = .0;
     long double average_ratings_sec = .0;
@@ -128,7 +127,7 @@ int main(int argc, char *argv[])
     {
         Sys::cout() << "num_feat: " << num_feat<<endl;
         Sys::cout() << "nprocs: " << Sys::nprocs << endl;
-        Sys::cout() << "nthrds: " << Sys::nthrds << endl;
+        Sys::cout() << "nthrds: " << threads::get_max_threads() << endl;
         Sys::cout() << "nsims: " << Sys::nsims << endl;
         Sys::cout() << "burnin: " << Sys::burnin << endl;
         Sys::cout() << "grain_size: " << Sys::grain_size << endl;
@@ -177,8 +176,8 @@ int main(int argc, char *argv[])
         Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
         Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
 
-        if (oname.size()) { saveMarket(movies.Pavg, oname); }
-        if (sname.size()) { saveMarket(movies.Pm2, sname); }
+        if (oname.size()) { write_matrix(oname, movies.Pavg); }
+        if (sname.size()) { write_matrix(sname, movies.Pm2); }
 
 
     }

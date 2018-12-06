@@ -3,14 +3,14 @@
  * All rights reserved.
  */
 
+#include <mutex>
+
 #ifdef BPMF_HYBRID_COMM
 #include <mpi.h>
 #endif
 
 #include <GASPI.h>
 #include <GASPI_Ext.h>
-
-#include <thread>
 
 #define SYS GASPI_Sys
 
@@ -66,7 +66,7 @@ struct GASPI_Sys : public Sys
     unsigned nsim;
 
     //-- process_queue queue with protecting mutex
-    working_mutex m;
+    std::mutex m;
     std::list<std::pair<int,int>> queue;
     void process_queue();
 };

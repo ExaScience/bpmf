@@ -162,7 +162,7 @@ struct MPI_Sys : public Sys
     std::vector<RecvBuffer<ElBuf> *> rb;
 
     //-- process_queue queue with protecting mutex
-    working_mutex m;
+    std::mutex m;
     std::list<int> queue;
     void process_queue();
 };

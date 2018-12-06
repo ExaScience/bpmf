@@ -24,22 +24,18 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-#ifdef BPMF_SER_SCHED
-#define TL 
-#else
-#define TL thread_local
-#endif
+thread_vector<std::mt19937> r;
 
 std::mt19937 &rng()
 {
-    static TL std::mt19937 r;
-    return r;
+    r.init();
+    return r.local();
 
 }
 
 double randn(double = .0) {
-static TL normal_distribution<> nd;
-  return nd(rng());
+    normal_distribution<> nd;
+    return nd(rng());
 }
 
 auto nrandn(int n) -> decltype( Eigen::VectorXd::NullaryExpr(n, ptr_fun(randn)) ) 
