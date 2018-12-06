@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include "error.h"
 #include "bpmf.h"
 
 #include <random>
@@ -31,6 +32,8 @@ int Sys::nsims;
 int Sys::burnin;
 
 bool Sys::permute = true;
+
+bool Sys::verbose = false;
 
 unsigned Sys::grain_size;
 
@@ -154,14 +157,13 @@ bool Sys::has_prop_posterior() const
     return propMu.nonZeros() > 0;
 }
 
-void Sys::add_prop_posterior(std::string mtx)
+void Sys::add_prop_posterior(std::string fnames)
 {
-    if (mtx.empty()) return;
+    if (fnames.empty()) return;
 
-    char *cp = 0; // copy of mtx
-    strcpy(cp, mtx.c_str());
-    std::string mu_name = strtok (cp, ",");
-    std::string lambda_name = strtok(cp, ",");
+    std::size_t pos = fnames.find_first_of(",");
+    std::string mu_name = fnames.substr(0, pos);
+    std::string lambda_name = fnames.substr(pos+1);
 
     read_matrix(mu_name, propMu);
     read_matrix(lambda_name, propLambda);
@@ -477,6 +479,12 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     {
         hp_mu = propMu.col(idx);
         hp_Lambda = Eigen::Map<MatrixNNd>(propLambda.col(idx).data()); 
+
+        if (idx == 0)
+        {
+            SHOW(hp_mu);
+            SHOW(hp_Lambda);
+        }
     }
     else
     {
@@ -548,7 +556,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
                                                        // lambda_i with * = LambdaU + alpha * MM
     }
 
-    if(chol.info() != Eigen::Success) abort();
+    if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 
     // now we should calculate formula (14) from the paper
     // u_i for k-th iteration = Gaussian distribution N(u_i | mu_i with *, [lambda_i with *]^-1) =

@@ -40,7 +40,7 @@ using namespace Eigen;
 
 void usage() 
 {
-    Sys::cout() << "Usage: bpmf -n <MTX> -p <MTX> [-o DIR/] [-i N] [-b N] [-k] [-r] [-t N] [-m MTX,MTX] [-l MTX,MTX]\n"
+    std::cout << "Usage: bpmf -n <MTX> -p <MTX> [-o DIR/] [-i N] [-b N] [-krv] [-t N] [-m MTX,MTX] [-l MTX,MTX]\n"
                 << "\n"
                 << "Paramaters: \n"
                 << "  -n MTX: Training input data\n"
@@ -51,7 +51,8 @@ void usage()
                 << "\n"
                 << "  [-k]: Do not optimize item to node assignment\n"
                 << "  [-r]: Redirect stdout to file\n"
-                << "  [-t N]: Number of OpenMP threads to used.\n"
+                << "  [-v]: Output all samples\n"
+                << "  [-t N]: Number of OpenMP threads to use.\n"
                 << "\n"
                 << "  [-m MTX,MTX]: propagated posterior mu and Lambda matrices for U\n"
                 << "  [-l MTX,MTX]: propagated posterior mu and Lambda matrices for V\n"
@@ -78,7 +79,7 @@ int main(int argc, char *argv[])
     Sys::grain_size = 1;
     
  
-    while((ch = getopt(argc, argv, "krn:t:p:i:b:g:w:u:v:o:s:m:l:")) != -1)
+    while((ch = getopt(argc, argv, "krvn:t:p:i:b:g:w:u:v:o:s:m:l:")) != -1)
     {
         switch(ch)
         {
@@ -97,6 +98,7 @@ int main(int argc, char *argv[])
 
             case 'r': redirect = true; break;
             case 'k': Sys::permute = false; break;
+            case 'v': Sys::verbose = true; break;
             case '?':
             case 'h': 
             default : usage(); Sys::Abort(1);
@@ -180,6 +182,12 @@ int main(int argc, char *argv[])
         movies.print(items_per_sec, ratings_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
         average_items_sec += items_per_sec;
         average_ratings_sec += ratings_per_sec;
+
+        if (Sys::verbose)
+        {
+            write_matrix(odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
+            write_matrix(odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
+        }
     }
 
     Sys::sync();

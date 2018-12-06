@@ -17,7 +17,7 @@
 #include "counters.h"
 #include "thread_vector.h"
 
-const int num_latent = 100;
+const int num_latent = 4;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
@@ -80,6 +80,7 @@ struct Sys;
 struct Sys {
     //-- static info
     static bool permute;
+    static bool verbose;
     static int nprocs, procid;
     static int burnin, nsims;
 
