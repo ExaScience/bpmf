@@ -170,8 +170,11 @@ int main(int argc, char *argv[])
         movies.predict(users, true);
 
         if (Sys::procid == 0) {
-            write_matrix(odirname + "/Pavg.ddm", movies.Pavg);
-            write_matrix(odirname + "/Pm2.ddm", movies.Pm2);
+            // sparse
+            write_matrix(odirname + "/Pavg.sdm", movies.Pavg);
+            write_matrix(odirname + "/Pm2.sdm", movies.Pm2);
+
+            // dense
             write_matrix(odirname + "/U-mu.ddm", users.aggrMu);
             write_matrix(odirname + "/U-Lambda.ddm", users.aggrLambda);
             write_matrix(odirname + "/V-mu.ddm", movies.aggrMu);
