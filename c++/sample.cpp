@@ -534,7 +534,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         MatrixNNd MM(MatrixNNd::Zero());               // matrix num_feat x num_feat 
  
         // #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM)
-        #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM) num_threads(12) schedule(dynamic,200)
+        #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM) schedule(dynamic,200)
         for(int j = from; j<to; ++j) {                 // for each nonzeros elemen in the i-th row of M matrix
             auto val = M.valuePtr()[j];                // value of the j-th nonzeros element from idx-th row of M matrix
             auto idx = M.innerIndexPtr()[j];           // index "j" of the element [i,j] from M matrix in compressed M matrix 
@@ -594,7 +594,7 @@ void Sys::sample(Sys &in)
     MatrixNNd prod(MatrixNNd::Zero()); // outer prod
 
 //#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic, 1)
-#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) num_threads(24) schedule(dynamic,1) 
+#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic,1) 
 // SHAMAKINA: end
     for(int i = from(); i<to(); ++i) {
         auto r = sample(i,in.items()); 

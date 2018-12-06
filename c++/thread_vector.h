@@ -36,8 +36,8 @@ inline int get_max_threads()
 #else
     return 1;
 #endif
-
 }
+
 inline int get_thread_num()
 {
 #if defined(_OPENMP)
