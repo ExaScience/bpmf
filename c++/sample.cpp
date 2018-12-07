@@ -52,9 +52,6 @@ void assert_transpose(SparseMatrixD &A, SparseMatrixD &B)
     for(int i=0; i<A.cols(); ++i) assert(Bt.col(i).nonZeros() == A.col(i).nonZeros());
 }
 
-
-
-
 //
 // Does predictions for prediction matrix T
 // Computes RMSE (Root Means Square Error)
@@ -193,13 +190,13 @@ void Sys::init()
     aggrMu = Eigen::MatrixXd::Zero(num_latent, num());
     aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
 
-    if (Sys::procid == 0) {
-        Sys::cout() << "mean rating = " << mean_rating << std::endl;
-        Sys::cout() << "num " << name << ": " << num() << std::endl;
-        if (has_prop_posterior())
-        {
-            Sys::cout() << "with propagated posterior" << std::endl;
-        }
+    Sys::cout() << "mean rating = " << mean_rating << std::endl;
+    Sys::cout() << "total number of ratings in train = " << M.nonZeros() << std::endl;
+    Sys::cout() << "total number of ratings in test = " << T.nonZeros() << std::endl;
+    Sys::cout() << "num " << name << ": " << num() << std::endl;
+    if (has_prop_posterior())
+    {
+        Sys::cout() << "with propagated posterior" << std::endl;
     }
 
     if (measure_perf) sample_time.resize(num(), .0);
