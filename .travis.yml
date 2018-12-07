@@ -4,8 +4,8 @@ dist: xenial
 
 matrix:
   include:
-    - env: BUILD_TYPE="nocomp-omp"
-    - env: BUILD_TYPE="nocomp-ser"
+    - env: BUILD_TYPE="nocomm-omp"
+    - env: BUILD_TYPE="nocomm-ser"
     - env: BUILD_TYPE="mpi-pure"
     - env: BUILD_TYPE="mpi-omp"
 
@@ -23,6 +23,7 @@ addons:
       - liblapack-dev
       - liblapacke-dev
       - libopenmpi-dev
+      - openmpi-bin
       - libeigen3-dev
 
 script:
