@@ -222,12 +222,6 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     {
         hp_mu = propMu.col(idx);
         hp_Lambda = Eigen::Map<MatrixNNd>(propLambda.col(idx).data()); 
-
-        if (idx == 0)
-        {
-            SHOW(hp_mu);
-            SHOW(hp_Lambda);
-        }
     }
     else
     {
