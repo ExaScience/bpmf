@@ -15,7 +15,7 @@
 
 typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
 
-void Sys::permuteCols(const PermMatrix &perm)
+void Sys::permuteCols(const PermMatrix &perm, Sys &other)
 {
     // permute local matrices
     T = T * perm;
@@ -170,11 +170,7 @@ void Sys::assign(Sys &other)
     for(auto p: proc_to_item) for(auto i: p) perm.indices()(pos++) = i;
     auto oldT = T;
 
-    this->permuteCols(perm);
-    other.M = M.transpose();
-    other.Pavg = Pavg.transpose();
-    other.Pm2 = Pm2.transpose();
-    other.T = T.transpose();
+    this->permuteCols(perm, other);
 
     int i = 0;
     int n = 0;
@@ -257,7 +253,7 @@ void Sys::opt_conn(Sys& other)
         std::sort(v + from(p), v + to(p), [&](const int &a, const int &b) { return (s[a] < s[b]); });
     }
 
-    permuteCols(perm);
+    permuteCols(perm, other);
 }
 
 

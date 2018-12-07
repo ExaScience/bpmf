@@ -110,8 +110,8 @@ struct Sys {
 
     // assignment and connectivity
     typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
-    void permuteCols(const PermMatrix &); 
-    void permuteRows(const PermMatrix &);
+    void permuteCols(const PermMatrix &, Sys &other); 
+    void permuteRows(const PermMatrix &, Sys &other);
     void assign(Sys &);
     bool assigned;
 
