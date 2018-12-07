@@ -22,8 +22,12 @@ void Sys::permuteCols(const PermMatrix &perm, Sys &other)
     Pavg = Pavg * perm;
     Pm2 = Pm2 * perm;
     M = M * perm;
-    propMu * perm;
-    propLambda * perm;
+
+    if (has_prop_posterior())
+    {
+        propMu *= perm;
+        propLambda *= perm;
+    }
 
     // permute other matrices
     other.T = T.transpose();
