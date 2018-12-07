@@ -1,0 +1,32 @@
+language: cpp
+os: linux
+dist: xenial
+
+matrix:
+  include:
+    - env: BUILD_TYPE="nocomp-omp"
+    - env: BUILD_TYPE="nocomp-ser"
+    - env: BUILD_TYPE="mpi-pure"
+    - env: BUILD_TYPE="mpi-omp"
+
+env:
+  global:
+    - MAKEFLAGS="-j 2"
+    - OMPI_MCA_btl=tcp,self
+
+addons:
+  apt:
+    sources:
+    - sourceline: 'ppa:lkoppel/robotics'
+    packages:
+      - libblas-dev
+      - liblapack-dev
+      - liblapacke-dev
+      - libopenmpi-dev
+      - libeigen3-dev
+
+script:
+    - cd "${TRAVIS_BUILD_DIR}"
+    - cd build/generic/${BUILD_TYPE}
+    - make
+    - make test
