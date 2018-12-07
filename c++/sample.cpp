@@ -91,7 +91,6 @@ void Sys::predict(Sys& other, bool all)
         }
     }
 
-    assert(nump>0);
     rmse = sqrt( se / nump );
     rmse_avg = sqrt( se_avg / nump );
 }
