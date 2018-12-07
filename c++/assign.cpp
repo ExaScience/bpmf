@@ -130,29 +130,35 @@ void Sys::assign(Sys &other)
     // print cost after iterating once
     auto print = [&](int iter) {
         Sys::cout() << name << " -- iter " << iter << " -- \n";
-        if (Sys::procid == 0) {
-            int max_nnz = *std::max_element(nnz_per_proc.begin(), nnz_per_proc.end());
-            int min_nnz = *std::min_element(nnz_per_proc.begin(), nnz_per_proc.end());
-            int avg_nnz = nnz() / nprocs;
-
-            int max_items = *std::max_element(items_per_proc.begin(), items_per_proc.end());
-            int min_items = *std::min_element(items_per_proc.begin(), items_per_proc.end());
-            int avg_items = num() / nprocs;
-
-            double max_work = *std::max_element(work_per_proc.begin(), work_per_proc.end());
-            double min_work = *std::min_element(work_per_proc.begin(), work_per_proc.end());
-            double avg_work = total_work / nprocs;
-
-            Sys::cout() << name << ": comm cost " << 100.0 * total_comm / nnz() / nprocs << "%\n";
-            Sys::cout() << name << ": nnz unbalance: " << (int)(100.0 * Sys::nprocs * (max_nnz - min_nnz) / nnz()) << "%"
-                << "\t(" << max_nnz << " <-> " << avg_nnz << " <-> " << min_nnz << ")\n";
-            Sys::cout() << name << ": items unbalance: " << (int)(100.0 * Sys::nprocs * (max_items - min_items) / num()) << "%"
-                << "\t(" << max_items << " <-> " << avg_items << " <-> " << min_items << ")\n";
-            Sys::cout() << name << ": work unbalance: " << (int)(100.0 * Sys::nprocs * (max_work - min_work) / total_work) << "%"
-                << "\t(" << max_work << " <-> " << avg_work << " <-> " << min_work << ")\n\n";
+        std::vector<unsigned> test_ratings_per_proc(nprocs);
+        for (int i = 0; i < num(); ++i)
+        {
+            int proc = item_to_proc[i];
+            test_ratings_per_proc[proc] += T.col(i).nonZeros();
         }
 
-        Sys::cout() << name << ": nnz:\t" << nnz_per_proc[procid] << " / " << nnz() << "\n";
+        int max_nnz = *std::max_element(nnz_per_proc.begin(), nnz_per_proc.end());
+        int min_nnz = *std::min_element(nnz_per_proc.begin(), nnz_per_proc.end());
+        int avg_nnz = nnz() / nprocs;
+
+        int max_items = *std::max_element(items_per_proc.begin(), items_per_proc.end());
+        int min_items = *std::min_element(items_per_proc.begin(), items_per_proc.end());
+        int avg_items = num() / nprocs;
+
+        double max_work = *std::max_element(work_per_proc.begin(), work_per_proc.end());
+        double min_work = *std::min_element(work_per_proc.begin(), work_per_proc.end());
+        double avg_work = total_work / nprocs;
+
+        Sys::cout() << name << ": comm cost " << 100.0 * total_comm / nnz() / nprocs << "%\n";
+        Sys::cout() << name << ": nnz unbalance: " << (int)(100.0 * Sys::nprocs * (max_nnz - min_nnz) / nnz()) << "%"
+                    << "\t(" << max_nnz << " <-> " << avg_nnz << " <-> " << min_nnz << ")\n";
+        Sys::cout() << name << ": items unbalance: " << (int)(100.0 * Sys::nprocs * (max_items - min_items) / num()) << "%"
+                    << "\t(" << max_items << " <-> " << avg_items << " <-> " << min_items << ")\n";
+        Sys::cout() << name << ": work unbalance: " << (int)(100.0 * Sys::nprocs * (max_work - min_work) / total_work) << "%"
+                    << "\t(" << max_work << " <-> " << avg_work << " <-> " << min_work << ")\n\n";
+
+        Sys::cout() << name << ": train nnz:\t" << nnz_per_proc[procid] << " / " << nnz() << "\n";
+        Sys::cout() << name << ": test nnz:\t" << test_ratings_per_proc[procid] << " / " << nnz() << "\n";
         Sys::cout() << name << ": items:\t" << items_per_proc[procid] << " / " << num() << "\n";
         Sys::cout() << name << ": work:\t" << work_per_proc[procid] << " / " << total_work << "\n";
     };
