@@ -141,8 +141,7 @@ void GASPI_Sys::actual_send(int from, int to)
 
 void GASPI_Sys::process_queue() 
 {
-    if (!Sys::isMasterThread()) return;
-
+    if (!threads::is_master()) return;
     {
         BPMF_COUNTER("process_queue");
 
