@@ -217,16 +217,19 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     const double alpha = 2;       // Gaussian noice
 
     VectorNd hp_mu;
-    MatrixNNd hp_Lambda; 
+    MatrixNNd hp_LambdaF; 
+    MatrixNNd hp_LambdaL; 
     if (has_prop_posterior())
     {
         hp_mu = propMu.col(idx);
-        hp_Lambda = Eigen::Map<MatrixNNd>(propLambda.col(idx).data()); 
+        hp_LambdaF = Eigen::Map<MatrixNNd>(propLambda.col(idx).data()); 
+        hp_LambdaL =  hp_LambdaF.llt().matrixL();
     }
     else
     {
         hp_mu = hp.mu;
-        hp_Lambda = hp.LambdaF; 
+        hp_LambdaF = hp.LambdaF; 
+        hp_LambdaL = hp.LambdaL; 
     }
 
 
@@ -236,14 +239,14 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).
 
-    VectorNd rr = hp_Lambda * hp.mu;                 // vector num_latent x 1, we will use it in formula (14) from the paper
+    VectorNd rr = hp_LambdaF * hp.mu;                 // vector num_latent x 1, we will use it in formula (14) from the paper
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14) 
     
     // if this user movie has less than 1K ratings,
     // we do a serial rank update
     if( count < breakpoint1 ) {
 
-        chol = hp_Lambda;
+        chol = hp_LambdaL;
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
             auto col = in.col(it.row());
             chol.rankUpdate(col, alpha);
@@ -267,7 +270,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
         copy_lower_part(MM);
 
-        chol.compute(hp_Lambda + alpha * MM);
+        chol.compute(hp_LambdaF + alpha * MM);
     // for > 1K ratings, we have additional thread-level parallellism
     } else {
         auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix 
@@ -288,7 +291,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 
         copy_lower_part(MM);
 
-        chol.compute(hp_Lambda + alpha * MM);         // matrix num_latent x num_latent
+        chol.compute(hp_LambdaF + alpha * MM);         // matrix num_latent x num_latent
                                                        // chol="lambda_i with *" from formula (14)
                                                        // lambda_i with * = LambdaU + alpha * MM
     }
