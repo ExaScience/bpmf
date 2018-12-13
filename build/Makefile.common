@@ -4,6 +4,8 @@ CXXFLAGS=$(CFLAGS) -std=c++11   # original line
 CXXFLAGS+=-Wall -Wextra -Wfatal-errors -I$(ROOT)
 CXXFLAGS+=-Wno-unknown-pragmas
 CXXFLAGS+=-I/usr/include/eigen3
+CXXFLAGS+=-DEIGEN_DONT_PARALLELIZE
+
 
 #CXXFLAGS+=-w -O3 -g -DNDEBUG
 #CXXFLAGS+=-no-inline-max-size -no-inline-max-total-size -O3 -g -DNDEBUG # -w=1 #-axSSSE3 # Intel Compiler
