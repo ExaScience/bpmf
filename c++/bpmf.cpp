@@ -222,6 +222,7 @@ int main(int argc, char *argv[])
 
     if (Sys::procid == 0) {
         Sys::cout() << "Total time: " << elapsed <<endl <<flush;
+        Sys::cout() << "Final Avg RMSE: " << movies.rmse_avg <<endl <<flush;
         Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
         Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
     }
