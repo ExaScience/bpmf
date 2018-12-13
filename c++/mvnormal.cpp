@@ -28,7 +28,11 @@ thread_vector<std::mt19937> r;
 
 std::mt19937 &rng()
 {
-    r.init();
+    static bool isinit = false;
+    if (! isinit) {
+        r.init();
+        isinit=true;
+    }
     return r.local();
 
 }
