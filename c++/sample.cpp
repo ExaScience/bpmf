@@ -186,6 +186,8 @@ void Sys::init()
     sum_map().setZero();
     cov_map().setZero();
     norm_map().setZero();
+    col_permutation.setIdentity(num());
+
 
     aggrMu = Eigen::MatrixXd::Zero(num_latent, num());
     aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());

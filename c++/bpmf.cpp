@@ -206,6 +206,10 @@ int main(int argc, char *argv[])
         movies.bcast();
         movies.predict(users, true);
 
+        // restore original order
+        users.unpermuteCols(movies);
+        movies.unpermuteCols(users);
+
         if (Sys::procid == 0) {
             // sparse
             write_matrix(odirname + "/Pavg.sdm", movies.Pavg);

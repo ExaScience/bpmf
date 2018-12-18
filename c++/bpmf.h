@@ -7,6 +7,7 @@
 #define BPMF_H
 
 #include <bitset>
+#include <functional>
 
 #define EIGEN_RUNTIME_NO_MALLOC 1
 #define EIGEN_DONT_PARALLELIZE 1
@@ -112,7 +113,8 @@ struct Sys {
     // assignment and connectivity
     typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
     void permuteCols(const PermMatrix &, Sys &other); 
-    void permuteRows(const PermMatrix &, Sys &other);
+    void unpermuteCols(Sys &other); 
+    PermMatrix col_permutation;
     void assign(Sys &);
     bool assigned;
 

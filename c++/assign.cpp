@@ -34,6 +34,14 @@ void Sys::permuteCols(const PermMatrix &perm, Sys &other)
     other.Pavg = Pavg.transpose();
     other.Pm2 = Pm2.transpose();
     other.M = M.transpose();
+
+    col_permutation = col_permutation * perm;
+}
+
+void Sys::unpermuteCols(Sys &other)
+{
+    auto perm = col_permutation.inverse();
+    permuteCols(perm, other);
 }
 
 //
@@ -180,7 +188,7 @@ void Sys::assign(Sys &other)
     for(auto p: proc_to_item) for(auto i: p) perm.indices()(pos++) = i;
     auto oldT = T;
 
-    this->permuteCols(perm, other);
+    permuteCols(perm, other);
 
     int i = 0;
     int n = 0;
