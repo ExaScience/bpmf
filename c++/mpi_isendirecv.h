@@ -203,8 +203,8 @@ void MPI_Sys::sample(Sys &in)
 
     //Sys::cout() << Sys::procid << ": ------------ cleaning buffers --------------\n";
 
-    for(auto b : sb) delete b; sb.clear();
-    for(auto b : rb) delete b; rb.clear();
+    for(auto b : sb) { delete b; } sb.clear();
+    for(auto b : rb) { delete b; } rb.clear();
     
     //Sys::cout() << Sys::procid << ": ------------ doing bcast --------------\n";
 
