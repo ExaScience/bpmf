@@ -1,15 +1,13 @@
 ROOT=../../../c++
 
-CXX=g++
+CXX=mpicxx
 CFLAGS+=-DBPMF_HYBRID_COMM -DBPMF_OMP_SCHED -DBPMF_PROFILING
 
 # for openmp
 CFLAGS+=-fopenmp
 
 # for GPI2
-GPIROOT=$(HOME)/euroexa/unimem-gpi
-CFLAGS+=-I$(GPIROOT)/include
-LDFLAGS+=-L$(GPIROOT)/lib64 -lGPI2
+LDFLAGS+=-lGPI2 -libverbs
 
 include ../../Makefile.common
 
