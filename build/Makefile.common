@@ -34,6 +34,9 @@ clean:
 
 test: bpmf
 	$(MPIRUN) ./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx -p ../../../data/movielens/ml-test.mtx
+
+install: bpmf
+	install bpmf $(PREFIX)/bin
  
 # DFILES 
 DFILES=$(CCFILES:.cpp=.d)
