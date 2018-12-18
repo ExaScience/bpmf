@@ -30,6 +30,7 @@ int Sys::nprocs = -1;
 
 int Sys::nsims;
 int Sys::burnin;
+double Sys::alpha;
 
 bool Sys::permute = true;
 
@@ -214,7 +215,6 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 VectorNd Sys::sample(long idx, const MapNXd in)
 {
     auto start = tick();
-    const double alpha = 2;       // Gaussian noice
 
     VectorNd hp_mu;
     MatrixNNd hp_LambdaF; 

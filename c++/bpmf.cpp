@@ -49,6 +49,7 @@ void usage()
                 << "  [-o DIR]: Output directory for model and predictions\n"
                 << "  [-i N]: Number of total iterations\n"
                 << "  [-b N]: Number of burnin iterations\n"
+                << "  [-a F]: Noise precision (alpha)\n"
                 << "\n"
                 << "  [-k]: Do not optimize item to node assignment\n"
                 << "  [-r]: Redirect stdout to file\n"
@@ -88,6 +89,7 @@ int main(int argc, char *argv[])
             case 'b': Sys::burnin = atoi(optarg); break;
             case 'g': Sys::grain_size = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
+            case 'a': Sys::alpha = atof(optarg); break;
             case 'n': fname = optarg; break;
             case 'p': probename = optarg; break;
 

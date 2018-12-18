@@ -83,6 +83,7 @@ struct Sys {
     static bool verbose;
     static int nprocs, procid;
     static int burnin, nsims;
+    static double alpha;
 
     static void Init();
     static void Finalize();
