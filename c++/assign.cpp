@@ -42,6 +42,8 @@ void Sys::unpermuteCols(Sys &other)
 {
     auto perm = col_permutation.inverse();
     permuteCols(perm, other);
+
+    assert_same_struct(T, Torig);
 }
 
 //

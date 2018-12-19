@@ -27,7 +27,7 @@ typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
 typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
 
-void assert_transpose(SparseMatrixD &A, SparseMatrixD &B);
+void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
@@ -198,7 +198,7 @@ struct Sys {
     virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
 
     // output predictions
-    SparseMatrixD T; // test matrix (input)
+    SparseMatrixD T, Torig; // test matrix (input)
     SparseMatrixD Pavg, Pm2; // predictions for items in T (output)`
     double rmse, rmse_avg;
     void predict(Sys& other, bool all = false);

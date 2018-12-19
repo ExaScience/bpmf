@@ -41,16 +41,16 @@ unsigned Sys::grain_size;
 void calc_upper_part(MatrixNNd &m, VectorNd v);         // function for calcutation of an upper part of a symmetric matrix: m = v * v.transpose(); 
 void copy_lower_part(MatrixNNd &m);                     // function to copy an upper part of a symmetric matrix to a lower part
 
-// verifies that A is transpose of B
-void assert_transpose(SparseMatrixD &A, SparseMatrixD &B)
+// verifies that A has the same non-zero structure as B
+void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B)
 {
     SparseMatrixD At = A.transpose();
     SparseMatrixD Bt = B.transpose();
-    assert(At.cols() == B.cols());
-    assert(A.cols() == Bt.cols());
+    assert(A.cols() == B.cols());
+    assert(At.cols() == Bt.cols());
 
-    for(int i=0; i<B.cols(); ++i) assert(At.col(i).nonZeros() == B.col(i).nonZeros());
-    for(int i=0; i<A.cols(); ++i) assert(Bt.col(i).nonZeros() == A.col(i).nonZeros());
+    for(int i=0; i<A.cols(); ++i) assert(A.col(i).nonZeros() == B.col(i).nonZeros());
+    for(int i=0; i<At.cols(); ++i) assert(At.col(i).nonZeros() == Bt.col(i).nonZeros());
 }
 
 //
@@ -121,7 +121,7 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
     auto cols = std::max(M.cols(), T.cols());
     M.conservativeResize(rows,cols);
     T.conservativeResize(rows,cols);
-    Pm2 = Pavg = T; // reference ratings and predicted ratings
+    Pm2 = Pavg = Torig = T; // reference ratings and predicted ratings
     assert(M.rows() == Pavg.rows());
     assert(M.cols() == Pavg.cols());
     assert(Sys::nprocs <= (int)Sys::max_procs);
@@ -132,7 +132,7 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
 //
 Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt) : name(name), iter(-1), assigned(false), dom(nprocs+1) {
     M = Mt.transpose();
-    Pm2 = Pavg = T = Pt.transpose(); // reference ratings and predicted ratings
+    Pm2 = Pavg = T = Torig = Pt.transpose(); // reference ratings and predicted ratings
     assert(M.rows() == Pavg.rows());
     assert(M.cols() == Pavg.cols());
 }
