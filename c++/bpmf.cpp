@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
     Sys::grain_size = 1;
     
  
-    while((ch = getopt(argc, argv, "krvn:t:p:i:b:g:w:u:v:o:s:m:l:")) != -1)
+    while((ch = getopt(argc, argv, "krvn:t:p:i:b:g:w:u:v:o:s:m:l:a:d:")) != -1)
     {
         switch(ch)
         {
@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
             case 'g': Sys::grain_size = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
             case 'a': Sys::alpha = atof(optarg); break;
+            case 'd': assert(num_latent == atoi(optarg)); break;
             case 'n': fname = optarg; break;
             case 'p': probename = optarg; break;
 
@@ -162,6 +163,7 @@ int main(int argc, char *argv[])
         Sys::cout() << "nsims: " << Sys::nsims << endl;
         Sys::cout() << "burnin: " << Sys::burnin << endl;
         Sys::cout() << "grain_size: " << Sys::grain_size << endl;
+        Sys::cout() << "alpha: " << Sys::alpha << endl;
     }
 
     Sys::sync();

@@ -18,7 +18,7 @@
 #include "counters.h"
 #include "thread_vector.h"
 
-const int num_latent = 32;
+const int num_latent = 16;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
