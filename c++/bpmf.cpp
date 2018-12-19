@@ -49,6 +49,7 @@ void usage()
                 << "  [-o DIR]: Output directory for model and predictions\n"
                 << "  [-i N]: Number of total iterations\n"
                 << "  [-b N]: Number of burnin iterations\n"
+                << "  [-a F]: Noise precision (alpha)\n"
                 << "\n"
                 << "  [-k]: Do not optimize item to node assignment\n"
                 << "  [-r]: Redirect stdout to file\n"
@@ -80,7 +81,7 @@ int main(int argc, char *argv[])
     Sys::grain_size = 1;
     
  
-    while((ch = getopt(argc, argv, "krvn:t:p:i:b:g:w:u:v:o:s:m:l:")) != -1)
+    while((ch = getopt(argc, argv, "krvn:t:p:i:b:g:w:u:v:o:s:m:l:a:d:")) != -1)
     {
         switch(ch)
         {
@@ -88,6 +89,8 @@ int main(int argc, char *argv[])
             case 'b': Sys::burnin = atoi(optarg); break;
             case 'g': Sys::grain_size = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
+            case 'a': Sys::alpha = atof(optarg); break;
+            case 'd': assert(num_latent == atoi(optarg)); break;
             case 'n': fname = optarg; break;
             case 'p': probename = optarg; break;
 
@@ -160,6 +163,7 @@ int main(int argc, char *argv[])
         Sys::cout() << "nsims: " << Sys::nsims << endl;
         Sys::cout() << "burnin: " << Sys::burnin << endl;
         Sys::cout() << "grain_size: " << Sys::grain_size << endl;
+        Sys::cout() << "alpha: " << Sys::alpha << endl;
     }
 
     Sys::sync();
@@ -203,6 +207,10 @@ int main(int argc, char *argv[])
         users.bcast();
         movies.bcast();
         movies.predict(users, true);
+
+        // restore original order
+        users.unpermuteCols(movies);
+        movies.unpermuteCols(users);
 
         if (Sys::procid == 0) {
             // sparse

@@ -7,6 +7,7 @@
 #define BPMF_H
 
 #include <bitset>
+#include <functional>
 
 #define EIGEN_RUNTIME_NO_MALLOC 1
 #define EIGEN_DONT_PARALLELIZE 1
@@ -17,7 +18,7 @@
 #include "counters.h"
 #include "thread_vector.h"
 
-const int num_latent = 32;
+const int num_latent = 16;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
@@ -26,7 +27,7 @@ typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
 typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
 
-void assert_transpose(SparseMatrixD &A, SparseMatrixD &B);
+void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
@@ -83,6 +84,7 @@ struct Sys {
     static bool verbose;
     static int nprocs, procid;
     static int burnin, nsims;
+    static double alpha;
 
     static void Init();
     static void Finalize();
@@ -111,7 +113,8 @@ struct Sys {
     // assignment and connectivity
     typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
     void permuteCols(const PermMatrix &, Sys &other); 
-    void permuteRows(const PermMatrix &, Sys &other);
+    void unpermuteCols(Sys &other); 
+    PermMatrix col_permutation;
     void assign(Sys &);
     bool assigned;
 
@@ -195,7 +198,7 @@ struct Sys {
     virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
 
     // output predictions
-    SparseMatrixD T; // test matrix (input)
+    SparseMatrixD T, Torig; // test matrix (input)
     SparseMatrixD Pavg, Pm2; // predictions for items in T (output)`
     double rmse, rmse_avg;
     void predict(Sys& other, bool all = false);
