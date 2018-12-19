@@ -26,7 +26,7 @@ inline void init(int n)
         omp_set_num_threads(n);
     }
 #else
-    if (n != 0) 
+    if (n > 0) 
     {
         std::cout << "Ignoring num-of-threads parameter (" << n << ")\n";
     }
