@@ -30,7 +30,7 @@ int Sys::nprocs = -1;
 
 int Sys::nsims;
 int Sys::burnin;
-double Sys::alpha;
+double Sys::alpha = 2.0;
 
 bool Sys::permute = true;
 
