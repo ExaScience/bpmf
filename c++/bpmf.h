@@ -89,6 +89,7 @@ struct Sys {
     static int nprocs, procid;
     static int burnin, nsims;
     static double alpha;
+    static std::string odirname;
 
     static void Init();
     static void Finalize();
