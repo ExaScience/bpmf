@@ -30,10 +30,11 @@ int Sys::nprocs = -1;
 
 int Sys::nsims;
 int Sys::burnin;
-double Sys::alpha;
+double Sys::alpha = 2.0;
+
+std::string Sys::odirname = "";
 
 bool Sys::permute = true;
-
 bool Sys::verbose = false;
 
 unsigned Sys::grain_size;
@@ -184,9 +185,11 @@ void Sys::init()
     norm_map().setZero();
     col_permutation.setIdentity(num());
 
-
-    aggrMu = Eigen::MatrixXd::Zero(num_latent, num());
-    aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
+    if (Sys::odirname.size())
+    {
+        aggrMu = Eigen::MatrixXd::Zero(num_latent, num());
+        aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
+    }
 
     Sys::cout() << "mean rating = " << mean_rating << std::endl;
     Sys::cout() << "total number of ratings in train = " << M.nonZeros() << std::endl;
@@ -341,7 +344,7 @@ void Sys::sample(Sys &in)
         sum += r;
         norm += r.squaredNorm();
 
-        if (iter >= burnin)
+        if (iter >= burnin && Sys::odirname.size())
         {
             aggrMu.col(i) += r;
             aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);

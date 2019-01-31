@@ -1,3 +1,7 @@
+ifndef BPMF_NUMLATENT
+	BPMF_NUMLATENT=16
+endif
+
 #CXXFLAGS=$(CFLAGS) -std=c++0x #-cxxlib=/opt/gcc/6.3.0/snos/lib64 # Intel Compiler
 CXXFLAGS=$(CFLAGS) -std=c++11   # original line
 
@@ -5,7 +9,7 @@ CXXFLAGS+=-Wall -Wextra -Wfatal-errors -I$(ROOT)
 CXXFLAGS+=-Wno-unknown-pragmas
 CXXFLAGS+=-I/usr/include/eigen3
 CXXFLAGS+=-DEIGEN_DONT_PARALLELIZE
-
+CXXFLAGS+=-DBPMF_NUMLATENT=$(BPMF_NUMLATENT)
 
 #CXXFLAGS+=-w -O3 -g -DNDEBUG
 #CXXFLAGS+=-no-inline-max-size -no-inline-max-total-size -O3 -g -DNDEBUG # -w=1 #-axSSSE3 # Intel Compiler
@@ -30,14 +34,14 @@ bpmf: mvnormal.o bpmf.o sample.o assign.o counters.o io.o
 
 clean:
 	rm -f */*.o *.o */*.d *.d
-	rm -f bpmf bpmf+pat 
+	rm -f bpmf
 
 test: bpmf
 	$(MPIRUN) ./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx -p ../../../data/movielens/ml-test.mtx
 
 install: bpmf
 	install bpmf $(PREFIX)/bin
- 
+
 # DFILES 
 DFILES=$(CCFILES:.cpp=.d)
 DFILES=$(wildcard */*.d *.d)

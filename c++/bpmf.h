@@ -18,7 +18,11 @@
 #include "counters.h"
 #include "thread_vector.h"
 
-const int num_latent = 16;
+#ifndef BPMF_NUMLATENT
+#error Define BPMF_NUMLATENT
+#endif
+
+const int num_latent = BPMF_NUMLATENT;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
@@ -85,6 +89,7 @@ struct Sys {
     static int nprocs, procid;
     static int burnin, nsims;
     static double alpha;
+    static std::string odirname;
 
     static void Init();
     static void Finalize();

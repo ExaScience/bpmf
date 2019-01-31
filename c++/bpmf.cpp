@@ -72,7 +72,6 @@ int main(int argc, char *argv[])
   {
     int ch;
     string fname, probename;
-    string odirname;
     string mname, lname;
     int nthrds = -1;
     bool redirect = false;
@@ -95,7 +94,7 @@ int main(int argc, char *argv[])
             case 'p': probename = optarg; break;
 
             //output directory matrices
-            case 'o': odirname = optarg; break;
+            case 'o': Sys::odirname = optarg; break;
 
             case 'm': mname = optarg; break;
             case 'l': lname = optarg; break;
@@ -191,9 +190,9 @@ int main(int argc, char *argv[])
         if (Sys::verbose)
         {
             users.bcast();
-            write_matrix(odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
+            write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
             movies.bcast();
-            write_matrix(odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
+            write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
         }
     }
 
@@ -203,7 +202,7 @@ int main(int argc, char *argv[])
     auto elapsed = end - begin;
 
     //-- if we need to generate output files, collect all data on proc 0
-    if (odirname.size()) {
+    if (Sys::odirname.size()) {
         users.bcast();
         movies.bcast();
         movies.predict(users, true);
@@ -214,17 +213,17 @@ int main(int argc, char *argv[])
 
         if (Sys::procid == 0) {
             // sparse
-            write_matrix(odirname + "/Pavg.sdm", movies.Pavg);
-            write_matrix(odirname + "/Pm2.sdm", movies.Pm2);
+            write_matrix(Sys::odirname + "/Pavg.sdm", movies.Pavg);
+            write_matrix(Sys::odirname + "/Pm2.sdm", movies.Pm2);
 
             // dense
             users.finalize_mu_lambda();
-            write_matrix(odirname + "/U-mu.ddm", users.aggrMu);
-            write_matrix(odirname + "/U-Lambda.ddm", users.aggrLambda);
+            write_matrix(Sys::odirname + "/U-mu.ddm", users.aggrMu);
+            write_matrix(Sys::odirname + "/U-Lambda.ddm", users.aggrLambda);
 
             movies.finalize_mu_lambda();
-            write_matrix(odirname + "/V-mu.ddm", movies.aggrMu);
-            write_matrix(odirname + "/V-Lambda.ddm", movies.aggrLambda);
+            write_matrix(Sys::odirname + "/V-mu.ddm", movies.aggrMu);
+            write_matrix(Sys::odirname + "/V-Lambda.ddm", movies.aggrLambda);
         }
     }
 
@@ -249,8 +248,10 @@ void Sys::bcast()
     for(int i = 0; i < num(); i++) {
 #ifdef BPMF_MPI_COMM
         MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        if (aggrMu.nonZeros())
+            MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        if (aggrLambda.nonZeros())
+            MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
 #else
         assert(Sys::nprocs == 1);
 #endif
@@ -260,6 +261,8 @@ void Sys::bcast()
 
 void Sys::finalize_mu_lambda()
 {
+    assert(aggrLambda.nonZeros());
+    assert(aggrMu.nonZeros());
     // calculate real mu and Lambda
     for(int i = 0; i < num(); i++) {
         int nsamples = Sys::nsims - Sys::burnin;
