@@ -44,13 +44,9 @@ void copy_lower_part(MatrixNNd &m);                     // function to copy an u
 // verifies that A has the same non-zero structure as B
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B)
 {
-    SparseMatrixD At = A.transpose();
-    SparseMatrixD Bt = B.transpose();
     assert(A.cols() == B.cols());
-    assert(At.cols() == Bt.cols());
-
+    assert(A.rows() == B.rows());
     for(int i=0; i<A.cols(); ++i) assert(A.col(i).nonZeros() == B.col(i).nonZeros());
-    for(int i=0; i<At.cols(); ++i) assert(At.col(i).nonZeros() == Bt.col(i).nonZeros());
 }
 
 //
