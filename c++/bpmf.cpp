@@ -178,7 +178,11 @@ int main(int argc, char *argv[])
         users.sample_hp();
         { BPMF_COUNTER("users");  users.sample(movies); }
 
-        { BPMF_COUNTER("eval");   movies.predict(users); }
+        { 
+            BPMF_COUNTER("eval");
+            movies.predict(users); 
+            users.predict(movies); 
+        }
 
         auto stop = tick();
         double items_per_sec = (users.num() + movies.num()) / (stop - start);
