@@ -1,10 +1,10 @@
 package:
   name: bpmf
-  version: 0.1
+  version: 0.2
 
 source:
   git_url: https://github.com/ExaScience/bpmf
-  git_rev: v0.1
+  git_rev: v0.2
 
 build:
     number: 1
