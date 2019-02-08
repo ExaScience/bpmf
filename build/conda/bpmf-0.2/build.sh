@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd build/generic/nocomm-omp
+cd build/makefiles/nocomm-omp
 
 export CPATH=$CPATH:$PREFIX/include/eigen3
 
