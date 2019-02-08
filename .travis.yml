@@ -28,6 +28,6 @@ addons:
 
 script:
     - cd "${TRAVIS_BUILD_DIR}"
-    - cd build/generic/${BUILD_TYPE}
+    - cd build/makefiles/${BUILD_TYPE}
     - make
     - make test
