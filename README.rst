@@ -3,29 +3,33 @@ BPMF
 
 Julia and C++ implementations of Bayesian Probabilistic Matrix Factorization
 using Markov Chain Monte Carlo. BPMF is a recommender method that allows to
-predict for example movie ratings.
+predict for example movie ratings. The BPMF method is described here: http://www.cs.toronto.edu/~rsalakhu/papers/bpmf.pdf
 
-The BPMF method is described here: http://www.cs.toronto.edu/~rsalakhu/papers/bpmf.pdf
-
-This implementation is described in:
+The implementation in thie repo is described in:
   Distributed Matrix Factorization using Asynchrounous Communication
   Tom Vander Aa, Imen Chakroun, Tom Haber
   https://arxiv.org/pdf/1705.10633
 
-Input is in the form of a sparse matrix of values (e.g. movie ratings) ``R``
-. The outputs are two smaller matrices ``U`` and ``V`` such that ``U * V``
+Input is in the form of a sparse matrix of values (e.g. movie ratings) ``R``.
+The outputs are two smaller matrices ``U`` and ``V`` such that ``U * V``
 forms a prediction matrix.
 
-Tutorial
---------
+Background information
+----------------------
 
-in `docs/ <docs/>`__
+Tutorial slides in `tutorial_slides/ <tutorial_slides/>`__
 
+Installation using Conda
+------------------------
+
+The single node OpenMP version of BPMF can be installed using Conda::
+
+   conda install -v vanderaa bpmf
 
 Building the C++ version
 ------------------------
 
-see `README <build/makefiles/README.rst>`_ in `build/makefiles`
+See the `README <build/makefiles/README.rst>`_ in `build/makefiles`
 
 
 Running the C++ version
