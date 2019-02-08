@@ -2,11 +2,19 @@
 
 set -e
 
-rm -rf output
+rm -fr output bpmf_* 
 mkdir output
 
-mpirun -np 4 ../../build/generic/mpi-omp/bpmf -k -i 9 -b 0 -v -n train.mtx -p test.mtx -o output/ -t 1
-# ../../build/generic/nocomm-omp/bpmf -k -i 9 -b 0 -v -n train.mtx -p test.mtx -o output/ -t 1
+bpmf -r -k -i 9 -b 0 -v -n train.mtx -p test.mtx -o output/ 
 
-python compute_mu_lambda.py
+RMSE=$(grep "Final Avg RMSE" bpmf_0.out | cut -d : -f 2)
+
+if [ $(echo "$RMSE < 3" |bc -l) -eq 1 ]
+then 
+	echo OK
+	exit 0
+else
+	echo FAILED
+	exit -1
+fi
 
