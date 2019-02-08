@@ -9,5 +9,5 @@ CFLAGS+=-fopenmp
 # for GPI2
 LDFLAGS+=-lGPI2 -libverbs
 
-include ../../Makefile.common
+include ../Makefile.common
 
