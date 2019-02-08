@@ -51,3 +51,5 @@ Test
 
 A small test dataset is available in the directory ``data/tiny``.
 Run the following command in this directory to test bpmf::
+
+  ./run_test.sh
