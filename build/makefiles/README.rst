@@ -29,8 +29,7 @@ For the GASPI version:
 Compilation
 ^^^^^^^^^^^
 
-The different subdirectories here each contain a `Makefile`, these
-subdirectories contain different compilation options:
+The different subdirectories here each contain a `Makefile` with different compilation options:
 
 - nocomm-ser/: single node, single core
 - nocomm-omp/: single node, OpenMP
