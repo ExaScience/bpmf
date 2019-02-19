@@ -7,7 +7,7 @@ Julia and C++ implementations of Bayesian Probabilistic Matrix Factorization
 using Markov Chain Monte Carlo. BPMF is a recommender method that allows to
 predict for example movie ratings. The BPMF method is described here: http://www.cs.toronto.edu/~rsalakhu/papers/bpmf.pdf
 
-The implementation in thie repo is described in:
+The implementation in this repo is described in:
   Distributed Matrix Factorization using Asynchrounous Communication
   Tom Vander Aa, Imen Chakroun, Tom Haber
   https://arxiv.org/pdf/1705.10633
@@ -76,9 +76,7 @@ The Julia version takes two command line arguments:
 
 ``./bpmf <train_matrix.mtx> <test_matrix.mtx>``
 
-Matrices should be in the MatrixMarket format. Other options need to be changed in the
- source code itself. E.g. the number of iterations, the size of the features
- vectors,…
+Matrices should be in the MatrixMarket format. Other options need to be changed in the source code itself. E.g. the number of iterations, the size of the features vectors, ...
 
 
 .. |Travis Build Status| image:: https://travis-ci.org/ExaScience/bpmf.svg?branch=master
