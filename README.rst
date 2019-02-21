@@ -8,7 +8,7 @@ using Markov Chain Monte Carlo. BPMF is a recommender method that allows to
 predict for example movie ratings. The BPMF method is described here: http://www.cs.toronto.edu/~rsalakhu/papers/bpmf.pdf
 
 The implementation in this repo is described in:
-"Distributed Matrix Factorization using Asynchrounous Communication",vTom Vander Aa, Imen Chakroun, Tom Haber, https://arxiv.org/pdf/1705.10633
+"Distributed Matrix Factorization using Asynchrounous Communication", Tom Vander Aa, Imen Chakroun, Tom Haber, https://arxiv.org/pdf/1705.10633
 
 Input is in the form of a sparse matrix of values (e.g. movie ratings) ``R``.
 The outputs are two smaller matrices ``U`` and ``V`` such that ``U * V``
