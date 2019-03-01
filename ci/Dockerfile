@@ -9,5 +9,5 @@ RUN add-apt-repository ppa:lkoppel/robotics && \
        liblapacke-dev \
        libopenmpi-dev \
        openmpi-bin \
-       libeigen3-dev 
+       libeigen3-dev \
     && rm -rf /var/lib/apt/lists/*
