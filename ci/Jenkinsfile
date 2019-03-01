@@ -5,16 +5,11 @@ pipeline {
         }
     }
     stages {
-        stage('Test') {
-            steps {
-                sh 'git --version'
-                sh 'gcc --version'
-                sh 'g++ --version'
-                sh 'cmake --version'
-                sh 'gfortran --version'
-                sh 'python3 --version'
-                sh 'mpiexec --version'
-            }
+        stage('Build and Test') {
+            node('nocomm-omp') { sh 'BUILD_TYPE="nocomm-omp" && cd build/makefiles/${BUILD_TYPE} && make && make test' }
+            node('nocomm-ser') { sh 'BUILD_TYPE="nocomm-ser" && cd build/makefiles/${BUILD_TYPE} && make && make test' }
+            node('mpi-pure') { sh 'BUILD_TYPE="mpi-pure" && cd build/makefiles/${BUILD_TYPE} && make && make test' }
+            node('mpi-omp') { sh 'BUILD_TYPE="mpi-omp" && cd build/makefiles/${BUILD_TYPE} && make && make test' }
         }
     }
 }
