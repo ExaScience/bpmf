@@ -4,6 +4,12 @@ pipeline {
             dir 'ci'
         }
     }
+
+    environment {
+        MAKEFLAGS = "-j 2"
+        OMPI_MCA_btl = "tcp,sel"
+    }
+
     stages {
         stage('Build and Test') {
             steps {
