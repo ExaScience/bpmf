@@ -7,7 +7,7 @@ pipeline {
 
     environment {
         MAKEFLAGS = "-j 2"
-        OMPI_MCA_btl = "tcp,sel"
+        OMPI_MCA_btl = "tcp,self"
     }
 
     stages {
