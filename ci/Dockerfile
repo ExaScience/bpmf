@@ -9,5 +9,5 @@ RUN apt-get update && \
        libopenmpi-dev \
        openmpi-bin \
        libeigen3-dev \
-       openssh \
+       openssh-client \
     && rm -rf /var/lib/apt/lists/*
