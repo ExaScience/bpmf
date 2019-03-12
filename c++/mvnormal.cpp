@@ -24,22 +24,22 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-#ifdef BPMF_SER_SCHED
-#define TL 
-#else
-#define TL thread_local
-#endif
+thread_vector<std::mt19937> r;
 
 std::mt19937 &rng()
 {
-    static TL std::mt19937 r;
-    return r;
+    static bool isinit = false;
+    if (! isinit) {
+        r.init();
+        isinit=true;
+    }
+    return r.local();
 
 }
 
 double randn(double = .0) {
-static TL normal_distribution<> nd;
-  return nd(rng());
+    normal_distribution<> nd;
+    return nd(rng());
 }
 
 auto nrandn(int n) -> decltype( Eigen::VectorXd::NullaryExpr(n, ptr_fun(randn)) ) 
@@ -62,11 +62,11 @@ VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const Vecto
 void WishartUnitChol(int df, MatrixNNd & c) {
     c.setZero();
 
-    for ( int i = 0; i < num_feat; i++ ) {
+    for ( int i = 0; i < num_latent; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
         c(i,i) = sqrt(2.0 * gam(rng()));
-        VectorXd r = nrandn(num_feat-i-1);
-        for(int j=i+1;j<num_feat;j++) c.coeffRef(i,j) = randn();
+        VectorXd r = nrandn(num_latent-i-1);
+        for(int j=i+1;j<num_latent;j++) c.coeffRef(i,j) = randn();
     }
 }
 

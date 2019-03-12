@@ -7,6 +7,7 @@
 #define BPMF_H
 
 #include <bitset>
+#include <functional>
 
 #define EIGEN_RUNTIME_NO_MALLOC 1
 #define EIGEN_DONT_PARALLELIZE 1
@@ -15,17 +16,22 @@
 #include "Eigen/Sparse"
 
 #include "counters.h"
+#include "thread_vector.h"
 
-const int num_feat = 100;
+#ifndef BPMF_NUMLATENT
+#error Define BPMF_NUMLATENT
+#endif
+
+const int num_latent = BPMF_NUMLATENT;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
-typedef Eigen::Matrix<double, num_feat, num_feat> MatrixNNd;
-typedef Eigen::Matrix<double, num_feat, Eigen::Dynamic> MatrixNXd;
-typedef Eigen::Matrix<double, num_feat, 1> VectorNd;
+typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
+typedef Eigen::Matrix<double, num_latent, Eigen::Dynamic> MatrixNXd;
+typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
 typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
 
-void assert_transpose(SparseMatrixD &A, SparseMatrixD &B);
+void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
@@ -45,7 +51,7 @@ inline double sqr(double x) { return x*x; }
 struct HyperParams {
     // fixed params
     const int b0 = 2;
-    const int df = num_feat;
+    const int df = num_latent;
     VectorNd mu0;
     MatrixNNd WI;
 
@@ -79,14 +85,15 @@ struct Sys;
 struct Sys {
     //-- static info
     static bool permute;
-    static int nprocs, procid, nthrds;
+    static bool verbose;
+    static int nprocs, procid;
     static int burnin, nsims;
+    static double alpha;
+    static std::string odirname;
 
     static void Init();
     static void Finalize();
     static void Abort(int);
-    static void SetupThreads(int);
-    static bool isMasterThread();
     static void sync();
 
     static std::ostream *os;
@@ -110,8 +117,9 @@ struct Sys {
 
     // assignment and connectivity
     typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
-    void permuteCols(const PermMatrix &); 
-    void permuteRows(const PermMatrix &);
+    void permuteCols(const PermMatrix &, Sys &other); 
+    void unpermuteCols(Sys &other); 
+    PermMatrix col_permutation;
     void assign(Sys &);
     bool assigned;
 
@@ -128,7 +136,8 @@ struct Sys {
     int from(int i = procid) const { return dom.at(i); } 
     int to(int i = procid) const { return dom.at(i+1); }
     void print_dom(std::ostream &os) {
-	for(int i=0; i<nprocs; ++i) os << i << ": [" << from(i) << ":" << to(i) << "[" << std::endl;
+        for (int i = 0; i < nprocs; ++i)
+            os << i << ": [" << from(i) << ":" << to(i) << "[" << std::endl;
     }
 
     // connectivity matrix tells what what items need to be sent to what nodes
@@ -147,25 +156,34 @@ struct Sys {
 
     //-- factors of the MF
     double* items_ptr;
-    MapNXd items() const { return MapNXd(items_ptr, num_feat, num()); }
+    MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, const MapNXd in);
+
+    //-- for propagated posterior
+    Eigen::MatrixXd propMu, propLambda;
+    void add_prop_posterior(std::string);
+    bool has_prop_posterior() const;
+
+    //-- for aggregated posterior
+    Eigen::MatrixXd aggrMu, aggrLambda;
+    void finalize_mu_lambda();
     
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_items(int, int) = 0;
-    virtual void bcast_items() = 0;
+    void bcast();
     virtual void sample(Sys &in);
     static unsigned grain_size;
 
     //-- covariance
     double *sum_ptr;
-    MapNXd sum_map() const { return MapNXd(sum_ptr, num_feat, Sys::nprocs); }
+    MapNXd sum_map() const { return MapNXd(sum_ptr, num_latent, Sys::nprocs); }
     MapNXd::ColXpr sum(int i)  const { return sum_map().col(i); }
     MapNXd::ColXpr local_sum() const { return sum(Sys::procid); }
     VectorNd aggr_sum() const { return sum_map().rowwise().sum(); }
 
     double *cov_ptr;
-    MapNXd cov_map() const { return MapNXd(cov_ptr, num_feat, Sys::nprocs * num_feat); }
-    MapNXd cov(int i) const { return MapNXd(cov_ptr + i*num_feat*num_feat, num_feat, num_feat); }
+    MapNXd cov_map() const { return MapNXd(cov_ptr, num_latent, Sys::nprocs * num_latent); }
+    MapNXd cov(int i) const { return MapNXd(cov_ptr + i*num_latent*num_latent, num_latent, num_latent); }
     MapNXd local_cov() { return cov(Sys::procid); }
     MatrixNNd aggr_cov() const { 
         MatrixNNd ret(MatrixNNd::Zero());
@@ -185,7 +203,7 @@ struct Sys {
     virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
 
     // output predictions
-    SparseMatrixD T; // test matrix (input)
+    SparseMatrixD T, Torig; // test matrix (input)
     SparseMatrixD Pavg, Pm2; // predictions for items in T (output)`
     double rmse, rmse_avg;
     void predict(Sys& other, bool all = false);
@@ -195,13 +213,5 @@ struct Sys {
     std::vector<double> sample_time;
     void register_time(int i, double t);
 };
-
-#ifdef BPMF_TBB_SCHED
-#include <tbb/mutex.h>
-typedef tbb::mutex working_mutex;
-#else
-#include <mutex>
-typedef std::mutex working_mutex;
-#endif
 
 #endif

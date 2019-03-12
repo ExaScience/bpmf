@@ -3,9 +3,9 @@
  * All rights reserved.
  */
 
-#include "mpi_common.h"
+#include <mutex>
 
-#include <tbb/mutex.h>
+#include "mpi_common.h"
 
 struct MPI_Sys : public Sys 
 {
@@ -15,7 +15,6 @@ struct MPI_Sys : public Sys
     virtual void alloc_and_init(const Sys &);
 
     virtual void send_items(int from, int to);
-    virtual void bcast_items();
     virtual void sample(Sys &in);
 
     MPI_Win items_win;
@@ -27,9 +26,9 @@ struct MPI_Sys : public Sys
 void MPI_Sys::alloc_and_init(const Sys &other)
 {
  
-    const int items_size = sizeof(double) * num_feat * num();
-    const int sum_size   = sizeof(double) * num_feat * Sys::nprocs;
-    const int cov_size   = sizeof(double) * num_feat * num_feat * Sys::nprocs;
+    const int items_size = sizeof(double) * num_latent * num();
+    const int sum_size   = sizeof(double) * num_latent * Sys::nprocs;
+    const int cov_size   = sizeof(double) * num_latent * num_latent * Sys::nprocs;
     const int norm_size  = sizeof(double) * Sys::nprocs;
 
     MPI_Alloc_mem(items_size, MPI_INFO_NULL, &items_ptr);
@@ -53,13 +52,13 @@ void MPI_Sys::alloc_and_init(const Sys &other)
 void MPI_Sys::send_items(int from, int to)
 {
     BPMF_COUNTER("send_items");
-    static tbb::mutex m;
+    static std::mutex m;
 
     m.lock();
     for(int i=from; i<to; ++i) for(int k = 0; k < Sys::nprocs; k++) {
         if (k == Sys::procid) continue;
-        auto offset = i * num_feat;
-        auto size = num_feat;
+        auto offset = i * num_latent;
+        auto size = num_latent;
         MPI_Put(items_ptr+offset, size, MPI_DOUBLE, k, offset, size, MPI_DOUBLE, items_win); 
     }
     m.unlock();
@@ -80,14 +79,14 @@ void MPI_Sys::sample(Sys &in)
             auto base = Sys::procid;
             {
                 //-- sum
-                auto offset = base * num_feat;
-                auto size = num_feat;
+                auto offset = base * num_latent;
+                auto size = num_latent;
                 MPI_Put(sum_ptr+offset, size, MPI_DOUBLE, k, offset, size, MPI_DOUBLE, sum_win); 
             }
             {
                 //-- cov
-                auto offset = base * num_feat * num_feat;
-                auto size = num_feat * num_feat;
+                auto offset = base * num_latent * num_latent;
+                auto size = num_latent * num_latent;
                 MPI_Put(cov_ptr+offset, size, MPI_DOUBLE, k, offset, size, MPI_DOUBLE, cov_win); 
             }
             {

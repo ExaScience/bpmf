@@ -13,7 +13,6 @@ struct MPI_Sys : public Sys
 
     virtual void sample(Sys &in);
     virtual void send_items(int,int) {}
-    virtual void bcast_items();
     virtual void alloc_and_init();
 };
 
@@ -23,7 +22,7 @@ void MPI_Sys::sample(Sys &in)
 
     { 
         BPMF_COUNTER("communicate"); 
-        bcast_items();
+        bcast();
 
         for(int k = 0; k < Sys::nprocs; k++) {
             //sum, cov, norm

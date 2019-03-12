@@ -1,15 +1,23 @@
+ifndef BPMF_NUMLATENT
+	BPMF_NUMLATENT=16
+endif
+
 #CXXFLAGS=$(CFLAGS) -std=c++0x #-cxxlib=/opt/gcc/6.3.0/snos/lib64 # Intel Compiler
 CXXFLAGS=$(CFLAGS) -std=c++11   # original line
 
 CXXFLAGS+=-Wall -Wextra -Wfatal-errors -I$(ROOT)
+CXXFLAGS+=-Wno-unknown-pragmas
+CXXFLAGS+=-I/usr/include/eigen3
+CXXFLAGS+=-DEIGEN_DONT_PARALLELIZE
+CXXFLAGS+=-DBPMF_NUMLATENT=$(BPMF_NUMLATENT)
 
 #CXXFLAGS+=-w -O3 -g -DNDEBUG
 #CXXFLAGS+=-no-inline-max-size -no-inline-max-total-size -O3 -g -DNDEBUG # -w=1 #-axSSSE3 # Intel Compiler
-CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG  # original line
+#CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG  # original line
 #CXXFLAGS+=-fopt-info-optimized=gnu_fopt_info_optimized.txt -O3 -g -DNDEBUG -ffast-math #-fopt-info-vec #-ftree-loop-optimize # Report for GNU
 #CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG # report for Cray Compiler
 
-#CXXFLAGS+=-O2 -g 
+CXXFLAGS+=-O2 -g 
 #CXXFLAGS+=-O0 -g
 
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
@@ -21,16 +29,19 @@ all: bpmf
 
 # bpmf
 vpath %.cpp $(ROOT)
-bpmf: mvnormal.o bpmf.o sample.o counters.o
+bpmf: mvnormal.o bpmf.o sample.o assign.o counters.o io.o
 	$(LINK.o) $^ $(LDFLAGS) -o $@
 
 clean:
 	rm -f */*.o *.o */*.d *.d
-	rm -f bpmf bpmf+pat 
+	rm -f bpmf
 
 test: bpmf
-	./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx -p ../../../data/movielens/ml-test.mtx
- 
+	$(MPIRUN) ./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx -p ../../../data/movielens/ml-test.mtx
+
+install: bpmf
+	install bpmf $(PREFIX)/bin
+
 # DFILES 
 DFILES=$(CCFILES:.cpp=.d)
 DFILES=$(wildcard */*.d *.d)

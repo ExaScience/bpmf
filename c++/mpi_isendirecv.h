@@ -8,6 +8,7 @@
 #include <list>
 #include <array>
 #include <sstream>
+#include <mutex>
 
 const static int CS = 100;
 const static int NC  = 5;
@@ -153,7 +154,6 @@ struct MPI_Sys : public Sys
     //-- virtuals
     virtual void sample(Sys &in);
     virtual void send_items(int,int);
-    virtual void bcast_items();
     virtual void alloc_and_init();
 
     //-- local status
@@ -162,7 +162,7 @@ struct MPI_Sys : public Sys
     std::vector<RecvBuffer<ElBuf> *> rb;
 
     //-- process_queue queue with protecting mutex
-    working_mutex m;
+    std::mutex m;
     std::list<int> queue;
     void process_queue();
 };
@@ -203,8 +203,8 @@ void MPI_Sys::sample(Sys &in)
 
     //Sys::cout() << Sys::procid << ": ------------ cleaning buffers --------------\n";
 
-    for(auto b : sb) delete b; sb.clear();
-    for(auto b : rb) delete b; rb.clear();
+    for(auto b : sb) { delete b; } sb.clear();
+    for(auto b : rb) { delete b; } rb.clear();
     
     //Sys::cout() << Sys::procid << ": ------------ doing bcast --------------\n";
 

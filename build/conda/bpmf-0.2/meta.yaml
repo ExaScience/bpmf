@@ -1,0 +1,25 @@
+package:
+  name: bpmf
+  version: 0.2
+
+source:
+  git_url: https://github.com/ExaScience/bpmf
+  git_rev: v0.2
+
+build:
+    number: 1
+
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - {{ compiler('c') }}
+    - llvm-openmp             # [osx]
+  host:
+    - llvm-openmp            # [osx]
+    - eigen3
+  run:
+    - llvm-openmp              # [osx]
+
+about:
+  home: https://github.com/ExaScience/bpmf
+  license:  MIT

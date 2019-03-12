@@ -13,7 +13,6 @@ struct NC_Sys : public Sys
     virtual void alloc_and_init();
 
     virtual void send_items(int, int) {}
-    virtual void bcast_items() {}
 };
 
 
@@ -33,9 +32,9 @@ void Sys::Finalize()
 
 void NC_Sys::alloc_and_init()
 {
-    items_ptr = (double *)malloc(sizeof(double) * num_feat * num());
-    sum_ptr = (double *)malloc(sizeof(double) * num_feat * NC_Sys::nprocs);
-    cov_ptr = (double *)malloc(sizeof(double) * num_feat * num_feat * NC_Sys::nprocs);
+    items_ptr = (double *)malloc(sizeof(double) * num_latent * num());
+    sum_ptr = (double *)malloc(sizeof(double) * num_latent * NC_Sys::nprocs);
+    cov_ptr = (double *)malloc(sizeof(double) * num_latent * num_latent * NC_Sys::nprocs);
     norm_ptr = (double *)malloc(sizeof(double) * NC_Sys::nprocs);
 
     init();

@@ -39,36 +39,20 @@ using namespace Eigen;
 #error no comm include
 #endif
 
-void usage() 
-{
-    std::cout << "Usage: bpmf -n <MTX> -p <MTX> [-o DIR/] [-i N] [-b N] [-krv] [-t N] [-m MTX,MTX] [-l MTX,MTX]\n"
-                << "\n"
-                << "Paramaters: \n"
-                << "  -n MTX: Training input data\n"
-                << "  -p MTX: Test input data\n"
-                << "  [-o DIR]: Output directory for model and predictions\n"
-                << "  [-i N]: Number of total iterations\n"
-                << "  [-b N]: Number of burnin iterations\n"
-                << "  [-a F]: Noise precision (alpha)\n"
-                << "\n"
-                << "  [-k]: Do not optimize item to node assignment\n"
-                << "  [-r]: Redirect stdout to file\n"
-                << "  [-v]: Output all samples\n"
-                << "  [-t N]: Number of OpenMP threads to use.\n"
-                << "\n"
-                << "  [-m MTX,MTX]: propagated posterior mu and Lambda matrices for U\n"
-                << "  [-l MTX,MTX]: propagated posterior mu and Lambda matrices for V\n"
-                << "\n"
-                << "Matrix Formats:\n"
-                << "  *.mtx: Sparse or dense Matrix Market format\n"
-                << "  *.sdm: Sparse binary double format\n"
-                << "  *.ddm: Dense binary double format\n"
-                << std::endl;
-}
-
 int main(int argc, char *argv[])
 {
   Sys::Init();
+
+  int nrows = 1000;
+  int ncols = 1000;
+
+  Eigen::MatrixXd U(Eigen::MatrixXd::Random(num_latent, ncols));
+  Eigen::MatrixXd V(Eigen::MatrixXd::Random(num_latent, ncols));
+
+  Eigen::MatrixXd V(Eigen::MatrixXd::Random(nrows, ncols));
+
+
+
   {
     int ch;
     string fname, probename;

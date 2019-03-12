@@ -1,0 +1,23 @@
+pipeline {
+    agent {
+        dockerfile {
+            dir 'ci'
+        }
+    }
+
+    environment {
+        MAKEFLAGS = "-j 2"
+        OMPI_MCA_btl = "tcp,self"
+    }
+
+    stages {
+        stage('Build and Test') {
+            steps {
+                sh 'cd "build/makefiles/nocomm-omp" &&  make && make test' 
+                sh 'cd "build/makefiles/nocomm-ser" && make && make test' 
+                sh 'cd "build/makefiles/mpi-pure" && make && make test' 
+                sh 'cd "build/makefiles/mpi-omp" && make && make test' 
+            }
+        }
+    }
+}
