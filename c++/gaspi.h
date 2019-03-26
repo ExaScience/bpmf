@@ -130,12 +130,17 @@ void GASPI_Sys::actual_send(int from, int to)
 
     int free = gaspi_wait_for_queue(0);
 
-    for(int i = from; i < to; ++i) for(int k = 0; k < Sys::nprocs; k++) {
-        auto offset = i * num_latent * sizeof(double);
-        auto size = num_latent * sizeof(double);
-        SUCCESS_OR_DIE(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
-        assert((free - 1) == gaspi_free(0));
-        if (--free <= 0) free = gaspi_wait_for_queue(0);
+    for (int i = from; i < to; ++i)
+    {
+        for (int k = 0; k < Sys::nprocs; k++)
+        {
+            if (!conn(i, k)) continue;
+            auto offset = i * num_latent * sizeof(double);
+            auto size = num_latent * sizeof(double);
+            SUCCESS_OR_DIE(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
+            assert((free - 1) == gaspi_free(0));
+            if (--free <= 0) free = gaspi_wait_for_queue(0);
+        }
     }
 }
 
