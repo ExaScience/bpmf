@@ -21,17 +21,22 @@
 //    https://github.com/ExaScience/smurff/blob/master-smurff-merge/python/io/matrix_io.py
 //
 
-enum class MatrixType
+struct MatrixType
 {
-	//sparse types
-	none,
-	sdm,
-	sbm,
-	mtx,
+	enum 
+	{
+		//sparse types
+		none,
+		sdm,
+		sbm,
+		mtx,
 
-	//dense types
-	csv,
-	ddm
+		//dense types
+		csv,
+		ddm
+	} type;
+
+	bool compressed;
 };
 
 MatrixType ExtensionToMatrixType(const std::string& fname);

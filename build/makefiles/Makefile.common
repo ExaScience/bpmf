@@ -20,6 +20,8 @@ CXXFLAGS+=-DBPMF_NUMLATENT=$(BPMF_NUMLATENT)
 CXXFLAGS+=-O2 -g 
 #CXXFLAGS+=-O0 -g
 
+LDFLAGS=-lz
+
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 OUTPUT_OPTION=-MMD -MP -o $@
 
@@ -29,7 +31,7 @@ all: bpmf
 
 # bpmf
 vpath %.cpp $(ROOT)
-bpmf: mvnormal.o bpmf.o sample.o assign.o counters.o io.o
+bpmf: mvnormal.o bpmf.o sample.o assign.o counters.o io.o gzstream.o
 	$(LINK.o) $^ $(LDFLAGS) -o $@
 
 clean:
@@ -38,6 +40,7 @@ clean:
 
 test: bpmf
 	$(MPIRUN) ./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx -p ../../../data/movielens/ml-test.mtx
+	$(MPIRUN) ./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx.gz -p ../../../data/movielens/ml-test.mtx.gz
 
 install: bpmf
 	install bpmf $(PREFIX)/bin

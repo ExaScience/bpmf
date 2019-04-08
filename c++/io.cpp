@@ -8,6 +8,7 @@
 #include <array>
 
 #include "error.h"
+#include "gzstream.h"
 
 #include <unsupported/Eigen/SparseExtra>
 
@@ -17,6 +18,8 @@
 #define EXTENSION_MM  ".mm"  //sparse matrix (txt file)
 #define EXTENSION_CSV ".csv" //dense matrix (txt file)
 #define EXTENSION_DDM ".ddm" //dense double matrix (binary file)
+
+#define EXTENSION_GZ ".gz" // gzipped file
 
 #define MM_OBJ_MATRIX   "MATRIX"
 #define MM_FMT_ARRAY    "ARRAY"
@@ -28,54 +31,65 @@
 MatrixType ExtensionToMatrixType(const std::string& fname)
 {
    std::size_t dotIndex = fname.find_last_of(".");
-   if (dotIndex == std::string::npos)
+   THROWERROR_ASSERT_MSG(dotIndex != std::string::npos, "Extension is not specified in " + fname);
+   std::string extension = fname.substr(dotIndex);
+
+   bool compressed = false;
+   if (extension == EXTENSION_GZ)
    {
-      THROWERROR("Extension is not specified in " + fname);
+      compressed = true;
+      std::size_t secondDotIndex = fname.find_last_of(".", dotIndex - 1);
+      THROWERROR_ASSERT_MSG(dotIndex != std::string::npos, "Extension is not specified in " + fname);
+      extension = fname.substr(secondDotIndex, dotIndex - secondDotIndex);
    }
 
-   std::string extension = fname.substr(dotIndex);
+   std::cout << "filename: " << fname << std::endl;
+   std::cout << "extension: " << extension << std::endl;
+   std::cout << "compressed: " << compressed << std::endl;
 
    if (extension == EXTENSION_SDM)
    {
-      return MatrixType::sdm;
+      return { MatrixType::sdm, compressed };
    }
    else if (extension == EXTENSION_SBM)
    {
-      return MatrixType::sbm;
+      return { MatrixType::sbm, compressed };
    }
    else if (extension == EXTENSION_MTX || extension == EXTENSION_MM)
    {
-       return MatrixType::mtx;
+       return { MatrixType::mtx, compressed };
    }
    else if (extension == EXTENSION_CSV)
    {
-      return MatrixType::csv;
+      return { MatrixType::csv, compressed };
    }
    else if (extension == EXTENSION_DDM)
    {
-      return MatrixType::ddm;
+      return { MatrixType::ddm, compressed };
    }
    else
    {
       THROWERROR("Unknown file type: " + extension + " specified in " + fname);
    }
-   return MatrixType::none;
+   return { MatrixType::none, compressed };
 }
 
 std::string MatrixTypeToExtension(MatrixType matrixType)
 {
-   switch (matrixType)
+   std::string extension;
+
+   switch (matrixType.type)
    {
    case MatrixType::sdm:
-      return EXTENSION_SDM;
+      extension = EXTENSION_SDM;
    case MatrixType::sbm:
-      return EXTENSION_SBM;
+      extension = EXTENSION_SBM;
    case MatrixType::mtx:
-      return EXTENSION_MTX;
+      extension = EXTENSION_MTX;
    case MatrixType::csv:
-      return EXTENSION_CSV;
+      extension = EXTENSION_CSV;
    case MatrixType::ddm:
-      return EXTENSION_DDM;
+      extension = EXTENSION_DDM;
    case MatrixType::none:
       {
          THROWERROR("Unknown matrix type");
@@ -95,100 +109,85 @@ void read_matrix(const std::string& filename, Eigen::VectorXd& V)
    V = X; // this will fail if X has more than one column
 }
 
+std::istream *open_inputfile(const std::string& filename)
+{
+   MatrixType matrixType = ExtensionToMatrixType(filename);
+   THROWERROR_FILE_NOT_EXIST(filename)
+
+   std::istream *stream;
+   if (matrixType.compressed)
+   {
+      igzstream *fileStream = new igzstream;
+      fileStream->open(filename.c_str());
+      THROWERROR_ASSERT_MSG(fileStream->good(), "Error opening file: " + filename);
+      stream = fileStream;
+   } 
+   else 
+   {
+      std::ifstream *fileStream = new std::ifstream(filename, std::ios_base::binary);
+      THROWERROR_ASSERT_MSG(fileStream->is_open(), "Error opening file: " + filename);
+      stream = fileStream;
+   }
+
+   return stream;
+}
+
 void read_matrix(const std::string& filename, Eigen::MatrixXd& X)
 {
    MatrixType matrixType = ExtensionToMatrixType(filename);
+   std::istream *stream = open_inputfile(filename);
 
-   THROWERROR_FILE_NOT_EXIST(filename);
-
-   switch (matrixType)
+   switch (matrixType.type)
    {
    case MatrixType::sdm:
-      {
-         THROWERROR("Invalid matrix type");
-      }
+      THROWERROR("Invalid matrix type");
    case MatrixType::sbm:
-      {
-         THROWERROR("Invalid matrix type");
-      }
+      THROWERROR("Invalid matrix type");
    case MatrixType::mtx:
-      {
-         std::ifstream fileStream(filename);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         read_matrix_market(fileStream, X);
-      }
+      read_matrix_market(*stream, X);
       break;
    case MatrixType::csv:
-      {
-         std::ifstream fileStream(filename);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         read_dense_float64_csv(fileStream, X);
-      }
+      read_dense_float64_csv(*stream, X);
       break;
    case MatrixType::ddm:
-      {
-         std::ifstream fileStream(filename, std::ios_base::binary);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         read_dense_float64_bin(fileStream, X);
-      }
+      read_dense_float64_bin(*stream, X);
       break;
    case MatrixType::none:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    default:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    }
+
+   delete stream;
 }
 
 void read_matrix(const std::string& filename, Eigen::SparseMatrix<double>& X)
 {
    MatrixType matrixType = ExtensionToMatrixType(filename);
+   std::istream *stream = open_inputfile(filename);
 
-   THROWERROR_FILE_NOT_EXIST(filename);
-
-   switch (matrixType)
+   switch (matrixType.type)
    {
    case MatrixType::sdm:
-      {
-         std::ifstream fileStream(filename, std::ios_base::binary);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         read_sparse_float64_bin(fileStream, X);
-      }
+      read_sparse_float64_bin(*stream, X);
       break;
    case MatrixType::sbm:
-      {
-         std::ifstream fileStream(filename, std::ios_base::binary);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         read_sparse_binary_bin(fileStream, X);
-      }
+      read_sparse_binary_bin(*stream, X);
       break;
    case MatrixType::mtx:
-      {
-         std::ifstream fileStream(filename);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         read_matrix_market(fileStream, X);
-      }
+      read_matrix_market(*stream, X);
       break;
    case MatrixType::csv:
-      {
-         THROWERROR("Invalid matrix type");
-      }
+      THROWERROR("Invalid matrix type");
    case MatrixType::ddm:
-      {
-         THROWERROR("Invalid matrix type");
-      }
+      THROWERROR("Invalid matrix type");
    case MatrixType::none:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    default:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    }
+
+   delete stream;
 }
 
 void read_dense_float64_bin(std::istream& in, Eigen::MatrixXd& X)
@@ -420,7 +419,8 @@ void read_matrix_market(std::istream& in, Eigen::SparseMatrix<double>& X)
    {
       std::stringstream ss;
       ss << "Cannot read MatrixMarket from input stream: ";
-      ss << "the first 15 characters must be '%%MatrixMarket' followed by at least one blank";
+      ss << "the first 15 characters must be '%%MatrixMarket' followed by at least one blank\n";
+      ss << "Got: " << matrixMarketStr;
       THROWERROR(ss.str());
    }
 
@@ -521,94 +521,85 @@ void read_matrix_market(std::istream& in, Eigen::SparseMatrix<double>& X)
 
 // ======================================================================================================
 
+
+std::ostream *open_outputfile(const std::string& filename)
+{
+   MatrixType matrixType = ExtensionToMatrixType(filename);
+   std::ostream *stream;
+   if (matrixType.compressed)
+   {
+      ogzstream *fileStream = new ogzstream;
+      fileStream->open(filename.c_str());
+      THROWERROR_ASSERT_MSG(fileStream->good(), "Error opening file: " + filename);
+      stream = fileStream;
+   } 
+   else 
+   {
+      std::ofstream *fileStream = new std::ofstream(filename, std::ios_base::binary);
+      THROWERROR_ASSERT_MSG(fileStream->is_open(), "Error opening file: " + filename);
+      stream = fileStream;
+   }
+
+   return stream;
+}
+
+
 void write_matrix(const std::string& filename, const Eigen::MatrixXd& X)
 {
    MatrixType matrixType = ExtensionToMatrixType(filename);
-   switch (matrixType)
+   std::ostream *stream = open_outputfile(filename);
+
+   switch (matrixType.type)
    {
    case MatrixType::sdm:
-      {
-         THROWERROR("Invalid matrix type");
-      }
+      THROWERROR("Invalid matrix type");
    case MatrixType::sbm:
-      {
-         THROWERROR("Invalid matrix type");
-      }
+      THROWERROR("Invalid matrix type");
    case MatrixType::mtx:
-      {
-         std::ofstream fileStream(filename);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         write_matrix_market(fileStream, X);
-      }
+      write_matrix_market(*stream, X);
       break;
    case MatrixType::csv:
-      {
-         std::ofstream fileStream(filename);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         write_dense_float64_csv(fileStream, X);
-      }
+      write_dense_float64_csv(*stream, X);
       break;
    case MatrixType::ddm:
-      {
-         std::ofstream fileStream(filename, std::ios_base::binary | std::ios::trunc);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         write_dense_float64_bin(fileStream, X);
-      }
+      write_dense_float64_bin(*stream, X);
       break;
    case MatrixType::none:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    default:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    }
+
+   delete stream;
 }
 
 void write_matrix(const std::string& filename, const Eigen::SparseMatrix<double>& X)
 {
    MatrixType matrixType = ExtensionToMatrixType(filename);
-   switch (matrixType)
+   std::ostream *stream = open_outputfile(filename);
+
+   switch (matrixType.type)
    {
    case MatrixType::sdm:
-      {
-         std::ofstream fileStream(filename, std::ios_base::binary);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         write_sparse_float64_bin(fileStream, X);
-      }
+      write_sparse_float64_bin(*stream, X);
       break;
    case MatrixType::sbm:
-      {
-         std::ofstream fileStream(filename, std::ios_base::binary);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         write_sparse_binary_bin(fileStream, X);
-      }
+      write_sparse_binary_bin(*stream, X);
       break;
    case MatrixType::mtx:
-      {
-         std::ofstream fileStream(filename);
-         THROWERROR_ASSERT_MSG(fileStream.is_open(), "Error opening file: " + filename);
-         write_matrix_market(fileStream, X);
-      }
+      write_matrix_market(*stream, X);
       break;
    case MatrixType::csv:
-      {
-         THROWERROR("Invalid matrix type");
-      }
+      THROWERROR("Invalid matrix type");
    case MatrixType::ddm:
-      {
-         THROWERROR("Invalid matrix type");
-      }
+      THROWERROR("Invalid matrix type");
    case MatrixType::none:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    default:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    }
+
+   delete stream;
 }
 
 void write_dense_float64_bin(std::ostream& out, const Eigen::MatrixXd& X)
