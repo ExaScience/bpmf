@@ -82,22 +82,22 @@ std::string MatrixTypeToExtension(MatrixType matrixType)
    {
    case MatrixType::sdm:
       extension = EXTENSION_SDM;
+      break;
    case MatrixType::sbm:
       extension = EXTENSION_SBM;
+      break;
    case MatrixType::mtx:
       extension = EXTENSION_MTX;
+      break;
    case MatrixType::csv:
       extension = EXTENSION_CSV;
+      break;
    case MatrixType::ddm:
       extension = EXTENSION_DDM;
+      break;
    case MatrixType::none:
-      {
-         THROWERROR("Unknown matrix type");
-      }
    default:
-      {
-         THROWERROR("Unknown matrix type");
-      }
+      THROWERROR("Unknown matrix type");
    }
    return std::string();
 }
