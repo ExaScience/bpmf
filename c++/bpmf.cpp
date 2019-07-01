@@ -41,7 +41,7 @@ using namespace Eigen;
 
 void usage() 
 {
-    std::cout << "Usage: bpmf -n <MTX> -p <MTX> [-o DIR/] [-i N] [-b N] [-krv] [-t N] [-m MTX,MTX] [-l MTX,MTX]\n"
+    std::cout << "Usage: bpmf -n <MTX> -p <MTX> [-o DIR/] [-i N] [-b N] [-f N] [-krv] [-t N] [-m MTX,MTX] [-l MTX,MTX]\n"
                 << "\n"
                 << "Paramaters: \n"
                 << "  -n MTX: Training input data\n"
@@ -49,6 +49,7 @@ void usage()
                 << "  [-o DIR]: Output directory for model and predictions\n"
                 << "  [-i N]: Number of total iterations\n"
                 << "  [-b N]: Number of burnin iterations\n"
+                << "  [-f N]: Frequency to send model other nodes (in #iters)\n"
                 << "  [-a F]: Noise precision (alpha)\n"
                 << "\n"
                 << "  [-k]: Do not optimize item to node assignment\n"
@@ -56,8 +57,8 @@ void usage()
                 << "  [-v]: Output all samples\n"
                 << "  [-t N]: Number of OpenMP threads to use.\n"
                 << "\n"
-                << "  [-m MTX,MTX]: propagated posterior mu and Lambda matrices for U\n"
-                << "  [-l MTX,MTX]: propagated posterior mu and Lambda matrices for V\n"
+                << "  [-l MTX,MTX]: propagated posterior mu and Lambda matrices for U\n"
+                << "  [-m MTX,MTX]: propagated posterior mu and Lambda matrices for V\n"
                 << "\n"
                 << "Matrix Formats:\n"
                 << "  *.mtx: Sparse or dense Matrix Market format\n"
@@ -77,15 +78,17 @@ int main(int argc, char *argv[])
     bool redirect = false;
     Sys::nsims = 20;
     Sys::burnin = 5;
+    Sys::update_freq = 1;
     Sys::grain_size = 1;
     
  
-    while((ch = getopt(argc, argv, "krvn:t:p:i:b:g:w:u:v:o:s:m:l:a:d:")) != -1)
+    while((ch = getopt(argc, argv, "krvn:t:p:i:b:f:g:w:u:v:o:s:m:l:a:d:")) != -1)
     {
         switch(ch)
         {
             case 'i': Sys::nsims = atoi(optarg); break;
             case 'b': Sys::burnin = atoi(optarg); break;
+            case 'f': Sys::update_freq = atoi(optarg); break;
             case 'g': Sys::grain_size = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
             case 'a': Sys::alpha = atof(optarg); break;
@@ -173,10 +176,16 @@ int main(int argc, char *argv[])
         BPMF_COUNTER("main");
         auto start = tick();
 
-        movies.sample_hp();
-        { BPMF_COUNTER("movies"); movies.sample(users); }
-        users.sample_hp();
-        { BPMF_COUNTER("users");  users.sample(movies); }
+        {
+            BPMF_COUNTER("movies");
+            movies.sample_hp();
+            movies.sample(users);
+        }
+        {
+            BPMF_COUNTER("users");
+            users.sample_hp();
+            users.sample(movies);
+        }
 
         { 
             BPMF_COUNTER("eval");

@@ -87,7 +87,7 @@ struct Sys {
     static bool permute;
     static bool verbose;
     static int nprocs, procid;
-    static int burnin, nsims;
+    static int burnin, nsims, update_freq;
     static double alpha;
     static std::string odirname;
 
