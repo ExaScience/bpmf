@@ -43,9 +43,11 @@ MatrixType ExtensionToMatrixType(const std::string& fname)
       extension = fname.substr(secondDotIndex, dotIndex - secondDotIndex);
    }
 
+#if 0
    std::cout << "filename: " << fname << std::endl;
    std::cout << "extension: " << extension << std::endl;
    std::cout << "compressed: " << compressed << std::endl;
+#endif
 
    if (extension == EXTENSION_SDM)
    {
