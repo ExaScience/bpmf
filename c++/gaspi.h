@@ -120,6 +120,7 @@ static int gaspi_wait_for_queue(int k = 0) {
 
 void GASPI_Sys::send_items(int from, int to)
 {
+    // send on iteration 0
     if (nsim % Sys::update_freq == 0)
     {
 
@@ -187,8 +188,8 @@ void GASPI_Sys::sample(Sys &in)
         Sys::sample(in);
     }
 
-    // only communicate every `update_freq` iterations
-    if (nsim % Sys::update_freq == 0)
+    // only sunc every `update_freq` iterations
+    if (nsim % Sys::update_freq == Sys::update_freq - 1)
     {
         process_queue();
 
