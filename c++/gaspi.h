@@ -62,7 +62,7 @@ struct GASPI_Sys : public Sys
     gaspi_segment_id_t norm_seg = -1;
 
     std::vector<double> sync_time;
-    unsigned nsim;
+    unsigned notification_id;
 
     //-- process_queue queue with protecting mutex
     std::mutex m;
@@ -85,7 +85,7 @@ void GASPI_Sys::alloc_and_init()
     gaspi_rw_list_elem_max (&max); 
     Sys::cout() << "gaspi rw list max: " << max << std::endl;
 
-    nsim = 1;
+    notification_id = 1;
     sync_time.resize(Sys::nprocs);
 
     static gaspi_segment_id_t seg_id_cnt = 0;
@@ -121,7 +121,7 @@ static int gaspi_wait_for_queue(int k = 0) {
 void GASPI_Sys::send_items(int from, int to)
 {
     // send on iteration 0
-    if (nsim % Sys::update_freq == 0)
+    if (iter % Sys::update_freq == 0)
     {
 
         m.lock();
@@ -189,7 +189,8 @@ void GASPI_Sys::sample(Sys &in)
     }
 
     // only sunc every `update_freq` iterations
-    if (nsim % Sys::update_freq == Sys::update_freq - 1)
+    // when next iteration is the sending one
+    if ( iter == 0 || (iter>0 && ((iter+1) % Sys::update_freq == 0)) )
     {
         process_queue();
 
@@ -205,7 +206,7 @@ void GASPI_Sys::sample(Sys &in)
             {
                 if (k == Sys::procid)
                     continue;
-                SUCCESS_OR_DIE(gaspi_notify(norm_seg, k, Sys::procid, nsim, 0, GASPI_BLOCK));
+                SUCCESS_OR_DIE(gaspi_notify(norm_seg, k, Sys::procid, notification_id, 0, GASPI_BLOCK));
                 assert((free - 1) == gaspi_free(0));
                 if (--free <= 0)
                     free = gaspi_wait_for_queue(0);
@@ -232,7 +233,7 @@ void GASPI_Sys::sample(Sys &in)
 void GASPI_Sys::sample_hp()
 {
     { BPMF_COUNTER("compute"); Sys::sample_hp(); }
-    nsim++;
+    notification_id++;
 }
 
 void Sys::Init()
