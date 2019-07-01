@@ -30,6 +30,7 @@ int Sys::nprocs = -1;
 
 int Sys::nsims;
 int Sys::burnin;
+int Sys::update_freq;
 double Sys::alpha = 2.0;
 
 std::string Sys::odirname = "";

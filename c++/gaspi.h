@@ -120,8 +120,14 @@ static int gaspi_wait_for_queue(int k = 0) {
 
 void GASPI_Sys::send_items(int from, int to)
 {
-    m.lock(); queue.push_back(std::make_pair(from,to)); m.unlock();
-    process_queue();
+    if (nsim % Sys::update_freq == 0)
+    {
+
+        m.lock();
+        queue.push_back(std::make_pair(from, to));
+        m.unlock();
+        process_queue();
+    }
 }
 
 void GASPI_Sys::actual_send(int from, int to)
@@ -176,38 +182,49 @@ static void gaspi_bcast(int seg, int offset, int size) {
 
 void GASPI_Sys::sample(Sys &in)
 {
-   { BPMF_COUNTER("compute"); Sys::sample(in); }
+    {
+        BPMF_COUNTER("compute");
+        Sys::sample(in);
+    }
 
-   process_queue();
+    // only communicate every `update_freq` iterations
+    if (nsim % Sys::update_freq == 0)
+    {
+        process_queue();
 
-   {
-       BPMF_COUNTER("bcast");
-       auto base = Sys::procid;
-       gaspi_bcast(sum_seg,  base * num_latent, num_latent);
-       gaspi_bcast(cov_seg,  base * num_latent * num_latent, num_latent * num_latent);
-       gaspi_bcast(norm_seg, base, 1);
+        {
+            BPMF_COUNTER("bcast");
+            auto base = Sys::procid;
+            gaspi_bcast(sum_seg, base * num_latent, num_latent);
+            gaspi_bcast(cov_seg, base * num_latent * num_latent, num_latent * num_latent);
+            gaspi_bcast(norm_seg, base, 1);
 
-       int free = gaspi_wait_for_queue(0);
-       for(int k = 0; k < Sys::nprocs; k++) {
-           if (k == Sys::procid) continue;
-           SUCCESS_OR_DIE(gaspi_notify(norm_seg, k, Sys::procid, nsim, 0, GASPI_BLOCK));
-           assert((free - 1) == gaspi_free(0));
-           if (--free <= 0) free = gaspi_wait_for_queue(0);
-       }  
-   }
+            int free = gaspi_wait_for_queue(0);
+            for (int k = 0; k < Sys::nprocs; k++)
+            {
+                if (k == Sys::procid)
+                    continue;
+                SUCCESS_OR_DIE(gaspi_notify(norm_seg, k, Sys::procid, nsim, 0, GASPI_BLOCK));
+                assert((free - 1) == gaspi_free(0));
+                if (--free <= 0)
+                    free = gaspi_wait_for_queue(0);
+            }
+        }
 
-   { 
-       BPMF_COUNTER("sync");
-       auto start = tick();
+        {
+            BPMF_COUNTER("sync");
+            auto start = tick();
 
-       for(int k = 0; k < Sys::nprocs - 1; k++) {
-           gaspi_notification_id_t first_id;
-           gaspi_notification_t val = 0;
-           SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &first_id, GASPI_BLOCK));
-           SUCCESS_OR_DIE(gaspi_notify_reset (norm_seg, first_id, &val));
-           auto stop = tick();
-           sync_time[first_id] += stop - start;
-       }
+            for (int k = 0; k < Sys::nprocs - 1; k++)
+            {
+                gaspi_notification_id_t first_id;
+                gaspi_notification_t val = 0;
+                SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &first_id, GASPI_BLOCK));
+                SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, first_id, &val));
+                auto stop = tick();
+                sync_time[first_id] += stop - start;
+            }
+        }
    }
 }
 
