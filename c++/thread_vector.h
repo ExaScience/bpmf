@@ -111,6 +111,11 @@ class thread_vector
         _m = v;
     }
 
+    std::vector<T> &values()
+    {
+        return _m;
+    }
+
   private:
     std::vector<T> _m;
     T _i;
