@@ -237,7 +237,7 @@ void Sys::update_conn(Sys& other)
     }
 
     if (Sys::procid == 0) {
-        Sys::cout() << name << ": avg items to send per iter: " << tot << " / " << num() << " = " << (double)tot / (double)num() << std::endl;
+        Sys::cout() << name << ": avg items to send per iter: " << tot << " / " << num() << ": " << (double)tot / (double)num() << std::endl;
 
         Sys::cout() << name << ": messages from -> to proc\n";
         for(int i=0; i<Sys::nprocs; ++i) Sys::cout() << "\t" << i;

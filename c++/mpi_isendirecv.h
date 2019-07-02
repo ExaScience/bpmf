@@ -80,7 +80,7 @@ struct SendRecvBuffer
 
     void put(const T &d) {
         assert(has(empty));
-//        log() <<  ":put: num = " << num << " of " << total << std::endl;
+//        log() <<  ":put: num: " << num << " of " << total << std::endl;
         data[first(empty)].at(pos) = d;
         pos++;
         assert(num < total);
@@ -90,7 +90,7 @@ struct SendRecvBuffer
 
     void mpi_isend() {
         assert(has(empty));
-//        log() <<  ": mpi_isend: num = " << num << " of " << total << std::endl;
+//        log() <<  ": mpi_isend: num: " << num << " of " << total << std::endl;
         auto p = data.at(first(empty)).data();
         auto s = &req.at(first(empty));
         MPI_Isend(p, CS * sizeof(T), MPI_BYTE, peer, 0, MPI_COMM_WORLD, s);
@@ -107,7 +107,7 @@ struct SendRecvBuffer
         auto p = data[first(avail)].at(pos);
         pos = (pos + 1) % CS;
         if (pos == 0) { mark_free(); mpi_irecv(); }
-//        log() << ":get: num = " << num << " of " << total << std::endl;
+//        log() << ":get: num: " << num << " of " << total << std::endl;
         num++;
         return p;
     }

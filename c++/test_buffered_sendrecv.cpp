@@ -18,9 +18,9 @@ int main() {
         sb.put(42.0);
         sb.put(420.0);
         sb.put(4200.0);
-        Sys::cout() << "a = " << rb.get() << std::endl;
-        Sys::cout() << "a = " << rb.get() << std::endl;
-        Sys::cout() << "a = " << rb.get() << std::endl;
+        Sys::cout() << "a: " << rb.get() << std::endl;
+        Sys::cout() << "a: " << rb.get() << std::endl;
+        Sys::cout() << "a: " << rb.get() << std::endl;
 
         }
         Sys::Finalize();

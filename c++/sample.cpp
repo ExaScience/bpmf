@@ -15,13 +15,6 @@
 
 #include "io.h"
 
-#if defined(_OPENMP)
-#include "omp.h"
-
-#pragma omp declare reduction (VectorPlus : VectorNd : omp_out += omp_in) initializer(omp_priv = VectorNd::Zero())
-#pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out += omp_in) initializer(omp_priv = MatrixNNd::Zero())
-#endif
-
 static const bool measure_perf = false;
 
 std::ostream *Sys::os;
@@ -192,9 +185,23 @@ void Sys::init()
         aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
     }
 
-    Sys::cout() << "mean rating = " << mean_rating << std::endl;
-    Sys::cout() << "total number of ratings in train = " << M.nonZeros() << std::endl;
-    Sys::cout() << "total number of ratings in test = " << T.nonZeros() << std::endl;
+    int count_larger_bp1 = 0;
+    int count_larger_bp2 = 0;
+    int count_sum = 0;
+    for(int k = 0; k<M.cols(); k++) {
+        int count = M.col(k).nonZeros();
+        count_sum += count;
+        if (count > breakpoint1) count_larger_bp1++;
+        if (count > breakpoint2) count_larger_bp2++;
+    }
+
+
+    Sys::cout() << "mean rating: " << mean_rating << std::endl;
+    Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
+    Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
+    Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M.cols() << std::endl;
+    Sys::cout() << "rows > break_point1: " << 100. * (double)count_larger_bp1 / (double)M.cols() << std::endl;
+    Sys::cout() << "rows > break_point2: " << 100. * (double)count_larger_bp2 / (double)M.cols() << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
     if (has_prop_posterior())
     {
@@ -234,9 +241,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         hp_LambdaL = hp.LambdaL; 
     }
 
-
-    int breakpoint1 = 24; 
-    int breakpoint2 = 10500; 
+ 
     
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).
@@ -273,24 +278,36 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         copy_lower_part(MM);
 
         chol.compute(hp_LambdaF + alpha * MM);
-    // for > 1K ratings, we have additional thread-level parallellism
+    // for > 10K ratings, we have additional thread-level parallellism
     } else {
+        const int task_size = count / 100;
+
         auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix 
         auto to = M.outerIndexPtr()[idx+1];   // "to"   belongs to [1..m], m - number of movies in M matrix
         MatrixNNd MM(MatrixNNd::Zero());               // matrix num_latent x num_latent 
  
-        // #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM)
-        #pragma omp parallel for reduction(VectorPlus:rr) reduction(MatrixPlus:MM) schedule(dynamic,200)
-        for(int j = from; j<to; ++j) {                 // for each nonzeros elemen in the i-th row of M matrix
+        thread_vector<VectorNd> rrs(VectorNd::Zero());
+        thread_vector<MatrixNNd> MMs(MatrixNNd::Zero());
+
+        for(int i = from; i<to; i+=task_size) {
+#pragma omp task shared(rrs, MMs)
+            for(int j = i; j<std::min(i+task_size, to); j++)
+            {
+                                                           // for each nonzeros elemen in the i-th row of M matrix
             auto val = M.valuePtr()[j];                // value of the j-th nonzeros element from idx-th row of M matrix
             auto idx = M.innerIndexPtr()[j];           // index "j" of the element [i,j] from M matrix in compressed M matrix 
             auto col = in.col(idx);                    // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:] 
 
             //MM.noalias() += col * col.transpose();     // outer product
-            calc_upper_part(MM, col);
-            rr.noalias() += col * ((val - mean_rating) * alpha); // vector num_latent x 1
+                calc_upper_part(MMs.local(), col);
+                rrs.local().noalias() += col * ((val - mean_rating) * alpha); // vector num_latent x 1
         }
+        }
+#pragma omp taskwait
 
+        // accumulate
+        MM += MMs.combine();
+        rr += rrs.combine();
         copy_lower_part(MM);
 
         chol.compute(hp_LambdaF + alpha * MM);         // matrix num_latent x num_latent
@@ -331,28 +348,35 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 void Sys::sample(Sys &in) 
 {
     iter++;
-    VectorNd  sum(VectorNd::Zero()); // sum
-    double    norm(0.0); // squared norm
-    MatrixNNd prod(MatrixNNd::Zero()); // outer prod
+    thread_vector<VectorNd>  sums(VectorNd::Zero()); // sum
+    thread_vector<double>    norms(0.0); // squared norm
+    thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
-//#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic, 1)
-#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) schedule(dynamic,1) 
-    for(int i = from(); i<to(); ++i) {
-        auto r = sample(i,in.items());
-
-        MatrixNNd cov = (r * r.transpose());
-        prod += cov;
-        sum += r;
-        norm += r.squaredNorm();
-
-        if (iter >= burnin && Sys::odirname.size())
+#pragma omp parallel for schedule(guided)
+    for (int i = from(); i < to(); ++i)
+    {
+#pragma omp task
         {
-            aggrMu.col(i) += r;
-            aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
-        }
+            auto r = sample(i, in.items());
 
-        send_items(i, i + 1);
+            MatrixNNd cov = (r * r.transpose());
+            prods.local() += cov;
+            sums.local() += r;
+            norms.local() += r.squaredNorm();
+
+            if (iter >= burnin && Sys::odirname.size())
+            {
+                aggrMu.col(i) += r;
+                aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
+            }
+
+            send_items(i, i + 1);
+        }
     }
+
+    VectorNd sum = sums.combine();
+    MatrixNNd prod = prods.combine();   
+    double norm = norms.combine();
 
     const int N = num();
     local_sum() = sum;
