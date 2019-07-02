@@ -4,6 +4,7 @@
  */
 
 #include <mutex>
+#include <thread_vector.h>
 
 #ifdef BPMF_HYBRID_COMM
 #include <mpi.h>
@@ -66,8 +67,9 @@ struct GASPI_Sys : public Sys
 
     //-- process_queue queue with protecting mutex
     std::mutex m;
-    std::list<std::pair<int,int>> queue;
-    void process_queue();
+    thread_vector<std::list<std::pair<int,int>>> queues;
+    void try_process_queue();
+    void process_queue(std::list<std::pair<int,int>> &);
 };
 
 GASPI_Sys::~GASPI_Sys()
@@ -123,10 +125,8 @@ void GASPI_Sys::send_items(int from, int to)
     // send on iteration 0
     if (iter % Sys::update_freq == 0)
     {
-        m.lock();
-        queue.push_back(std::make_pair(from, to));
-        m.unlock();
-        process_queue();
+        queues.local().push_back(std::make_pair(from, to));
+        try_process_queue();
     }
 }
 
@@ -150,21 +150,26 @@ void GASPI_Sys::actual_send(int from, int to)
     }
 }
 
-void GASPI_Sys::process_queue() 
+void GASPI_Sys::process_queue(std::list<std::pair<int,int>> &queue) 
 {
-    if (!threads::is_master()) return;
-    {
-        BPMF_COUNTER("process_queue");
+    BPMF_COUNTER("process_queue");
 
-        int q = queue.size();
-        int from, to;
-        while (q--) {
-            m.lock();
-            std::tie(from,to) = queue.front();
-            queue.pop_front();
-            m.unlock();
-            actual_send(from,to);
-	}
+    int q = queue.size();
+    int from, to;
+    while (q--) {
+        std::tie(from,to) = queue.front();
+        queue.pop_front();
+        actual_send(from,to);
+    }
+
+}
+
+void GASPI_Sys::try_process_queue() 
+{
+    if (m.try_lock())
+    {
+        process_queue(queues.local());
+        m.unlock();
     }
 }
 
@@ -192,7 +197,11 @@ void GASPI_Sys::sample(Sys &in)
     // send on iteration 0
     if (iter % Sys::update_freq == 0)
     {
-        process_queue();
+        for(auto &q : queues.values()) 
+        {
+            process_queue(q);
+            assert(q.empty());
+        }
 
         {
             BPMF_COUNTER("bcast");
