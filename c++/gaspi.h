@@ -123,7 +123,6 @@ void GASPI_Sys::send_items(int from, int to)
     // send on iteration 0
     if (iter % Sys::update_freq == 0)
     {
-
         m.lock();
         queue.push_back(std::make_pair(from, to));
         m.unlock();
@@ -183,14 +182,15 @@ static void gaspi_bcast(int seg, int offset, int size) {
 
 void GASPI_Sys::sample(Sys &in)
 {
+    static bool sync_pending = false;
+
     {
         BPMF_COUNTER("compute");
         Sys::sample(in);
     }
 
-    // only sunc every `update_freq` iterations
-    // when next iteration is the sending one
-    if ( iter == 0 || (iter>0 && ((iter+1) % Sys::update_freq == 0)) )
+    // send on iteration 0
+    if (iter % Sys::update_freq == 0)
     {
         process_queue();
 
@@ -213,21 +213,28 @@ void GASPI_Sys::sample(Sys &in)
             }
         }
 
-        {
-            BPMF_COUNTER("sync");
-            auto start = tick();
+        sync_pending = true;
+    }
 
-            for (int k = 0; k < Sys::nprocs - 1; k++)
-            {
-                gaspi_notification_id_t first_id;
-                gaspi_notification_t val = 0;
-                SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &first_id, GASPI_BLOCK));
-                SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, first_id, &val));
-                auto stop = tick();
-                sync_time[first_id] += stop - start;
-            }
+    // only sync every `update_freq` iterations
+    // when next iteration is the sending one
+    if (sync_pending && (iter == 0 || ((iter+1) % Sys::update_freq == 0)))
+    {
+        BPMF_COUNTER("sync");
+        auto start = tick();
+
+        for (int k = 0; k < Sys::nprocs - 1; k++)
+        {
+            gaspi_notification_id_t first_id;
+            gaspi_notification_t val = 0;
+            SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &first_id, GASPI_BLOCK));
+            SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, first_id, &val));
+            auto stop = tick();
+            sync_time[first_id] += stop - start;
         }
-   }
+
+        sync_pending = false;
+    }
 }
 
 void GASPI_Sys::sample_hp()
