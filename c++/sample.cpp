@@ -185,9 +185,23 @@ void Sys::init()
         aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
     }
 
-    Sys::cout() << "mean rating = " << mean_rating << std::endl;
-    Sys::cout() << "total number of ratings in train = " << M.nonZeros() << std::endl;
-    Sys::cout() << "total number of ratings in test = " << T.nonZeros() << std::endl;
+    int count_larger_bp1 = 0;
+    int count_larger_bp2 = 0;
+    int count_sum = 0;
+    for(int k = 0; k<M.cols(); k++) {
+        int count = M.col(k).nonZeros();
+        count_sum += count;
+        if (count > breakpoint1) count_larger_bp1++;
+        if (count > breakpoint2) count_larger_bp2++;
+    }
+
+
+    Sys::cout() << "mean rating: " << mean_rating << std::endl;
+    Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
+    Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
+    Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M.cols() << std::endl;
+    Sys::cout() << "rows > break_point1: " << 100. * (double)count_larger_bp1 / (double)M.cols() << std::endl;
+    Sys::cout() << "rows > break_point2: " << 100. * (double)count_larger_bp2 / (double)M.cols() << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
     if (has_prop_posterior())
     {
@@ -227,9 +241,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         hp_LambdaL = hp.LambdaL; 
     }
 
-
-    int breakpoint1 = 24; 
-    int breakpoint2 = 10500; 
+ 
     
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).

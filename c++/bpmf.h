@@ -214,4 +214,9 @@ struct Sys {
     void register_time(int i, double t);
 };
 
+
+
+const int breakpoint1 = 24; 
+const int breakpoint2 = 10500;
+
 #endif
