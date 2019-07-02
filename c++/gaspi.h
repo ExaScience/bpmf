@@ -218,7 +218,13 @@ void GASPI_Sys::sample(Sys &in)
 
     // only sync every `update_freq` iterations
     // when next iteration is the sending one
-    if (sync_pending && (iter == 0 || ((iter+1) % Sys::update_freq == 0)))
+    if (sync_pending &&
+            (
+               iter == 0 ||
+              ((iter+1) % Sys::update_freq == 0) ||
+              iter+1 == Sys::nsims
+            )
+       )
     {
         BPMF_COUNTER("sync");
         auto start = tick();
