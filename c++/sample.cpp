@@ -373,6 +373,7 @@ void Sys::sample(Sys &in)
             send_items(i, i + 1);
         }
     }
+#pragma omp taskwait
 
     VectorNd sum = sums.combine();
     MatrixNNd prod = prods.combine();   
