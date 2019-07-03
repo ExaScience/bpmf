@@ -63,13 +63,15 @@ struct GASPI_Sys : public Sys
     gaspi_segment_id_t norm_seg = -1;
 
     std::vector<double> sync_time;
-    unsigned notification_id;
+    std::vector<gaspi_notification_t> notification_values;
+    gaspi_notification_t notif_sent;
 
     //-- process_queue queue with protecting mutex
     std::mutex m;
     thread_vector<std::list<std::pair<int,int>>> queues;
     void try_process_queue();
     void process_queue(std::list<std::pair<int,int>> &);
+    bool sync_pending = false;
 };
 
 GASPI_Sys::~GASPI_Sys()
@@ -87,7 +89,7 @@ void GASPI_Sys::alloc_and_init()
     gaspi_rw_list_elem_max (&max); 
     Sys::cout() << "gaspi rw list max: " << max << std::endl;
 
-    notification_id = 1;
+    notification_values.resize(Sys::nprocs, 0);
     sync_time.resize(Sys::nprocs);
 
     static gaspi_segment_id_t seg_id_cnt = 0;
@@ -126,8 +128,9 @@ void GASPI_Sys::send_items(int from, int to)
     if (iter % Sys::update_freq == 0)
     {
         queues.local().push_back(std::make_pair(from, to));
-        try_process_queue();
     }
+
+    try_process_queue();
 }
 
 void GASPI_Sys::actual_send(int from, int to)
@@ -166,6 +169,11 @@ void GASPI_Sys::process_queue(std::list<std::pair<int,int>> &queue)
 
 void GASPI_Sys::try_process_queue() 
 {
+    if (queues.local().empty())
+    {
+        return;
+    }
+
     if (m.try_lock())
     {
         process_queue(queues.local());
@@ -187,8 +195,6 @@ static void gaspi_bcast(int seg, int offset, int size) {
 
 void GASPI_Sys::sample(Sys &in)
 {
-    static bool sync_pending = false;
-
     {
         BPMF_COUNTER("compute");
         Sys::sample(in);
@@ -215,47 +221,45 @@ void GASPI_Sys::sample(Sys &in)
             {
                 if (k == Sys::procid)
                     continue;
-                SUCCESS_OR_DIE(gaspi_notify(norm_seg, k, Sys::procid, notification_id, 0, GASPI_BLOCK));
+                SUCCESS_OR_DIE(gaspi_notify(norm_seg, k, Sys::procid, iter+1, 0, GASPI_BLOCK));
                 assert((free - 1) == gaspi_free(0));
                 if (--free <= 0)
                     free = gaspi_wait_for_queue(0);
             }
-        }
 
-        sync_pending = true;
+            notification_values[Sys::procid] = iter+1;
+        }
     }
 
     // only sync every `update_freq` iterations
-    // when next iteration is the sending one
-    if (sync_pending &&
-            (
-               iter == 0 ||
-              ((iter+1) % Sys::update_freq == 0) ||
-              iter+1 == Sys::nsims
-            )
-       )
+    if 
+        (
+         iter == 0 ||
+         ((iter+1) % Sys::update_freq == 0) ||
+         iter+1 == Sys::nsims
+        )
     {
         BPMF_COUNTER("sync");
         auto start = tick();
 
-        for (int k = 0; k < Sys::nprocs - 1; k++)
+        gaspi_notification_t earliest = *std::min_element(notification_values.begin(), notification_values.end());
+        while (earliest < notification_values[Sys::procid]) // while still notification under way
         {
-            gaspi_notification_id_t first_id;
+            gaspi_notification_id_t id;
             gaspi_notification_t val = 0;
-            SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &first_id, GASPI_BLOCK));
-            SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, first_id, &val));
+            SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &id, GASPI_BLOCK));
+            SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, id, &val));
             auto stop = tick();
-            sync_time[first_id] += stop - start;
+            sync_time[id] += stop - start;
+            notification_values[id] = val;
+            earliest = *std::min_element(notification_values.begin(), notification_values.end());
         }
-
-        sync_pending = false;
     }
 }
 
 void GASPI_Sys::sample_hp()
 {
     { BPMF_COUNTER("compute"); Sys::sample_hp(); }
-    notification_id++;
 }
 
 void Sys::Init()
