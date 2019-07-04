@@ -229,30 +229,23 @@ void GASPI_Sys::sample(Sys &in)
 
             notification_values[Sys::procid] = iter+1;
         }
-    }
 
-    // only sync every `update_freq` iterations
-    if 
-        (
-         iter == 0 ||
-         ((iter+1) % Sys::update_freq == 0) ||
-         iter+1 == Sys::nsims
-        )
-    {
-        BPMF_COUNTER("sync");
-        auto start = tick();
-
-        gaspi_notification_t earliest = *std::min_element(notification_values.begin(), notification_values.end());
-        while (earliest < notification_values[Sys::procid]) // while still notification under way
         {
-            gaspi_notification_id_t id;
-            gaspi_notification_t val = 0;
-            SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &id, GASPI_BLOCK));
-            SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, id, &val));
-            auto stop = tick();
-            sync_time[id] += stop - start;
-            notification_values[id] = val;
-            earliest = *std::min_element(notification_values.begin(), notification_values.end());
+            BPMF_COUNTER("sync");
+            auto start = tick();
+
+            gaspi_notification_t earliest = *std::min_element(notification_values.begin(), notification_values.end());
+            while (earliest < notification_values[Sys::procid]) // while still notification under way
+            {
+                gaspi_notification_id_t id;
+                gaspi_notification_t val = 0;
+                SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &id, GASPI_BLOCK));
+                SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, id, &val));
+                auto stop = tick();
+                sync_time[id] += stop - start;
+                notification_values[id] = val;
+                earliest = *std::min_element(notification_values.begin(), notification_values.end());
+            }
         }
     }
 }
