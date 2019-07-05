@@ -267,7 +267,7 @@ void Sys::Init()
 #endif
 
     gaspi_rank_t rank;
-    SUCCESS_OR_DIE(gaspi_proc_init(GASPI_BLOCK));
+    assert(gaspi_proc_init(GASPI_BLOCK) != GASPI_ERROR);
     gaspi_proc_rank(&rank);
     if (Sys::procid >= 0)
     {
