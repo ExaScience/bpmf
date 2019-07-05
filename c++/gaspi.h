@@ -7,10 +7,7 @@
 #include <mutex>
 #include <thread_vector.h>
 
-#ifdef BPMF_HYBRID_COMM
 #include <mpi.h>
-#endif
-
 #include <GASPI.h>
 #include <GASPI_Ext.h>
 
@@ -25,20 +22,6 @@ static int gaspi_free(int k = 0) {
     return (queue_max - queue_size);
 }
 
-#define SUCCESS_OR_RETRY(f...) \
-do  { \
-  gaspi_return_t r; \
-  do { \
-      r = f; \
-      if (r != GASPI_SUCCESS && r != GASPI_QUEUE_FULL) { \
-        Sys::cout() << "Error: " << #f << "[" << __FILE__ << ":" << __LINE__ << "]: " << r << std::endl;  \
-        sleep(1); \
-        abort(); \
-      } \
-  } while (r == GASPI_QUEUE_FULL); \
-} while (0);
- 
-
 #define SUCCESS_OR_DIE(f...) \
 do  { \
   const gaspi_return_t r = f; \
@@ -48,6 +31,37 @@ do  { \
   } \
 } while (0);
 
+
+static void gaspi_checked_wait(int k = 0)
+{
+    BPMF_COUNTER("gaspi_wait");
+    SUCCESS_OR_DIE(gaspi_wait(k, GASPI_BLOCK));
+}
+
+static int gaspi_wait_for_queue(int k = 0) {
+    BPMF_COUNTER("wait4queue");
+    int free = gaspi_free(k);
+    assert(free >= 0);
+    while ((free = gaspi_free(k)) == 0) gaspi_checked_wait(k); 
+    assert(free > 0);
+    return free;
+}
+
+#define SUCCESS_OR_RETRY(f...) \
+do  { \
+  gaspi_return_t r; \
+  do { \
+      r = f; \
+           if (r == GASPI_SUCCESS) ; \
+      else if(r == GASPI_QUEUE_FULL) gaspi_wait_for_queue(); \
+      else { \
+        Sys::cout() << "Error: " << #f << "[" << __FILE__ << ":" << __LINE__ << "]: " << r << std::endl;  \
+        sleep(1); \
+        abort(); \
+      } \
+  } while (r == GASPI_QUEUE_FULL); \
+} while (0);
+ 
 static double* gaspi_malloc(gaspi_segment_id_t seg, size_t size) {
 	// Sys::cout() << "alloc id " << (int)seg << " with size " << (int)size << std::endl;
         SUCCESS_OR_DIE(gaspi_segment_create(seg, size, GASPI_GROUP_ALL, GASPI_BLOCK, GASPI_MEM_UNINITIALIZED));
@@ -66,7 +80,6 @@ struct GASPI_Sys : public Sys
     virtual void alloc_and_init();
 
     virtual void send_item(int);
-    virtual void actual_send(int);
     virtual void sample(Sys &in);
     virtual void sample_hp();
 
@@ -82,10 +95,6 @@ struct GASPI_Sys : public Sys
     gaspi_notification_t notif_sent;
 
     //-- process_queue queue with protecting mutex
-    std::mutex m;
-    thread_vector<std::list<int>> queues;
-    void try_process_queue();
-    void process_queue(std::list<int> &);
     bool sync_pending = false;
 
     bool do_comm(int from, int to)
@@ -140,33 +149,9 @@ void GASPI_Sys::alloc_and_init()
     init();
 }
 
-static void gaspi_checked_wait(int k = 0)
-{
-    //BPMF_COUNTER("gaspi_wait");
-    SUCCESS_OR_DIE(gaspi_wait(k, GASPI_BLOCK));
-}
-
-static int gaspi_wait_for_queue(int k = 0) {
-    //BPMF_COUNTER("wait4queue");
-    int free = gaspi_free(k);
-    assert(free >= 0);
-    while ((free = gaspi_free(k)) == 0) gaspi_checked_wait(k); 
-    assert(free > 0);
-    return free;
-}
-
 void GASPI_Sys::send_item(int i)
 {
-    queues.local().push_back(i);
-    try_process_queue();
-}
-
-void GASPI_Sys::actual_send(int i)
-{
-    //BPMF_COUNTER("send_item");
-
-    int free = gaspi_wait_for_queue(0);
-
+    BPMF_COUNTER("send_item");
     for (int k = 0; k < Sys::nprocs; k++)
     {
         if (!do_send(k)) continue;
@@ -174,48 +159,16 @@ void GASPI_Sys::actual_send(int i)
         auto offset = i * num_latent * sizeof(double);
         auto size = num_latent * sizeof(double);
         SUCCESS_OR_RETRY(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
-        assert((free - 1) == gaspi_free(0));
-        if (--free <= 0) free = gaspi_wait_for_queue(0);
-    }
-}
-
-void GASPI_Sys::process_queue(std::list<int> &queue) 
-{
-    BPMF_COUNTER("process_queue");
-
-    int q = queue.size();
-    while (q--) {
-        int i = queue.front();
-        queue.pop_front();
-        actual_send(i);
-    }
-
-}
-
-void GASPI_Sys::try_process_queue() 
-{
-    if (queues.local().empty())
-    {
-        return;
-    }
-
-    if (m.try_lock())
-    {
-        process_queue(queues.local());
-        m.unlock();
     }
 }
 
 void GASPI_Sys::gaspi_bcast(int seg, int offset, int size) {
     offset *= sizeof(double);
     size *= sizeof(double);
-    int free = gaspi_wait_for_queue(0);
     for(int k = 0; k < Sys::nprocs; k++) {
         if (!do_send(k)) continue;
         BPMF_COUNTER("bcast_write");
         SUCCESS_OR_RETRY(gaspi_write(seg, offset, k, seg, offset, size, 0, GASPI_BLOCK));
-	assert((free - 1) == gaspi_free(0));
-	if (--free <= 0) free = gaspi_wait_for_queue(0);
     }
 }
 
@@ -226,12 +179,6 @@ void GASPI_Sys::sample(Sys &in)
         Sys::sample(in);
     }
 
-    for(auto &q : queues.values()) 
-    {
-        process_queue(q);
-        assert(q.empty());
-    }
-
     {
         BPMF_COUNTER("bcast");
         auto base = Sys::procid;
@@ -239,14 +186,11 @@ void GASPI_Sys::sample(Sys &in)
         gaspi_bcast(cov_seg, base * num_latent * num_latent, num_latent * num_latent);
         gaspi_bcast(norm_seg, base, 1);
 
-        int free = gaspi_wait_for_queue(0);
         for (int k = 0; k < Sys::nprocs; k++)
         {
             Sys::cout() << "bcast: send to " << k << ": " << do_send(k) << std::endl; 
             if (!do_send(k)) continue;
             SUCCESS_OR_RETRY(gaspi_notify(norm_seg, k, Sys::procid, iter+1, 0, GASPI_BLOCK));
-            assert((free - 1) == gaspi_free(0));
-            if (--free <= 0) free = gaspi_wait_for_queue(0);
         }
 
         notification_values[Sys::procid] = iter+1;
