@@ -4,7 +4,6 @@
  */
 
 #include <cmath>
-#include <mutex>
 #include <thread_vector.h>
 
 #include <mpi.h>
@@ -91,11 +90,6 @@ struct GASPI_Sys : public Sys
     gaspi_segment_id_t  norm_seg = (gaspi_segment_id_t)-1;
 
     std::vector<double> sync_time;
-    std::map<int, gaspi_notification_t> notification_values; // maps destinations
-    gaspi_notification_t notif_sent;
-
-    //-- process_queue queue with protecting mutex
-    bool sync_pending = false;
 
     bool do_comm(int from, int to)
     {
@@ -167,7 +161,6 @@ void GASPI_Sys::gaspi_bcast(int seg, int offset, int size) {
     size *= sizeof(double);
     for(int k = 0; k < Sys::nprocs; k++) {
         if (!do_send(k)) continue;
-        BPMF_COUNTER("bcast_write");
         SUCCESS_OR_RETRY(gaspi_write(seg, offset, k, seg, offset, size, 0, GASPI_BLOCK));
     }
 }
@@ -188,12 +181,10 @@ void GASPI_Sys::sample(Sys &in)
 
         for (int k = 0; k < Sys::nprocs; k++)
         {
-            Sys::cout() << "bcast: send to " << k << ": " << do_send(k) << std::endl; 
             if (!do_send(k)) continue;
             SUCCESS_OR_RETRY(gaspi_notify(norm_seg, k, Sys::procid, iter+1, 0, GASPI_BLOCK));
         }
 
-        notification_values[Sys::procid] = iter+1;
     }
 
     {
@@ -202,7 +193,6 @@ void GASPI_Sys::sample(Sys &in)
 
         for (int k = 0; k < Sys::nprocs; k++)
         {
-            Sys::cout() << "sync: recv from " << k << ": " << do_recv(k) << std::endl; 
             if (!do_recv(k)) continue;
             gaspi_notification_id_t id;
             gaspi_notification_t val = 0;
@@ -210,7 +200,6 @@ void GASPI_Sys::sample(Sys &in)
             SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, id, &val));
             auto stop = tick();
             sync_time[id] += stop - start;
-            notification_values[id] = val;
         }
     }
 }
