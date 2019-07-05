@@ -31,8 +31,6 @@ std::string Sys::odirname = "";
 bool Sys::permute = true;
 bool Sys::verbose = false;
 
-unsigned Sys::grain_size;
-
 void calc_upper_part(MatrixNNd &m, VectorNd v);         // function for calcutation of an upper part of a symmetric matrix: m = v * v.transpose(); 
 void copy_lower_part(MatrixNNd &m);                     // function to copy an upper part of a symmetric matrix to a lower part
 

@@ -172,7 +172,6 @@ struct Sys {
     virtual void send_item(int i) = 0;
     void bcast();
     virtual void sample(Sys &in);
-    static unsigned grain_size;
 
     //-- covariance
     double *sum_ptr;
