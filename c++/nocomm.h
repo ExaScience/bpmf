@@ -12,7 +12,7 @@ struct NC_Sys : public Sys
     NC_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
     virtual void alloc_and_init();
 
-    virtual void send_items(int, int) {}
+    virtual void send_item(int) {}
 };
 
 

@@ -65,8 +65,8 @@ struct GASPI_Sys : public Sys
     ~GASPI_Sys();
     virtual void alloc_and_init();
 
-    virtual void send_items(int from, int to);
-    virtual void actual_send(int from, int to);
+    virtual void send_item(int);
+    virtual void actual_send(int);
     virtual void sample(Sys &in);
     virtual void sample_hp();
 
@@ -83,9 +83,9 @@ struct GASPI_Sys : public Sys
 
     //-- process_queue queue with protecting mutex
     std::mutex m;
-    thread_vector<std::list<std::pair<int,int>>> queues;
+    thread_vector<std::list<int>> queues;
     void try_process_queue();
-    void process_queue(std::list<std::pair<int,int>> &);
+    void process_queue(std::list<int> &);
     bool sync_pending = false;
 
     bool do_comm(int from, int to)
@@ -155,43 +155,39 @@ static int gaspi_wait_for_queue(int k = 0) {
     return free;
 }
 
-void GASPI_Sys::send_items(int from, int to)
+void GASPI_Sys::send_item(int i)
 {
-    queues.local().push_back(std::make_pair(from, to));
+    queues.local().push_back(i);
     try_process_queue();
 }
 
-void GASPI_Sys::actual_send(int from, int to)
+void GASPI_Sys::actual_send(int i)
 {
-    //BPMF_COUNTER("send_items");
+    //BPMF_COUNTER("send_item");
 
     int free = gaspi_wait_for_queue(0);
 
-    for (int i = from; i < to; ++i)
+    for (int k = 0; k < Sys::nprocs; k++)
     {
-        for (int k = 0; k < Sys::nprocs; k++)
-        {
-            if (!do_send(k)) continue;
-            if (!conn(i, k)) continue;
-            auto offset = i * num_latent * sizeof(double);
-            auto size = num_latent * sizeof(double);
-            SUCCESS_OR_RETRY(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
-            assert((free - 1) == gaspi_free(0));
-            if (--free <= 0) free = gaspi_wait_for_queue(0);
-        }
+        if (!do_send(k)) continue;
+        if (!conn(i, k)) continue;
+        auto offset = i * num_latent * sizeof(double);
+        auto size = num_latent * sizeof(double);
+        SUCCESS_OR_RETRY(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
+        assert((free - 1) == gaspi_free(0));
+        if (--free <= 0) free = gaspi_wait_for_queue(0);
     }
 }
 
-void GASPI_Sys::process_queue(std::list<std::pair<int,int>> &queue) 
+void GASPI_Sys::process_queue(std::list<int> &queue) 
 {
     BPMF_COUNTER("process_queue");
 
     int q = queue.size();
-    int from, to;
     while (q--) {
-        std::tie(from,to) = queue.front();
+        int i = queue.front();
         queue.pop_front();
-        actual_send(from,to);
+        actual_send(i);
     }
 
 }

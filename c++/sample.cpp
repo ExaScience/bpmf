@@ -370,7 +370,7 @@ void Sys::sample(Sys &in)
                 aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
             }
 
-            send_items(i, i + 1);
+            send_item(i);
         }
     }
 #pragma omp taskwait

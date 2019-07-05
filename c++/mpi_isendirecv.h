@@ -153,7 +153,7 @@ struct MPI_Sys : public Sys
 
     //-- virtuals
     virtual void sample(Sys &in);
-    virtual void send_items(int,int);
+    virtual void send_item(int);
     virtual void alloc_and_init();
 
     //-- local status
@@ -219,9 +219,9 @@ void MPI_Sys::sample(Sys &in)
     }
 }
 
-void MPI_Sys::send_items(int from, int to)
+void MPI_Sys::send_item(int i)
 {
-    m.lock(); for(int i=from; i<to; ++i) queue.push_back(i); m.unlock();
+    m.lock(); queue.push_back(i); m.unlock();
 
     process_queue();
 }
