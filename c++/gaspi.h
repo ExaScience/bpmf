@@ -25,13 +25,25 @@ static int gaspi_free(int k = 0) {
     return (queue_max - queue_size);
 }
 
+#define SUCCESS_OR_RETRY(f...) \
+do  { \
+  gaspi_return_t r; \
+  do { \
+      r = f; \
+      if (r != GASPI_SUCCESS && r != GASPI_QUEUE_FULL) { \
+        Sys::cout() << "Error: " << #f << "[" << __FILE__ << ":" << __LINE__ << "]: " << r << std::endl;  \
+        sleep(1); \
+        abort(); \
+      } \
+  } while (r == GASPI_QUEUE_FULL); \
+} while (0);
+ 
+
 #define SUCCESS_OR_DIE(f...) \
 do  { \
-  assert(gaspi_free(0) >= 0); \
   const gaspi_return_t r = f; \
-  if (r == GASPI_ERROR) { \
+  if (r != GASPI_SUCCESS) { \
     Sys::cout() << "Error: " << #f << "[" << __FILE__ << ":" << __LINE__ << "]: " << r << std::endl;  \
-    sleep(1); \
     abort(); \
   } \
 } while (0);
@@ -163,7 +175,7 @@ void GASPI_Sys::actual_send(int from, int to)
             if (!conn(i, k)) continue;
             auto offset = i * num_latent * sizeof(double);
             auto size = num_latent * sizeof(double);
-            SUCCESS_OR_DIE(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
+            SUCCESS_OR_RETRY(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
             assert((free - 1) == gaspi_free(0));
             if (--free <= 0) free = gaspi_wait_for_queue(0);
         }
@@ -205,7 +217,7 @@ void GASPI_Sys::gaspi_bcast(int seg, int offset, int size) {
     for(int k = 0; k < Sys::nprocs; k++) {
         if (!do_send(k)) continue;
         BPMF_COUNTER("bcast_write");
-        SUCCESS_OR_DIE(gaspi_write(seg, offset, k, seg, offset, size, 0, GASPI_BLOCK));
+        SUCCESS_OR_RETRY(gaspi_write(seg, offset, k, seg, offset, size, 0, GASPI_BLOCK));
 	assert((free - 1) == gaspi_free(0));
 	if (--free <= 0) free = gaspi_wait_for_queue(0);
     }
@@ -236,7 +248,7 @@ void GASPI_Sys::sample(Sys &in)
         {
             Sys::cout() << "bcast: send to " << k << ": " << do_send(k) << std::endl; 
             if (!do_send(k)) continue;
-            SUCCESS_OR_DIE(gaspi_notify(norm_seg, k, Sys::procid, iter+1, 0, GASPI_BLOCK));
+            SUCCESS_OR_RETRY(gaspi_notify(norm_seg, k, Sys::procid, iter+1, 0, GASPI_BLOCK));
             assert((free - 1) == gaspi_free(0));
             if (--free <= 0) free = gaspi_wait_for_queue(0);
         }
