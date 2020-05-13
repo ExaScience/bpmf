@@ -150,18 +150,23 @@ void GASPI_Sys::alloc_and_init()
 
 void GASPI_Sys::send_item(int i)
 {
-    BPMF_COUNTER("send_item");
-
-    // compression..
-    compr().col(i) = items().col(i).cast<float>();
-
-    for (int k = 0; k < Sys::nprocs; k++)
     {
-        if (!do_send(k)) continue;
-        if (!conn(i, k)) continue;
-        auto offset = i * num_latent * sizeof(float);
-        auto size = num_latent * sizeof(float);
-        SUCCESS_OR_RETRY(gaspi_write(compr_seg, offset, k, compr_seg, offset, size, 0, GASPI_BLOCK));
+        BPMF_COUNTER("compress");
+        compr().col(i) = items().col(i).cast<float>();
+    }
+    {
+        BPMF_COUNTER("send_item");
+
+        for (int k = 0; k < Sys::nprocs; k++)
+        {
+            if (!do_send(k))
+                continue;
+            if (!conn(i, k))
+                continue;
+            auto offset = i * num_latent * sizeof(float);
+            auto size = num_latent * sizeof(float);
+            SUCCESS_OR_RETRY(gaspi_write(compr_seg, offset, k, compr_seg, offset, size, 0, GASPI_BLOCK));
+        }
     }
 }
 
