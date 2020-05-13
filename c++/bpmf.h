@@ -27,8 +27,10 @@ const int num_latent = BPMF_NUMLATENT;
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
 typedef Eigen::Matrix<double, num_latent, Eigen::Dynamic> MatrixNXd;
+typedef Eigen::Matrix<float, num_latent, Eigen::Dynamic> MatrixNXf;
 typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
+typedef Eigen::Map<MatrixNXf, Eigen::Aligned> MapNXf;
 typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
 
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
@@ -156,7 +158,9 @@ struct Sys {
 
     //-- factors of the MF
     double* items_ptr;
+    float* compr_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
+    MapNXf compr() const { return MapNXf(compr_ptr, num_latent, num()); }
     VectorNd sample(long idx, const MapNXd in);
 
     //-- for propagated posterior
