@@ -201,9 +201,9 @@ int main(int argc, char *argv[])
         if (Sys::verbose)
         {
             users.bcast();
-            write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
+            write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items().cast<double>());
             movies.bcast();
-            write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
+            write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items().cast<double>());
         }
     }
 
@@ -258,7 +258,7 @@ void Sys::bcast()
 {
     for(int i = 0; i < num(); i++) {
 #ifdef BPMF_MPI_COMM
-        MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        MPI_Bcast(items().col(i).data(), num_latent, MPI_FLOAT, proc(i), MPI_COMM_WORLD);
         if (aggrMu.nonZeros())
             MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
         if (aggrLambda.nonZeros())

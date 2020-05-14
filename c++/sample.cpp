@@ -60,8 +60,8 @@ void Sys::predict(Sys& other, bool all)
     for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
-            auto m = items().col(it.col());
-            auto u = other.items().col(it.row());
+            auto m = items().col(it.col()).cast<double>();
+            auto u = other.items().col(it.row()).cast<double>();
 
             assert(m.norm() > 0.0);
             assert(u.norm() > 0.0);
@@ -219,7 +219,7 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 //
 // Update ONE movie or one user
 //
-VectorNd Sys::sample(long idx, const MapNXd in)
+VectorNd Sys::sample(long idx, const MapNXf in)
 {
     auto start = tick();
 
@@ -253,7 +253,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 
         chol = hp_LambdaL;
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
-            auto col = in.col(it.row());
+            auto col = in.col(it.row()).cast<double>();
             chol.rankUpdate(col, alpha);
             rr.noalias() += col * ((it.value() - mean_rating) * alpha);
         }
@@ -264,7 +264,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 
         MatrixNNd MM(MatrixNNd::Zero());
         for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
-            auto col = in.col(it.row());
+            auto col = in.col(it.row()).cast<double>();
             
             //MM.noalias() += col * col.transpose();
             calc_upper_part(MM, col);
@@ -294,7 +294,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
                                                            // for each nonzeros elemen in the i-th row of M matrix
             auto val = M.valuePtr()[j];                // value of the j-th nonzeros element from idx-th row of M matrix
             auto idx = M.innerIndexPtr()[j];           // index "j" of the element [i,j] from M matrix in compressed M matrix 
-            auto col = in.col(idx);                    // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:] 
+            auto col = in.col(idx).cast<double>();     // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:] 
 
             //MM.noalias() += col * col.transpose();     // outer product
                 calc_upper_part(MMs.local(), col);
@@ -329,7 +329,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
     rr += nrandn();                                     // rr=s+(L\rr), we store result again in rr vector
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
-    items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
+    items().col(idx) = rr.cast<float>();                // we save rr vector in items matrix (it is user features matrix)
 
     auto stop = tick();
     register_time(idx, 1e6 * (stop - start));

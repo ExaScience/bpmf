@@ -85,7 +85,6 @@ struct GASPI_Sys : public Sys
 
     void gaspi_bcast(int seg, int offset, int size);
 
-    gaspi_segment_id_t compr_seg = (gaspi_segment_id_t)-1;
     gaspi_segment_id_t items_seg = (gaspi_segment_id_t)-1;
     gaspi_segment_id_t   sum_seg = (gaspi_segment_id_t)-1;
     gaspi_segment_id_t   cov_seg = (gaspi_segment_id_t)-1;
@@ -132,10 +131,8 @@ void GASPI_Sys::alloc_and_init()
     sync_time.resize(Sys::nprocs);
 
     static gaspi_segment_id_t seg_id_cnt = 0;
-    items_ptr = gaspi_malloc<double>(seg_id_cnt, sizeof(double) * num_latent * num());
+    items_ptr = gaspi_malloc<float>(seg_id_cnt, sizeof(double) * num_latent * num());
     items_seg = seg_id_cnt++;
-    compr_ptr = gaspi_malloc<float>(seg_id_cnt, sizeof(float) * num_latent * num());
-    compr_seg = seg_id_cnt++;
     sum_ptr = gaspi_malloc<double>(seg_id_cnt, sizeof(double) * num_latent * Sys::nprocs);
     sum_seg = seg_id_cnt++;
     cov_ptr = gaspi_malloc<double>(seg_id_cnt, sizeof(double) * num_latent * num_latent * Sys::nprocs);
@@ -151,10 +148,6 @@ void GASPI_Sys::alloc_and_init()
 void GASPI_Sys::send_item(int i)
 {
     {
-        BPMF_COUNTER("compress");
-        compr().col(i) = items().col(i).cast<float>();
-    }
-    {
         BPMF_COUNTER("send_item");
 
         for (int k = 0; k < Sys::nprocs; k++)
@@ -165,7 +158,7 @@ void GASPI_Sys::send_item(int i)
                 continue;
             auto offset = i * num_latent * sizeof(float);
             auto size = num_latent * sizeof(float);
-            SUCCESS_OR_RETRY(gaspi_write(compr_seg, offset, k, compr_seg, offset, size, 0, GASPI_BLOCK));
+            SUCCESS_OR_RETRY(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
         }
     }
 }
@@ -216,19 +209,6 @@ void GASPI_Sys::sample(Sys &in)
             sync_time[id] += stop - start;
         }
 
-    }
-
-    {
-        BPMF_COUNTER("decompress");
-        #pragma omp parallel  
-        {
-            #pragma omp for
-            for (int i = 0; i < from(); i++)
-                items().col(i) = compr().col(i).cast<double>();
-            #pragma omp for
-            for (int i = to(); i < num(); i++)
-                items().col(i) = compr().col(i).cast<double>();
-        }
     }
 }
 

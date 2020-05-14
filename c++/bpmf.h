@@ -157,11 +157,9 @@ struct Sys {
     unsigned recv_count(int from) { return conn_count(from, Sys::procid); }
 
     //-- factors of the MF
-    double* items_ptr;
-    float* compr_ptr;
-    MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
-    MapNXf compr() const { return MapNXf(compr_ptr, num_latent, num()); }
-    VectorNd sample(long idx, const MapNXd in);
+    float* items_ptr;
+    MapNXf items() const { return MapNXf(items_ptr, num_latent, num()); }
+    VectorNd sample(long idx, const MapNXf in);
 
     //-- for propagated posterior
     Eigen::MatrixXd propMu, propLambda;
