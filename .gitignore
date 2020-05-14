@@ -2,3 +2,5 @@
 *.csv
 *.zip
 .vscode
+.gpi*
+bpmf_*.out
