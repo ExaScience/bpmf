@@ -109,9 +109,6 @@ int main(int argc, char *argv[])
     SYS movies("movs", fname, probename);
     SYS users("users", movies.M, movies.Pavg);
 
-    movies.add_prop_posterior(mname);
-    users.add_prop_posterior(lname);
-
     movies.alloc_and_init();
     users.alloc_and_init();
 
@@ -203,15 +200,6 @@ int main(int argc, char *argv[])
             // sparse
             write_matrix(Sys::odirname + "/Pavg.sdm", movies.Pavg);
             write_matrix(Sys::odirname + "/Pm2.sdm", movies.Pm2);
-
-            // dense
-            users.finalize_mu_lambda();
-            write_matrix(Sys::odirname + "/U-mu.ddm", users.aggrMu);
-            write_matrix(Sys::odirname + "/U-Lambda.ddm", users.aggrLambda);
-
-            movies.finalize_mu_lambda();
-            write_matrix(Sys::odirname + "/V-mu.ddm", movies.aggrMu);
-            write_matrix(Sys::odirname + "/V-Lambda.ddm", movies.aggrLambda);
         }
     }
 
@@ -236,29 +224,8 @@ void Sys::bcast()
     for(int i = 0; i < num(); i++) {
 #ifdef BPMF_MPI_COMM
         MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        if (aggrMu.nonZeros())
-            MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        if (aggrLambda.nonZeros())
-            MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
 #else
         assert(Sys::nprocs == 1);
 #endif
-    }
-}
-
-
-void Sys::finalize_mu_lambda()
-{
-    assert(aggrLambda.nonZeros());
-    assert(aggrMu.nonZeros());
-    // calculate real mu and Lambda
-    for(int i = 0; i < num(); i++) {
-        int nsamples = Sys::nsims - Sys::burnin;
-        auto sum = aggrMu.col(i);
-        auto prod = Eigen::Map<MatrixNNd>(aggrLambda.col(i).data());
-        MatrixNNd cov = (prod - (sum * sum.transpose() / nsamples)) / (nsamples - 1);
-        MatrixNNd prec = cov.inverse(); // precision = covariance^-1
-        aggrLambda.col(i) = Eigen::Map<Eigen::VectorXd>(prec.data(), num_latent * num_latent);
-        aggrMu.col(i) = sum / nsamples;
     }
 }

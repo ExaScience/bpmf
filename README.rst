@@ -52,9 +52,6 @@ The C++ version takes these arguments::
     [-v]: Output all samples
     [-t N]: Number of OpenMP threads to use.
   
-    [-m MTX,MTX]: propagated posterior mu and Lambda matrices for U
-    [-l MTX,MTX]: propagated posterior mu and Lambda matrices for V
-  
   Matrix Formats:
     *.mtx: Sparse or dense Matrix Market format
     *.sdm: Sparse binary double format
