@@ -242,15 +242,12 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         auto col = in.col(it.row());
-
-        //MM.noalias() += col * col.transpose();
-        calc_upper_part(MM, col);
-
+        MM.triangularView<Eigen::Upper>() = col * col.transpose();
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
 
     // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
-    copy_lower_part(MM);
+    MM.triangularView<Eigen::Lower>() = MM.transpose();
 
     chol.compute(hp_LambdaF + alpha * MM);
 
@@ -328,28 +325,4 @@ void Sys::sample(Sys &in)
 void Sys::register_time(int i, double t)
 {
     if (measure_perf) sample_time.at(i) += t;
-}
-
-void calc_upper_part(MatrixNNd &m, VectorNd v)
-{
-  // we use the formula: m = m + v * v.transpose(), but we calculate only an upper part of m matrix
-  for (int j=0; j<num_latent; j++)          // columns
-  {
-    for(int i=0; i<=j; i++)              // rows
-    {
-      m(i,j) = m(i,j) + v[j] * v[i];
-    }
-  }
-}
-
-void copy_lower_part(MatrixNNd &m)
-{
-  // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
-  for (int j=1; j<num_latent; j++)          // columns
-  {
-    for(int i=0; i<=j-1; i++)            // rows
-    {
-      m(j,i) = m(i,j);
-    }
-  }
 }
