@@ -43,3 +43,14 @@ void MPI_Sys::alloc_and_init()
     init();
 }
 
+void MPI_Sys::bcast_sum_cov_norm()
+{
+    BPMF_COUNTER("bcast");
+    for (int k = 0; k < Sys::nprocs; k++)
+    {
+        //sum, cov, norm
+        MPI_Bcast(sum(k).data(), sum(k).size(), MPI_DOUBLE, k, MPI_COMM_WORLD);
+        MPI_Bcast(cov(k).data(), cov(k).size(), MPI_DOUBLE, k, MPI_COMM_WORLD);
+        MPI_Bcast(&norm(k), 1, MPI_DOUBLE, k, MPI_COMM_WORLD);
+    }
+}

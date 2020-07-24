@@ -207,16 +207,7 @@ void MPI_Sys::sample(Sys &in)
     for(auto b : rb) { delete b; } rb.clear();
     
     //Sys::cout() << Sys::procid << ": ------------ doing bcast --------------\n";
-
-    { 
-        BPMF_COUNTER("bcast"); 
-        for(int k = 0; k < Sys::nprocs; k++) {
-            //sum, cov, norm
-            MPI_Bcast(sum(k).data(), sum(k).size(), MPI_DOUBLE, k, MPI_COMM_WORLD);
-            MPI_Bcast(cov(k).data(), cov(k).size(), MPI_DOUBLE, k, MPI_COMM_WORLD);
-            MPI_Bcast(&norm(k),      1,             MPI_DOUBLE, k, MPI_COMM_WORLD);
-        }
-    }
+    bcast_sum_cov_norm();
 }
 
 void MPI_Sys::send_item(int i)

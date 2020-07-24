@@ -182,13 +182,19 @@ VectorNd Sys::sample(long idx, Sys &other)
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
     MatrixNNd MM(MatrixNNd::Zero());
+
+#ifdef BPMF_MPI_ALLREDUCE
+    rr += precMu.at(idx);
+    MM += precLambda.at(idx);
+#else
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         auto col = other.items().col(it.row());
         MM.triangularView<Eigen::Upper>() += col * col.transpose();
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
-
+#endif
+    
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
 
@@ -212,11 +218,13 @@ VectorNd Sys::sample(long idx, Sys &other)
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
+#ifdef BPMF_MPI_ALLREDUCE
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         other.precLambda.at(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
         other.precMu.at(it.row()).noalias() += rr * (it.value() - mean_rating) * alpha;
     }
+#endif
 
     auto stop = tick();
     register_time(idx, 1e6 * (stop - start));

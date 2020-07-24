@@ -20,9 +20,14 @@ void MPI_Sys::sample(Sys &in)
 {
     { BPMF_COUNTER("compute"); Sys::sample(in); }
 
-    { 
-        BPMF_COUNTER("communicate"); 
-        bcast();
+    {
+        BPMF_COUNTER("communicate");
+
+        for (int i = 0; i < num(); i++)
+        {
+            MPI_AllReduce(MPI_IN_PLACE, precMu.at(i).data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_AllReduce(MPI_IN_PLACE, precLambda.at(i).data(), num_latent*num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        }
         bcast_sum_cov_norm();
     }
 }
