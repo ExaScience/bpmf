@@ -33,9 +33,6 @@ bool Sys::verbose = false;
 
 unsigned Sys::grain_size;
 
-void calc_upper_part(MatrixNNd &m, VectorNd v);         // function for calcutation of an upper part of a symmetric matrix: m = v * v.transpose(); 
-void copy_lower_part(MatrixNNd &m);                     // function to copy an upper part of a symmetric matrix to a lower part
-
 // verifies that A has the same non-zero structure as B
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B)
 {
@@ -242,11 +239,11 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         auto col = in.col(it.row());
-        MM.triangularView<Eigen::Upper>() = col * col.transpose();
+        MM.triangularView<Eigen::Upper>() += col * col.transpose();
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
 
-    // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
+    // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
 
     chol.compute(hp_LambdaF + alpha * MM);
