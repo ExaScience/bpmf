@@ -17,6 +17,8 @@ struct MPI_Sys : public Sys
     virtual void send_item(int i);
     virtual void sample(Sys &in);
 
+    void bcast_sum_cov_norm();
+
     MPI_Win items_win;
     MPI_Win sum_win;
     MPI_Win cov_win;

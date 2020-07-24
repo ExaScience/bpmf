@@ -159,9 +159,11 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
 
+#ifdef BPMF_MPI_ALLREDUCE_COMM
     //-- to pre-compute Lambda/Mu from other side
     std::vector<VectorNd> precMu;
     std::vector<MatrixNNd> precLambda;
+#endif
 
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_item(int i) = 0;

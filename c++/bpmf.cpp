@@ -30,6 +30,9 @@ using namespace Eigen;
 #elif defined(BPMF_MPI_BCAST_COMM)
 #define BPMF_MPI_COMM
 #include "mpi_bcast.h"
+#elif defined(BPMF_MPI_ALLREDUCE_COMM)
+#define BPMF_MPI_COMM
+#include "mpi_allreduce.h"
 #elif defined(BPMF_MPI_ISENDIRECV_COMM)
 #define BPMF_MPI_COMM
 #include "mpi_isendirecv.h"

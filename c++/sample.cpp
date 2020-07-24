@@ -152,8 +152,10 @@ void Sys::init()
     norm_map().setZero();
     col_permutation.setIdentity(num());
 
+#ifdef BPMF_MPI_ALLREDUCE_COMM
     precMu = std::vector<VectorNd>(num(), VectorNd::Zero());
     precLambda = std::vector<MatrixNNd>(num(), MatrixNNd::Zero());
+#endif
 
     Sys::cout() << "mean rating: " << mean_rating << std::endl;
     Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
@@ -183,7 +185,7 @@ VectorNd Sys::sample(long idx, Sys &other)
 
     MatrixNNd MM(MatrixNNd::Zero());
 
-#ifdef BPMF_MPI_ALLREDUCE
+#ifdef BPMF_MPI_ALLREDUCE_COMM
     rr += precMu.at(idx);
     MM += precLambda.at(idx);
 #else
@@ -218,7 +220,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
-#ifdef BPMF_MPI_ALLREDUCE
+#ifdef BPMF_MPI_ALLREDUCE_COMM
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         other.precLambda.at(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
@@ -270,8 +272,10 @@ void Sys::sample(Sys &other)
     local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
     local_norm() = norm;
 
+#ifdef BPMF_MPI_ALLREDUCE_COMM
     precMu = std::vector<VectorNd>(num(), VectorNd::Zero());
     precLambda = std::vector<MatrixNNd>(num(), MatrixNNd::Zero());
+#endif
 }
 
 void Sys::register_time(int i, double t)
