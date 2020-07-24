@@ -185,14 +185,10 @@ void Sys::init()
         aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
     }
 
-    int count_larger_bp1 = 0;
-    int count_larger_bp2 = 0;
     int count_sum = 0;
     for(int k = 0; k<M.cols(); k++) {
         int count = M.col(k).nonZeros();
         count_sum += count;
-        if (count > breakpoint1) count_larger_bp1++;
-        if (count > breakpoint2) count_larger_bp2++;
     }
 
 
@@ -200,8 +196,6 @@ void Sys::init()
     Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
     Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
     Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M.cols() << std::endl;
-    Sys::cout() << "rows > break_point1: " << 100. * (double)count_larger_bp1 / (double)M.cols() << std::endl;
-    Sys::cout() << "rows > break_point2: " << 100. * (double)count_larger_bp2 / (double)M.cols() << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
     if (has_prop_posterior())
     {
@@ -241,79 +235,24 @@ VectorNd Sys::sample(long idx, const MapNXd in)
         hp_LambdaL = hp.LambdaL; 
     }
 
- 
-    
-    const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
-                                                     // (how many movies watched idx-th user?).
+    VectorNd rr = hp_LambdaF * hp.mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
+    PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
-    VectorNd rr = hp_LambdaF * hp.mu;                 // vector num_latent x 1, we will use it in formula (14) from the paper
-    PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14) 
-    
-    // if this user movie has less than 1K ratings,
-    // we do a serial rank update
-    if( count < breakpoint1 ) {
+    MatrixNNd MM(MatrixNNd::Zero());
+    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+    {
+        auto col = in.col(it.row());
 
-        chol = hp_LambdaL;
-        for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
-            auto col = in.col(it.row());
-            chol.rankUpdate(col, alpha);
-            rr.noalias() += col * ((it.value() - mean_rating) * alpha);
-        }
+        //MM.noalias() += col * col.transpose();
+        calc_upper_part(MM, col);
 
-    // else we do a serial full cholesky decomposition
-    // (not used if breakpoint1 == breakpoint2)
-    } else if (count < breakpoint2) {
-
-        MatrixNNd MM(MatrixNNd::Zero());
-        for (SparseMatrixD::InnerIterator it(M,idx); it; ++it) {
-            auto col = in.col(it.row());
-            
-            //MM.noalias() += col * col.transpose();
-            calc_upper_part(MM, col);
-            
-            rr.noalias() += col * ((it.value() - mean_rating) * alpha);
-        }
-
-        // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
-        copy_lower_part(MM);
-
-        chol.compute(hp_LambdaF + alpha * MM);
-    // for > 10K ratings, we have additional thread-level parallellism
-    } else {
-        const int task_size = count / 100;
-
-        auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix 
-        auto to = M.outerIndexPtr()[idx+1];   // "to"   belongs to [1..m], m - number of movies in M matrix
-        MatrixNNd MM(MatrixNNd::Zero());               // matrix num_latent x num_latent 
- 
-        thread_vector<VectorNd> rrs(VectorNd::Zero());
-        thread_vector<MatrixNNd> MMs(MatrixNNd::Zero());
-
-        for(int i = from; i<to; i+=task_size) {
-#pragma omp task shared(rrs, MMs)
-            for(int j = i; j<std::min(i+task_size, to); j++)
-            {
-                                                           // for each nonzeros elemen in the i-th row of M matrix
-            auto val = M.valuePtr()[j];                // value of the j-th nonzeros element from idx-th row of M matrix
-            auto idx = M.innerIndexPtr()[j];           // index "j" of the element [i,j] from M matrix in compressed M matrix 
-            auto col = in.col(idx);                    // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:] 
-
-            //MM.noalias() += col * col.transpose();     // outer product
-                calc_upper_part(MMs.local(), col);
-                rrs.local().noalias() += col * ((val - mean_rating) * alpha); // vector num_latent x 1
-        }
-        }
-#pragma omp taskwait
-
-        // accumulate
-        MM += MMs.combine();
-        rr += rrs.combine();
-        copy_lower_part(MM);
-
-        chol.compute(hp_LambdaF + alpha * MM);         // matrix num_latent x num_latent
-                                                       // chol="lambda_i with *" from formula (14)
-                                                       // lambda_i with * = LambdaU + alpha * MM
+        rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
+
+    // Here, we copy a triangular upper part to a triangular lower part, because the matrix is symmetric.
+    copy_lower_part(MM);
+
+    chol.compute(hp_LambdaF + alpha * MM);
 
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 
