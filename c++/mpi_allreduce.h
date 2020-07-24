@@ -12,7 +12,7 @@ struct MPI_Sys : public Sys
     MPI_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
 
     virtual void sample(Sys &in);
-    virtual void send_items(int,int) {}
+    virtual void send_item(int) {}
     virtual void alloc_and_init();
 
     void bcast_sum_cov_norm();
@@ -28,8 +28,8 @@ void MPI_Sys::sample(Sys &in)
 
         for (int i = 0; i < num(); i++)
         {
-            MPI_AllReduce(MPI_IN_PLACE, precMu.at(i).data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            MPI_AllReduce(MPI_IN_PLACE, precLambda.at(i).data(), num_latent*num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, precMu.at(i).data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, precLambda.at(i).data(), num_latent*num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         }
         bcast_sum_cov_norm();
     }
