@@ -152,17 +152,13 @@ void Sys::init()
     norm_map().setZero();
     col_permutation.setIdentity(num());
 
-    int count_sum = 0;
-    for(int k = 0; k<M.cols(); k++) {
-        int count = M.col(k).nonZeros();
-        count_sum += count;
-    }
-
+    precMu = std::vector<VectorNd>(num(), VectorNd::Zero());
+    precLambda = std::vector<MatrixNNd>(num(), MatrixNNd::Zero());
 
     Sys::cout() << "mean rating: " << mean_rating << std::endl;
     Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
     Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
-    Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M.cols() << std::endl;
+    Sys::cout() << "average ratings per row: " << (double)M.nonZeros() / (double)M.cols() << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
 
     if (measure_perf) sample_time.resize(num(), .0);
@@ -178,7 +174,7 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 //
 // Update ONE movie or one user
 //
-VectorNd Sys::sample(long idx, const MapNXd in)
+VectorNd Sys::sample(long idx, Sys &other)
 {
     auto start = tick();
 
@@ -188,7 +184,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     MatrixNNd MM(MatrixNNd::Zero());
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
-        auto col = in.col(it.row());
+        auto col = other.items().col(it.row());
         MM.triangularView<Eigen::Upper>() += col * col.transpose();
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
@@ -216,6 +212,12 @@ VectorNd Sys::sample(long idx, const MapNXd in)
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
+    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+    {
+        other.precLambda.at(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
+        other.precMu.at(it.row()).noalias() += rr * (it.value() - mean_rating) * alpha;
+    }
+
     auto stop = tick();
     register_time(idx, 1e6 * (stop - start));
     //Sys::cout() << "  " << count << ": " << 1e6*(stop - start) << std::endl;
@@ -228,7 +230,7 @@ VectorNd Sys::sample(long idx, const MapNXd in)
 // 
 // update ALL movies / users in parallel
 //
-void Sys::sample(Sys &in) 
+void Sys::sample(Sys &other) 
 {
     iter++;
     thread_vector<VectorNd>  sums(VectorNd::Zero()); // sum
@@ -240,7 +242,7 @@ void Sys::sample(Sys &in)
     {
 #pragma omp task
         {
-            auto r = sample(i, in.items());
+            auto r = sample(i, other);
 
             MatrixNNd cov = (r * r.transpose());
             prods.local() += cov;
@@ -260,6 +262,8 @@ void Sys::sample(Sys &in)
     local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
     local_norm() = norm;
 
+    precMu = std::vector<VectorNd>(num(), VectorNd::Zero());
+    precLambda = std::vector<MatrixNNd>(num(), MatrixNNd::Zero());
 }
 
 void Sys::register_time(int i, double t)

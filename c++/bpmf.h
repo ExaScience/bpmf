@@ -157,7 +157,11 @@ struct Sys {
     //-- factors of the MF
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
-    VectorNd sample(long idx, const MapNXd in);
+    VectorNd sample(long idx, Sys &in);
+
+    //-- to pre-compute Lambda/Mu from other side
+    std::vector<VectorNd> precMu;
+    std::vector<MatrixNNd> precLambda;
 
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_item(int i) = 0;
