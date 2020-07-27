@@ -221,8 +221,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
 #ifdef BPMF_REDUCE
-    SHOW("Adding");
-    SHOW(rr.transpose());
+    #pragma omp critical
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         other.precLambda.at(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
