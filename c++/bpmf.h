@@ -22,6 +22,28 @@
 #error Define BPMF_NUMLATENT
 #endif
 
+#ifdef BPMF_HYBRID_COMM
+#define BPMF_GPI_COMM
+#define BPMF_MPI_COMM
+#endif
+
+#ifdef BPMF_GPI_COMM
+#define BPMF_MPI_COMM
+#elif defined(BPMF_MPI_PUT_COMM)
+#define BPMF_MPI_COMM
+#elif defined(BPMF_MPI_BCAST_COMM)
+#define BPMF_MPI_COMM
+#elif defined(BPMF_MPI_ALLREDUCE_COMM)
+#define BPMF_REDUCE
+#define BPMF_MPI_COMM
+#elif defined(BPMF_MPI_ISENDIRECV_COMM)
+#define BPMF_MPI_COMM
+#elif defined(BPMF_NO_COMM)
+#else
+#error no comm include
+#endif
+
+
 const int num_latent = BPMF_NUMLATENT;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
@@ -159,7 +181,7 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
 
-#ifdef BPMF_MPI_ALLREDUCE_COMM
+#ifdef BPMF_REDUCE
     //-- to pre-compute Lambda/Mu from other side
     std::vector<VectorNd> precMu;
     std::vector<MatrixNNd> precLambda;

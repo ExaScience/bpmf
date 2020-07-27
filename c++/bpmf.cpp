@@ -17,24 +17,15 @@
 using namespace std;
 using namespace Eigen;
 
-#ifdef BPMF_HYBRID_COMM
-#define BPMF_GPI_COMM
-#define BPMF_MPI_COMM
-#endif
-
 #ifdef BPMF_GPI_COMM
 #include "gaspi.h"
 #elif defined(BPMF_MPI_PUT_COMM)
-#define BPMF_MPI_COMM
 #include "mpi_put.h"
 #elif defined(BPMF_MPI_BCAST_COMM)
-#define BPMF_MPI_COMM
 #include "mpi_bcast.h"
 #elif defined(BPMF_MPI_ALLREDUCE_COMM)
-#define BPMF_MPI_COMM
 #include "mpi_allreduce.h"
 #elif defined(BPMF_MPI_ISENDIRECV_COMM)
-#define BPMF_MPI_COMM
 #include "mpi_isendirecv.h"
 #elif defined(BPMF_NO_COMM)
 #include "nocomm.h"

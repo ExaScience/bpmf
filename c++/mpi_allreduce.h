@@ -4,6 +4,7 @@
  */
 
 #include <mpi.h>
+#include "error.h"
 
 struct MPI_Sys : public Sys 
 {
@@ -28,7 +29,10 @@ void MPI_Sys::sample(Sys &in)
 
         for (int i = 0; i < num(); i++)
         {
+            SHOW(i);
+            SHOW(precMu.at(i).transpose());
             MPI_Allreduce(MPI_IN_PLACE, precMu.at(i).data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            SHOW(precMu.at(i).transpose());
             MPI_Allreduce(MPI_IN_PLACE, precLambda.at(i).data(), num_latent*num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         }
         bcast_sum_cov_norm();

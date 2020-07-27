@@ -3,8 +3,6 @@
  * All rights reserved.
  */
 
-#include "error.h"
-#include "bpmf.h"
 
 #include <random>
 #include <memory>
@@ -13,6 +11,8 @@
 #include <climits>
 #include <stdexcept>
 
+#include "error.h"
+#include "bpmf.h"
 #include "io.h"
 
 static const bool measure_perf = false;
@@ -152,7 +152,7 @@ void Sys::init()
     norm_map().setZero();
     col_permutation.setIdentity(num());
 
-#ifdef BPMF_MPI_ALLREDUCE_COMM
+#ifdef BPMF_REDUCE
     precMu = std::vector<VectorNd>(num(), VectorNd::Zero());
     precLambda = std::vector<MatrixNNd>(num(), MatrixNNd::Zero());
 #endif
@@ -185,7 +185,7 @@ VectorNd Sys::sample(long idx, Sys &other)
 
     MatrixNNd MM(MatrixNNd::Zero());
 
-#ifdef BPMF_MPI_ALLREDUCE_COMM
+#ifdef BPMF_REDUCE
     rr += precMu.at(idx);
     MM += precLambda.at(idx);
 #else
@@ -220,7 +220,9 @@ VectorNd Sys::sample(long idx, Sys &other)
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
-#ifdef BPMF_MPI_ALLREDUCE_COMM
+#ifdef BPMF_REDUCE
+    SHOW("Adding");
+    SHOW(rr.transpose());
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         other.precLambda.at(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
@@ -247,6 +249,11 @@ void Sys::sample(Sys &other)
     thread_vector<double>    norms(0.0); // squared norm
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
+#ifdef BPMF_REDUCE
+    other.precMu = std::vector<VectorNd>(other.num(), VectorNd::Zero());
+    other.precLambda = std::vector<MatrixNNd>(other.num(), MatrixNNd::Zero());
+#endif
+
 #pragma omp parallel for schedule(guided)
     for (int i = from(); i < to(); ++i)
     {
@@ -271,11 +278,6 @@ void Sys::sample(Sys &other)
     local_sum() = sum;
     local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
     local_norm() = norm;
-
-#ifdef BPMF_MPI_ALLREDUCE_COMM
-    precMu = std::vector<VectorNd>(num(), VectorNd::Zero());
-    precLambda = std::vector<MatrixNNd>(num(), MatrixNNd::Zero());
-#endif
 }
 
 void Sys::register_time(int i, double t)
