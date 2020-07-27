@@ -156,6 +156,9 @@ struct MPI_Sys : public Sys
     virtual void send_item(int);
     virtual void alloc_and_init();
 
+    // common 
+    void bcast_sum_cov_norm();
+
     //-- local status
     typedef std::pair<int,VectorNd> ElBuf;
     std::vector<SendBuffer<ElBuf> *> sb;
