@@ -59,6 +59,10 @@ void Sys::predict(Sys& other, bool all)
     for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
+#ifdef BPMF_REDUCE
+            if (it.row() >= other.to() || it.row() < other.from())
+                continue;
+#endif
             auto m = items().col(it.col());
             auto u = other.items().col(it.row());
 
