@@ -8,6 +8,8 @@ matrix:
     - env: BUILD_TYPE="nocomm-ser"
     - env: BUILD_TYPE="mpi-pure"
     - env: BUILD_TYPE="mpi-omp"
+    - env: BUILD_TYPE="mpi-allreduce-omp"
+    - env: BUILD_TYPE="mpi-bcast-omp"
 
 env:
   global:
