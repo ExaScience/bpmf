@@ -1,7 +1,7 @@
-MPIRUN=mpirun -np 2
-CXX=mpicxx -fopenmp
+CXX=mpicxx 
 
 include ../Makefile.common
 
+CFLAGS+=-Xpreprocessor -fopenmp -g
 CFLAGS+=-DBPMF_MPI_BCAST_COMM -DBPMF_PROFILING
-
+LDFLAGS+=-lomp

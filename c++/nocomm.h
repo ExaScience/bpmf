@@ -24,10 +24,6 @@ void Sys::Init()
 
 void Sys::Finalize()
 {
-#ifdef BPMF_PROFILING
-        perf_data.print();
-#endif
-
 }
 
 void NC_Sys::alloc_and_init()
