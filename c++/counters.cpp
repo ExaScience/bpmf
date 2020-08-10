@@ -16,6 +16,7 @@
 #include <cmath>
 
 #include "counters.h"
+#include "bpmf.h"
 
 static thread_vector<Counter *> active_counters(0);
 thread_vector<TotalsCounter> hier_perf_data, flat_perf_data;
@@ -31,7 +32,7 @@ void perf_data_print(const thread_vector<TotalsCounter> &data, bool hier) {
     std::string title = hier ? 
         "\nHierarchical view:\n==================\n" :
         "\nFlat view:\n==========\n";
-    std::cout << title;
+    Sys::cout() << title;
     TotalsCounter sum_all_threads;
     int num_active_threads = 0;
     int threadid = 0;
@@ -137,8 +138,8 @@ void TotalsCounter::print_body(const std::string &thread_str, bool hier) const {
     if (data.empty()) return;
     char hostname[1024];
     gethostname(hostname, 1024);
-    std::cout << "\nTotals on " << hostname << " (" << procid << ") / " << thread_str;
-    std::cout << (hier ? "hierarchical\n" : "flat\n");
+    Sys::cout() << "\nTotals on " << hostname << " (" << procid << ") / " << thread_str;
+    Sys::cout() << (hier ? "hierarchical\n" : "flat\n");
 
     const auto total = data.find("main");
     for(auto &t : data)
@@ -146,11 +147,11 @@ void TotalsCounter::print_body(const std::string &thread_str, bool hier) const {
         auto parent_name = t.first.substr(0, t.first.find_last_of("/"));
         const auto parent = data.find(parent_name);
         if (hier && parent != data.end())
-            std::cout << t.second.as_string(parent->second, hier);
+            Sys::cout() << t.second.as_string(parent->second, hier);
         else if (!hier && total != data.end())
-            std::cout << t.second.as_string(total->second, hier);
+            Sys::cout() << t.second.as_string(total->second, hier);
         else
-            std::cout << t.second.as_string(hier);
+            Sys::cout() << t.second.as_string(hier);
     }
 }
 

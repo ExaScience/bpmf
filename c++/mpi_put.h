@@ -4,15 +4,15 @@
  */
 
 #include <mutex>
+#include <mpi.h>
 
-#include "mpi_common.h"
 
 struct MPI_Sys : public Sys 
 {
     //-- c'tor
     MPI_Sys(std::string name, std::string fname, std::string pname) : Sys(name,fname,pname) {}
     MPI_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name,M,P) {}
-    virtual void alloc_and_init(const Sys &);
+    virtual void alloc_and_init();
 
     virtual void send_item(int i);
     virtual void sample(Sys &in);
@@ -25,7 +25,8 @@ struct MPI_Sys : public Sys
     MPI_Win norm_win;
 };
 
-void MPI_Sys::alloc_and_init(const Sys &other)
+
+void MPI_Sys::alloc_and_init()
 {
  
     const int items_size = sizeof(double) * num_latent * num();
@@ -48,7 +49,7 @@ void MPI_Sys::alloc_and_init(const Sys &other)
     MPI_Win_fence(0,cov_win);
     MPI_Win_fence(0,norm_win);
 
-    init(other);
+    init();
 }
 
 void MPI_Sys::send_item(int i)
@@ -109,3 +110,5 @@ void MPI_Sys::sample(Sys &in)
         MPI_Win_fence(0,norm_win);
     }
 }
+
+#include "mpi_common.h"
