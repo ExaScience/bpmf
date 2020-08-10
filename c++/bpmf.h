@@ -192,7 +192,6 @@ struct Sys {
     void bcast();
     void bcast_sum_cov_norm();
     virtual void sample(Sys &in);
-    static unsigned grain_size;
 
     //-- covariance
     double *sum_ptr;

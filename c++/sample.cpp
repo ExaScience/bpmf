@@ -31,8 +31,6 @@ std::string Sys::odirname = "";
 bool Sys::permute = true;
 bool Sys::verbose = false;
 
-unsigned Sys::grain_size;
-
 // verifies that A has the same non-zero structure as B
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B)
 {
