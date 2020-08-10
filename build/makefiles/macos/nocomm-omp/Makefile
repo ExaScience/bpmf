@@ -1,6 +1,4 @@
-ROOT=../../../c++
-
-include ../Makefile.common
+include ../../Makefile.common
 
 CFLAGS+=-Xpreprocessor -fopenmp -g
 CFLAGS+=-DBPMF_NO_COMM  -DBPMF_PROFILING

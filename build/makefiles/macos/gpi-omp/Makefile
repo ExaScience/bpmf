@@ -1,6 +1,3 @@
-ROOT=../../../c++
-
-include ../Makefile.common
 
 CXX=mpicxx
 CFLAGS+=-DBPMF_HYBRID_COMM -DBPMF_OMP_SCHED -DBPMF_PROFILING
@@ -11,3 +8,4 @@ CFLAGS+=-fopenmp
 # for GPI2
 LDFLAGS+=-lGPI2 -libverbs
 
+include ../Makefile.common

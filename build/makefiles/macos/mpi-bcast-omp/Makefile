@@ -1,5 +1,3 @@
-ROOT=../../../c++
-
 CXX=mpicxx 
 
 include ../Makefile.common

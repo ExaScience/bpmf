@@ -1,3 +1,8 @@
+
+MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+TOPDIR=$(abspath $(MKFILE_PATH)/../../..)
+ROOT=$(abspath $(TOPDIR)/c++)
+
 ifndef BPMF_NUMLATENT
 	BPMF_NUMLATENT=16
 endif
@@ -38,12 +43,16 @@ clean:
 	rm -f */*.o *.o */*.d *.d
 	rm -f bpmf
 
-test: bpmf
-	$(MPIRUN) ./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx -p ../../../data/movielens/ml-test.mtx
-	$(MPIRUN) ./bpmf -i 4 -n ../../../data/movielens/ml-train.mtx.gz -p ../../../data/movielens/ml-test.mtx.gz
+test:
+	$(MPIRUN) ./bpmf -i 4 -n $(TOPDIR)/data/movielens/ml-train.mtx -p $(TOPDIR)/data/movielens/ml-test.mtx
+	$(MPIRUN) ./bpmf -i 4 -n $(TOPDIR)/data/movielens/ml-train.mtx.gz -p $(TOPDIR)/data/movielens/ml-test.mtx.gz
 
 install: bpmf
 	install bpmf $(PREFIX)/bin
+
+show:
+	echo $(TOPDIR)
+	echo $(ROOT)
 
 # DFILES 
 DFILES=$(CCFILES:.cpp=.d)
