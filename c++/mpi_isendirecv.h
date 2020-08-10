@@ -64,6 +64,7 @@ struct SendRecvBuffer
 
     virtual void wait() = 0;
     void mpi_wait() {
+        BPMF_COUNTER("MPI_Wait");
         assert(has(outstanding));
         MPI_Wait(&req.at(first(outstanding)), MPI_STATUS_IGNORE);
     }
@@ -72,6 +73,7 @@ struct SendRecvBuffer
     bool mpi_test() {
         int flag;
         if (!has(outstanding)) return false;
+        BPMF_COUNTER("MPI_Test");
         MPI_Test(&req.at(first(outstanding)), &flag, MPI_STATUS_IGNORE);
         return flag;
     }
@@ -92,6 +94,7 @@ struct SendRecvBuffer
 
     void mpi_isend() {
         assert(has(empty));
+        BPMF_COUNTER("MPI_Isend");
 //        log() <<  ": mpi_isend: num: " << num << " of " << total << std::endl;
         auto p = data.at(first(empty)).data();
         auto s = &req.at(first(empty));
@@ -115,6 +118,7 @@ struct SendRecvBuffer
     }
 
     void mpi_irecv() {
+        BPMF_COUNTER("MPI_Irecv");
         int total_chunks  = (int) ceil( (float)total / CS );
         while (has(empty) && posted < total_chunks) {
             int c = mark_post();
