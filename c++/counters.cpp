@@ -16,6 +16,7 @@
 #include <cmath>
 
 #include "counters.h"
+#include "bpmf.h"
 
 static thread_vector<Counter *> active_counters(0);
 thread_vector<TotalsCounter> perf_data;
@@ -93,13 +94,13 @@ void TotalsCounter::print(int threadid) const {
     if (data.empty()) return;
     char hostname[1024];
     gethostname(hostname, 1024);
-    std::cout << "\nTotals on " << hostname << " (" << procid << ") / thread " << threadid << ":\n";
+    Sys::cout() << "\nTotals on " << hostname << " (" << procid << ") / thread " << threadid << ":\n";
     const auto total = data.find("main");
     for(auto &t : data)
         if (total != data.end())
-            std::cout << t.second.as_string(total->second);
+            Sys::cout() << t.second.as_string(total->second);
         else
-            std::cout << t.second.as_string();
+            Sys::cout() << t.second.as_string();
 }
 
 #endif // BPMF_PROFILING
