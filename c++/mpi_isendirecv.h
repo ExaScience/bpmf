@@ -54,8 +54,10 @@ struct SendRecvBuffer
     }
 
     bool has_data() {
+        if (done()) return false;
+        if (has(avail)) return true;
         test();
-        return has(avail) && !done();
+        return has(avail);
     }
 
     bool done() { return num == total; }
