@@ -2,7 +2,7 @@ ROOT=../../../c++
 
 include ../Makefile.common
 
-CXX=mpicxx
+CXX=mpiicpc
 CFLAGS+=-DBPMF_HYBRID_COMM -DBPMF_OMP_SCHED -DBPMF_PROFILING
 
 # for openmp
