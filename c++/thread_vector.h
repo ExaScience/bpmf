@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <numeric>
 #include <vector>
-#include <iostream>
 #include <cassert>
 
 #if defined(_OPENMP)
@@ -83,7 +82,6 @@ class thread_vector
     }
     void reset()
     {
-        _m.resize(threads::get_max_threads());
         for (auto &t : _m)
             t = _i;
     }
@@ -103,21 +101,29 @@ class thread_vector
     void init(const T &t = T())
     {
         _i = t;
+        _m.resize(threads::get_max_threads());
         reset();
     }
     void init(const std::vector<T> &v)
     {
-        assert(v.size() == threads::get_max_threads());
+        assert((int)v.size() == threads::get_max_threads());
+        _m.resize(threads::get_max_threads());
         _m = v;
     }
 
-    std::vector<T> &values()
+    typedef typename std::vector<T>::const_iterator const_iterator;
+
+    const_iterator begin() const
     {
-        return _m;
+        return _m.begin();
+    }
+
+    const_iterator end() const
+    {
+        return _m.end();
     }
 
   private:
     std::vector<T> _m;
     T _i;
 };
-

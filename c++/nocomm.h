@@ -25,7 +25,7 @@ void Sys::Init()
 void Sys::Finalize()
 {
 #ifdef BPMF_PROFILING
-        perf_data.print();
+        perf_data_print();
 #endif
 
 }
