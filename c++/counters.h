@@ -28,28 +28,34 @@ struct Counter {
 
     void operator+=(const Counter &other);
 
-    std::string as_string(const Counter &total) const;
-    std::string as_string() const;
+    std::string as_string(const Counter &total, bool hier) const;
+    std::string as_string(bool hier) const;
 };
 
 struct TotalsCounter {
     private:
         std::map<std::string, Counter> data;
         int procid;
+        void print_body(const std::string &, bool) const;
 
     public:
         //c-tor starts PAPI
         TotalsCounter(int = 0);
 
+        void operator+=(const TotalsCounter &other);
+
         //prints results
-        void print(int) const;
+        void print(int, bool) const;
+        void print(bool) const;
 
         Counter &operator[](const std::string &name) {
             return data[name];
         }
+
+        bool empty() const { return data.empty(); }
 };
 
-extern thread_vector<TotalsCounter> perf_data;
+extern thread_vector<TotalsCounter> hier_perf_data, flat_perf_data;
 
 void perf_data_init();
 void perf_data_print();
