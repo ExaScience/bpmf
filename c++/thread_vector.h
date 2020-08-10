@@ -4,6 +4,7 @@
 #include <numeric>
 #include <vector>
 #include <cassert>
+#include <iostream>
 
 #if defined(_OPENMP)
 #include <omp.h>
