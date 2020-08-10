@@ -18,9 +18,6 @@ void Sys::Init()
 
 void Sys::Finalize()
 {
-#ifdef BPMF_PROFILING
-    perf_data.print();
-#endif
     MPI_Finalize();
 }
 

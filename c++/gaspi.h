@@ -247,10 +247,6 @@ void Sys::Init()
 
 void Sys::Finalize()
 {
-#ifdef BPMF_PROFILING
-    perf_data.print();
-#endif
-
     gaspi_proc_term(GASPI_BLOCK);
 
 #ifdef BPMF_HYBRID_COMM

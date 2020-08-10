@@ -135,6 +135,7 @@ int main(int argc, char *argv[])
     assert(movies.nnz() == users.nnz());
 
     threads::init(nthrds);
+    perf_data_init();
 
     long double average_items_sec = .0;
     long double average_ratings_sec = .0;
@@ -230,6 +231,7 @@ int main(int argc, char *argv[])
     }
 
   }
+  perf_data_print();
   Sys::Finalize();
   if (Sys::nprocs >1) delete Sys::os;
 
