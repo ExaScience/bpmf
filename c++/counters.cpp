@@ -18,21 +18,42 @@
 #include "counters.h"
 
 static thread_vector<Counter *> active_counters(0);
-thread_vector<TotalsCounter> perf_data;
+thread_vector<TotalsCounter> hier_perf_data, flat_perf_data;
 
 void perf_data_init()
 {
     active_counters.init();
-    perf_data.init();
+    hier_perf_data.init();
+    flat_perf_data.init();
+}
+
+void perf_data_print(const thread_vector<TotalsCounter> &data, bool hier) {
+    std::string title = hier ? 
+        "\nHierarchical view:\n==================\n" :
+        "\nFlat view:\n==========\n";
+    std::cout << title;
+    TotalsCounter sum_all_threads;
+    int num_active_threads = 0;
+    int threadid = 0;
+    for(auto &d : data)
+    {
+        if (!d.empty())
+        {
+            d.print(threadid, hier);
+            sum_all_threads += d;
+            num_active_threads++;
+        }
+    }
+
+    if (num_active_threads > 1)
+        sum_all_threads.print(hier);
 }
 
 void perf_data_print() {
-    int threadid = 0;
-    for(auto &p : perf_data)
-    {
-        p.print(threadid++);
-    }
+    perf_data_print(hier_perf_data, true);
+    perf_data_print(flat_perf_data, false);
 }
+
 
 Counter::Counter(std::string name)
     : name(name), diff(0), count(1), total_counter(false)
@@ -48,7 +69,13 @@ Counter::Counter(std::string name)
 Counter::Counter()
     : parent(0), name(std::string()), fullname(std::string()), diff(0), count(0), total_counter(true)
 {
-} 
+    if (name == "main")
+    {
+        //init performance counters
+        perf_data_init();
+    }
+
+}
 
 Counter::~Counter() {
     if(total_counter) return;
@@ -56,7 +83,8 @@ Counter::~Counter() {
     stop = tick();
     diff = stop - start;
 
-    perf_data.local()[fullname] += *this;
+    hier_perf_data.local()[fullname] += *this;
+    flat_perf_data.local()[name] += *this;
     active_counters.local() = parent;
 }
 
@@ -70,36 +98,60 @@ void Counter::operator+=(const Counter &other) {
     count += other.count;
 }
 
-std::string Counter::as_string(const Counter &total) const {
+std::string Counter::as_string(const Counter &total, bool hier) const {
     std::ostringstream os;
+    std::string n = hier ? fullname : name;
     int percent = round(100.0 * diff / (total.diff + 0.000001));
-    os << ">> " << fullname << ":\t" << std::fixed << std::setw(11)
+    os << ">> " << n << ":\t" << std::fixed << std::setw(11)
        << std::setprecision(4) << diff << "\t(" << percent << "%) in\t" << count << "\n";
     return os.str();
 }
 
-std::string Counter::as_string() const
+std::string Counter::as_string(bool hier) const
 {
     std::ostringstream os;
-    os << ">> " << fullname << ":\t" << std::fixed << std::setw(11)
+    std::string n = hier ? fullname : name;
+    os << ">> " << n << ":\t" << std::fixed << std::setw(11)
        << std::setprecision(4) << diff << " in\t" << count << "\n";
     return os.str();
 }
 
-
 TotalsCounter::TotalsCounter(int p) : procid(p) {}
 
-void TotalsCounter::print(int threadid) const {
+void TotalsCounter::operator+=(const TotalsCounter &other)
+{
+    for(auto &t : other.data) data[t.first] += t.second;
+}
+
+void TotalsCounter::print(bool hier) const {
+    print_body("sum of all threads / ", hier);
+}
+
+void TotalsCounter::print(const int threadid, bool hier) const {
+    std::ostringstream s;
+    s << "thread " << threadid << " / ";
+    print_body(s.str(), hier);
+}
+
+void TotalsCounter::print_body(const std::string &thread_str, bool hier) const {
     if (data.empty()) return;
     char hostname[1024];
     gethostname(hostname, 1024);
-    std::cout << "\nTotals on " << hostname << " (" << procid << ") / thread " << threadid << ":\n";
+    std::cout << "\nTotals on " << hostname << " (" << procid << ") / " << thread_str;
+    std::cout << (hier ? "hierarchical\n" : "flat\n");
+
     const auto total = data.find("main");
     for(auto &t : data)
-        if (total != data.end())
-            std::cout << t.second.as_string(total->second);
+    {
+        auto parent_name = t.first.substr(0, t.first.find_last_of("/"));
+        const auto parent = data.find(parent_name);
+        if (hier && parent != data.end())
+            std::cout << t.second.as_string(parent->second, hier);
+        else if (!hier && total != data.end())
+            std::cout << t.second.as_string(total->second, hier);
         else
-            std::cout << t.second.as_string();
+            std::cout << t.second.as_string(hier);
+    }
 }
 
 #endif // BPMF_PROFILING
