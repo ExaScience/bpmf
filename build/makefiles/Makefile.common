@@ -4,7 +4,7 @@ TOPDIR=$(abspath $(MKFILE_PATH)/../../..)
 ROOT=$(abspath $(TOPDIR)/c++)
 
 ifndef BPMF_NUMLATENT
-	BPMF_NUMLATENT=16
+	BPMF_NUMLATENT=32
 endif
 
 #CXXFLAGS=$(CFLAGS) -std=c++0x #-cxxlib=/opt/gcc/6.3.0/snos/lib64 # Intel Compiler
