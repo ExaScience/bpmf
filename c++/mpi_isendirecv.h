@@ -30,8 +30,8 @@ struct SendRecvBuffer
     typedef std::list<int> lst;
     lst outstanding, empty, avail;
 
-    int has(lst s) const { return !s.empty(); }
-    int first(lst s) const { return s.front(); }
+    int has(const lst &s) const { return !s.empty(); }
+    int first(const lst &s) const { return s.front(); }
 
     int pop(lst &s) { assert(!s.empty()); int i = first(s); s.pop_front(); return i; }
     int push(lst &s, int v) { s.push_back(v); return v;}
