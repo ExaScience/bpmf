@@ -31,6 +31,19 @@ void Sys::Abort(int err)
     MPI_Abort(MPI_COMM_WORLD, err);
 }
 
+#ifndef MPI_COMM_PUT
+void MPI_Sys::alloc_and_init()
+{
+    items_ptr = (double *)malloc(sizeof(double) * num_latent * num());
+    sum_ptr = (double *)malloc(sizeof(double) * num_latent * MPI_Sys::nprocs);
+    cov_ptr = (double *)malloc(sizeof(double) * num_latent * num_latent * MPI_Sys::nprocs);
+    norm_ptr = (double *)malloc(sizeof(double) * MPI_Sys::nprocs);
+
+    init();
+}
+#endif
+
+
 void MPI_Sys::bcast_sum_cov_norm()
 {
     BPMF_COUNTER("bcast");
