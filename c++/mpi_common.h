@@ -31,7 +31,7 @@ void Sys::Abort(int err)
     MPI_Abort(MPI_COMM_WORLD, err);
 }
 
-#ifndef MPI_COMM_PUT
+#ifndef BPMF_MPI_PUT_COMM
 void MPI_Sys::alloc_and_init()
 {
     items_ptr = (double *)malloc(sizeof(double) * num_latent * num());

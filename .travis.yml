@@ -10,6 +10,7 @@ matrix:
     - env: BUILD_TYPE="mpi-omp"
     - env: BUILD_TYPE="mpi-allreduce-omp"
     - env: BUILD_TYPE="mpi-bcast-omp"
+    - env: BUILD_TYPE="mpi-put-omp"
 
 env:
   global:
