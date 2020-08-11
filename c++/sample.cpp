@@ -175,6 +175,16 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 };
 
 
+void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
+{
+    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+    {
+        auto col = other.items().col(it.row());
+        MM.triangularView<Eigen::Upper>() += col * col.transpose();
+        rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+    }
+}
+
 //
 // Update ONE movie or one user
 //
@@ -182,21 +192,16 @@ VectorNd Sys::sample(long idx, Sys &other)
 {
     auto start = tick();
 
-    VectorNd rr = hp.LambdaF * hp.mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
-    PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
+    PrecomputedLLT chol;              // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
+    VectorNd rr = hp.LambdaF * hp.mu; // vector num_latent x 1, we will use it in formula (14) from the paper
     MatrixNNd MM(MatrixNNd::Zero());
 
 #ifdef BPMF_REDUCE
     rr += precMu.at(idx);
     MM += precLambda.at(idx);
 #else
-    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
-    {
-        auto col = other.items().col(it.row());
-        MM.triangularView<Eigen::Upper>() += col * col.transpose();
-        rr.noalias() += col * ((it.value() - mean_rating) * alpha);
-    }
+    computeMuLambda(idx, other, rr, MM);
 #endif
     
     // copy upper -> lower part, matrix is symmetric.
