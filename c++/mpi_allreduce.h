@@ -27,10 +27,10 @@ void MPI_Sys::sample(Sys &in)
     {
         BPMF_COUNTER("communicate");
 
-        for (int i = 0; i < num(); i++)
+        for (int i = 0; i < in.num(); i++)
         {
-            MPI_Allreduce(MPI_IN_PLACE, precMu.at(i).data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            MPI_Allreduce(MPI_IN_PLACE, precLambda.at(i).data(), num_latent*num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, in.precMu.at(i).data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, in.precLambda.at(i).data(), num_latent*num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         }
         bcast_sum_cov_norm();
     }
