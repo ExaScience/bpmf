@@ -236,7 +236,7 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
     }
     else
     {
-        const int task_size = count / 100;
+        const int task_size = int(count / 100) + 1;
 
         auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
         auto to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
