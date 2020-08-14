@@ -90,12 +90,12 @@ struct HyperParams {
         mu0.setZero();
     }
 
-    void sample(const int N, const  VectorNd &sum, const  MatrixNNd &cov) {
+    void sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
+    {
         std::tie(mu, LambdaU) = CondNormalWishart(N, cov, sum / N, mu0, b0, WI, df);
-	LambdaF = LambdaU.triangularView<Eigen::Upper>().transpose() * LambdaU;
+        LambdaF = LambdaU.triangularView<Eigen::Upper>().transpose() * LambdaU;
         LambdaL = LambdaU.transpose();
     }
-
 };
 
 struct Sys;
@@ -184,8 +184,12 @@ struct Sys {
 
 #ifdef BPMF_REDUCE
     //-- to pre-compute Lambda/Mu from other side
-    std::vector<VectorNd> precMu;
-    std::vector<MatrixNNd> precLambda;
+    Eigen::MatrixXd precMu, precLambda;
+    Eigen::Map<MatrixNNd> precLambdaMatrix(int idx) 
+    {
+        return Eigen::Map<MatrixNNd>(precLambda.col(idx).data());
+    }
+
 #endif
 
     //-- for propagated posterior

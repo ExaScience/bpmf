@@ -179,8 +179,8 @@ void Sys::init()
     col_permutation.setIdentity(num());
 
 #ifdef BPMF_REDUCE
-    precMu = std::vector<VectorNd>(num(), VectorNd::Zero());
-    precLambda = std::vector<MatrixNNd>(num(), MatrixNNd::Zero());
+    precMu = MatrixNXd::Zero(num_latent, num());
+    precLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
 #endif
 
     if (Sys::odirname.size())
@@ -254,8 +254,8 @@ VectorNd Sys::sample(long idx, Sys &other)
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
 #ifdef BPMF_REDUCE
-    rr += precMu.at(idx);
-    MM += precLambda.at(idx);
+    rr += precMu.col(idx);
+    MM += precLambdaMatrix(idx);
 #else
     computeMuLambda(idx, other, rr, MM);
 #endif
@@ -287,8 +287,8 @@ VectorNd Sys::sample(long idx, Sys &other)
     #pragma omp critical
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
-        other.precLambda.at(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
-        other.precMu.at(it.row()).noalias() += rr * (it.value() - mean_rating) * alpha;
+        other.precLambdaMatrix(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
+        other.precMu.col(it.row()).noalias() += rr * (it.value() - mean_rating) * alpha;
     }
 #endif
 
@@ -312,8 +312,8 @@ void Sys::sample(Sys &other)
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
 #ifdef BPMF_REDUCE
-    other.precMu = std::vector<VectorNd>(other.num(), VectorNd::Zero());
-    other.precLambda = std::vector<MatrixNNd>(other.num(), MatrixNNd::Zero());
+    other.precMu.setZero();
+    other.precLambda.setZero();
 #endif
 
 #pragma omp parallel for schedule(guided)
