@@ -140,6 +140,30 @@ Sys::~Sys()
     }
 }
 
+bool Sys::has_prop_posterior() const
+{
+    return propMu.nonZeros() > 0;
+}
+
+void Sys::add_prop_posterior(std::string fnames)
+{
+    if (fnames.empty()) return;
+
+    std::size_t pos = fnames.find_first_of(",");
+    std::string mu_name = fnames.substr(0, pos);
+    std::string lambda_name = fnames.substr(pos+1);
+
+    read_matrix(mu_name, propMu);
+    read_matrix(lambda_name, propLambda);
+
+    assert(propMu.cols() == num());
+    assert(propLambda.cols() == num());
+
+    assert(propMu.rows() == num_latent);
+    assert(propLambda.rows() == num_latent * num_latent);
+
+}
+
 //
 // Intializes internal Matrices and Vectors
 //
@@ -159,11 +183,27 @@ void Sys::init()
     precLambda = std::vector<MatrixNNd>(num(), MatrixNNd::Zero());
 #endif
 
+    if (Sys::odirname.size())
+    {
+        aggrMu = Eigen::MatrixXd::Zero(num_latent, num());
+        aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
+    }
+
+    int count_sum = 0;
+    for(int k = 0; k<M.cols(); k++) {
+        int count = M.col(k).nonZeros();
+        count_sum += count;
+    }
+
     Sys::cout() << "mean rating: " << mean_rating << std::endl;
     Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
     Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
     Sys::cout() << "average ratings per row: " << (double)M.nonZeros() / (double)M.cols() << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
+    if (has_prop_posterior())
+    {
+        Sys::cout() << "with propagated posterior" << std::endl;
+    }
 
     if (measure_perf) sample_time.resize(num(), .0);
 }
@@ -193,10 +233,25 @@ VectorNd Sys::sample(long idx, Sys &other)
 {
     auto start = tick();
 
-    PrecomputedLLT chol;              // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
+    VectorNd hp_mu;
+    MatrixNNd hp_LambdaF; 
+    MatrixNNd hp_LambdaL; 
+    if (has_prop_posterior())
+    {
+        hp_mu = propMu.col(idx);
+        hp_LambdaF = Eigen::Map<MatrixNNd>(propLambda.col(idx).data()); 
+        hp_LambdaL =  hp_LambdaF.llt().matrixL();
+    }
+    else
+    {
+        hp_mu = hp.mu;
+        hp_LambdaF = hp.LambdaF; 
+        hp_LambdaL = hp.LambdaL; 
+    }
 
-    VectorNd rr = hp.LambdaF * hp.mu; // vector num_latent x 1, we will use it in formula (14) from the paper
+    VectorNd rr = hp_LambdaF * hp.mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
     MatrixNNd MM(MatrixNNd::Zero());
+    PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
 #ifdef BPMF_REDUCE
     rr += precMu.at(idx);
@@ -208,7 +263,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
 
-    chol.compute(hp.LambdaF + alpha * MM);
+    chol.compute(hp_LambdaF + alpha * MM);
 
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 
@@ -272,6 +327,13 @@ void Sys::sample(Sys &other)
             prods.local() += cov;
             sums.local() += r;
             norms.local() += r.squaredNorm();
+
+            if (iter >= burnin && Sys::odirname.size())
+            {
+                aggrMu.col(i) += r;
+                aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
+            }
+
             send_item(i);
         }
     }

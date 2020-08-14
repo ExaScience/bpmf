@@ -188,6 +188,15 @@ struct Sys {
     std::vector<MatrixNNd> precLambda;
 #endif
 
+    //-- for propagated posterior
+    Eigen::MatrixXd propMu, propLambda;
+    void add_prop_posterior(std::string);
+    bool has_prop_posterior() const;
+
+    //-- for aggregated posterior
+    Eigen::MatrixXd aggrMu, aggrLambda;
+    void finalize_mu_lambda();
+    
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_item(int i) = 0;
     void bcast();
