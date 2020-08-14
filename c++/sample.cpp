@@ -238,27 +238,23 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
     {
         const int task_size = int(count / 100) + 1;
 
-        auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
-        auto to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
+        unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
+        unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
 
         thread_vector<VectorNd> rrs(VectorNd::Zero());
         thread_vector<MatrixNNd> MMs(MatrixNNd::Zero());
 
-        for (int i = from; i < to; i += task_size)
+#pragma omp taskloop shared(rrs, MMs, other) grainsize(task_size)
+        for (unsigned j = from; j < to; j++)
         {
-#pragma omp task shared(rrs, MMs, other)
-            for (int j = i; j < std::min(i + task_size, to); j++)
-            {
-                // for each nonzeros elemen in the i-th row of M matrix
-                auto val = M.valuePtr()[j];      // value of the j-th nonzeros element from idx-th row of M matrix
-                auto idx = M.innerIndexPtr()[j]; // index "j" of the element [i,j] from M matrix in compressed M matrix
-                auto col = other.items().col(idx);       // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
+            // for each nonzeros elemen in the i-th row of M matrix
+            auto val = M.valuePtr()[j];        // value of the j-th nonzeros element from idx-th row of M matrix
+            auto idx = M.innerIndexPtr()[j];   // index "j" of the element [i,j] from M matrix in compressed M matrix
+            auto col = other.items().col(idx); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
 
-                MMs.local().triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
-                rrs.local().noalias() += col * ((val - mean_rating) * alpha); // vector num_latent x 1
-            }
+            MMs.local().triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
+            rrs.local().noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
         }
-#pragma omp taskwait
 
         // accumulate
         MM += MMs.combine();
