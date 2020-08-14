@@ -6,6 +6,8 @@ matrix:
   include:
     - env: BUILD_TYPE="nocomm-omp"
     - env: BUILD_TYPE="nocomm-ser"
+    - env: BUILD_TYPE="nocomm-omp-reduce"
+    - env: BUILD_TYPE="nocomm-ser-reduce"
     - env: BUILD_TYPE="mpi-pure"
     - env: BUILD_TYPE="mpi-omp"
     - env: BUILD_TYPE="mpi-allreduce-omp"
@@ -34,3 +36,4 @@ script:
     - cd build/makefiles/${BUILD_TYPE}
     - make
     - make test
+    - [[ $BUILD_TYPE == nocomm-ser* ]] && make check
