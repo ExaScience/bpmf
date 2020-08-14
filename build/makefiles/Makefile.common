@@ -43,16 +43,15 @@ clean:
 	rm -f */*.o *.o */*.d *.d
 	rm -f bpmf
 
-test:
+run:
 	$(MPIRUN) ./bpmf -i 4 -n $(TOPDIR)/data/movielens/ml-train.mtx -p $(TOPDIR)/data/movielens/ml-test.mtx
 	$(MPIRUN) ./bpmf -i 4 -n $(TOPDIR)/data/movielens/ml-train.mtx.gz -p $(TOPDIR)/data/movielens/ml-test.mtx.gz
 
+check: run
+	cd $(TOPDIR)/data/tiny && ./run_test.sh $(PWD)/bpmf 4.1
+
 install: bpmf
 	install bpmf $(PREFIX)/bin
-
-show:
-	echo $(TOPDIR)
-	echo $(ROOT)
 
 # DFILES 
 DFILES=$(CCFILES:.cpp=.d)

@@ -24,7 +24,7 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-thread_vector<std::mt19937> r;
+thread_vector<std::mt19937> r(std::mt19937(42));
 
 std::mt19937 &rng()
 {
