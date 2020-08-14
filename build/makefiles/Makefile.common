@@ -43,7 +43,7 @@ clean:
 	rm -f */*.o *.o */*.d *.d
 	rm -f bpmf
 
-run:
+run: bpmf
 	$(MPIRUN) ./bpmf -i 4 -n $(TOPDIR)/data/movielens/ml-train.mtx -p $(TOPDIR)/data/movielens/ml-test.mtx
 	$(MPIRUN) ./bpmf -i 4 -n $(TOPDIR)/data/movielens/ml-train.mtx.gz -p $(TOPDIR)/data/movielens/ml-test.mtx.gz
 
