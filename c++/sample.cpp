@@ -189,16 +189,22 @@ void Sys::init()
         aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
     }
 
+    int count_larger_bp1 = 0;
+    int count_larger_bp2 = 0;
     int count_sum = 0;
     for(int k = 0; k<M.cols(); k++) {
         int count = M.col(k).nonZeros();
         count_sum += count;
+        if (count > breakpoint1) count_larger_bp1++;
+        if (count > breakpoint2) count_larger_bp2++;
     }
 
     Sys::cout() << "mean rating: " << mean_rating << std::endl;
     Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
     Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
-    Sys::cout() << "average ratings per row: " << (double)M.nonZeros() / (double)M.cols() << std::endl;
+    Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M.cols() << std::endl;
+    Sys::cout() << "rows > break_point1: " << 100. * (double)count_larger_bp1 / (double)M.cols() << std::endl;
+    Sys::cout() << "rows > break_point2: " << 100. * (double)count_larger_bp2 / (double)M.cols() << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
     if (has_prop_posterior())
     {
@@ -217,11 +223,46 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
 {
-    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+    const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
+                                                     // (how many movies watched idx-th user?).
+    if (count < breakpoint2)
     {
-        auto col = other.items().col(it.row());
-        MM.triangularView<Eigen::Upper>() += col * col.transpose();
-        rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+        for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+        {
+            auto col = other.items().col(it.row());
+            MM.triangularView<Eigen::Upper>() += col * col.transpose();
+            rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+        }
+    }
+    else
+    {
+        const int task_size = count / 100;
+
+        auto from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
+        auto to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
+
+        thread_vector<VectorNd> rrs(VectorNd::Zero());
+        thread_vector<MatrixNNd> MMs(MatrixNNd::Zero());
+
+        for (int i = from; i < to; i += task_size)
+        {
+#pragma omp task shared(rrs, MMs, other)
+            for (int j = i; j < std::min(i + task_size, to); j++)
+            {
+                // for each nonzeros elemen in the i-th row of M matrix
+                auto val = M.valuePtr()[j];      // value of the j-th nonzeros element from idx-th row of M matrix
+                auto idx = M.innerIndexPtr()[j]; // index "j" of the element [i,j] from M matrix in compressed M matrix
+                auto col = other.items().col(idx);       // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
+
+                MMs.local().triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
+                rrs.local().noalias() += col * ((val - mean_rating) * alpha); // vector num_latent x 1
+            }
+        }
+#pragma omp taskwait
+
+        // accumulate
+        MM += MMs.combine();
+        rr += rrs.combine();
     }
 }
 
