@@ -32,10 +32,20 @@ void MPI_Sys::sample(Sys &in)
         {
             auto col = in.from(i);
             auto num_cols = in.num(i);
-            
-            MPI_Allreduce(MPI_IN_PLACE, in.precMu.col(col).data(), num_cols*num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            MPI_Allreduce(MPI_IN_PLACE, in.precLambda.col(col).data(), num_cols*num_latent*num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+            {
+                auto recv_buf = in.precMu.col(col).data();
+                auto send_buf = (i == procid) ? MPI_IN_PLACE : recv_buf;
+                MPI_Reduce(send_buf, recv_buf, num_cols * num_latent, MPI_DOUBLE, MPI_SUM, i, MPI_COMM_WORLD);
+            }
+
+            {
+                auto recv_buf = in.precLambda.col(col).data();
+                auto send_buf = (i == procid) ? MPI_IN_PLACE : recv_buf;
+                MPI_Reduce(send_buf, recv_buf, num_cols * num_latent * num_latent, MPI_DOUBLE, MPI_SUM, i, MPI_COMM_WORLD);
+            }
         }
+
         bcast_sum_cov_norm();
     }
 }
