@@ -217,7 +217,6 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
 {
-#pragma omp taskloop grainsize(1000)
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         auto col = other.items().col(it.row());
