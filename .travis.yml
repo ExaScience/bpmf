@@ -36,4 +36,3 @@ script:
     - cd build/makefiles/${BUILD_TYPE}
     - make
     - make test
-    - [[ $BUILD_TYPE == nocomm-ser* ]] && make check
