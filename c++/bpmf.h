@@ -59,11 +59,8 @@ std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
 
 double randn(double);
-auto nrandn(int n) -> decltype( Eigen::VectorXd::NullaryExpr(n, std::ptr_fun(randn)) ); 
 
-inline auto nrandn() -> decltype( VectorNd::NullaryExpr(std::ptr_fun(randn)) ) { 
-    return VectorNd::NullaryExpr(std::ptr_fun(randn)); 
-}
+#define nrandn(n) (Vector::NullaryExpr(n, [](double) { return randn(); }) 
 
 inline double sqr(double x) { return x*x; }
 
