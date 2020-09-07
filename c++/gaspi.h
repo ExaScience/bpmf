@@ -131,8 +131,6 @@ void GASPI_Sys::alloc_and_init()
     static gaspi_segment_id_t seg_id_cnt = 0;
     items_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * num());
     items_seg = seg_id_cnt++;
-    sum_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * Sys::nprocs);
-    sum_seg = seg_id_cnt++;
     cov_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * num_latent * Sys::nprocs);
     cov_seg = seg_id_cnt++;
     norm_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * Sys::nprocs);
