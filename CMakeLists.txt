@@ -57,14 +57,24 @@ add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 
 message(STATUS "Cleaned version: ${BPMF_VERSION_CLEAN}")
 
+add_definitions(-DBPMF_NUMLATENT=32)
+
 # CONFIGURE DEPENDENCIES
 if(ENABLE_MPI)
   find_package(MPI REQUIRED)
+  add_definitions(-DBPMF_MPI_ISENDIRECV_COMM)
+elif(ENABLE_GASPI)
+  find_package(GASPI REQUIRED)
+  add_definitions(-DBPMF_GPI_COMM)
+else()
+  add_definitions(-DBPMF_NO_COMM)
 endif()
 
 if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
+  add_definitions(-DBPMF_NO_COMM)
 endif()
+
 find_package(Eigen3 REQUIRED)
 
 if(${ENABLE_PROFILING})

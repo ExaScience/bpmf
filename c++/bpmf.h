@@ -59,7 +59,7 @@ std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
 
 double randn(double);
-
+ 
 #define nrandn(n) (Vector::NullaryExpr(n, [](double) { return randn(); }) 
 
 inline double sqr(double x) { return x*x; }
@@ -227,7 +227,7 @@ struct Sys {
 
     //-- hyper params
     HyperParams hp;
-    virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
+    virtual void sample_hp() { hp.sample(num(), sum, aggr_cov()); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)
