@@ -37,14 +37,9 @@ std::mt19937 &rng()
 
 }
 
-double randn(double = .0) {
+double randn() {
     normal_distribution<> nd;
     return nd(rng());
-}
-
-auto nrandn(int n) -> decltype( Eigen::VectorXd::NullaryExpr(n, ptr_fun(randn)) ) 
-{
-    return Eigen::VectorXd::NullaryExpr(n, ptr_fun(randn));
 }
 
 /*
@@ -53,7 +48,7 @@ auto nrandn(int n) -> decltype( Eigen::VectorXd::NullaryExpr(n, ptr_fun(randn)) 
 */
 VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const VectorNd & mean)
 {
-  VectorNd r = VectorNd::NullaryExpr(ptr_fun(randn));
+  VectorNd r = nrandn(num_latent);
   Lambda_U.triangularView<Upper>().solveInPlace(r);
   return (r / sqrt(kappa)) + mean;
 }

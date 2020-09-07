@@ -58,9 +58,9 @@ void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
 
-double randn(double);
+double randn();
  
-#define nrandn(n) (Vector::NullaryExpr(n, [](double) { return randn(); }) 
+#define nrandn(n) (Eigen::VectorXd::NullaryExpr((n), [](double) { return randn(); }))
 
 inline double sqr(double x) { return x*x; }
 
