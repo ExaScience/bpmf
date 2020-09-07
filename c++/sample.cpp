@@ -173,7 +173,7 @@ void Sys::init()
     assert(M.rows() > 0 && M.cols() > 0);
     mean_rating = M.sum() / M.nonZeros();
     items().setZero();
-    sum_map().setZero();
+    sum.setZero();
     cov_map().setZero();
     norm_map().setZero();
     col_permutation.setIdentity(num());
@@ -315,7 +315,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     // Expression u_i = U \ (s + (L \ rr)) in Matlab looks for Eigen library like: 
 
     chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
-    rr += nrandn();                                     // rr=s+(L\rr), we store result again in rr vector
+    rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
@@ -375,12 +375,11 @@ void Sys::sample(Sys &other)
     }
 #pragma omp taskwait
 
-    VectorNd sum = sums.combine();
+    sum = sums.combine();
     MatrixNNd prod = prods.combine();   
     double norm = norms.combine();
 
     const int N = num();
-    local_sum() = sum;
     local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
     local_norm() = norm;
 }
