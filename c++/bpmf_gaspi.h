@@ -4,11 +4,12 @@
  */
 
 #include <cmath>
-#include <thread_vector.h>
-
 #include <mpi.h>
+
 #include <GASPI.h>
 #include <GASPI_Ext.h>
+
+#include "thread_vector.h"
 
 #define SYS GASPI_Sys
 
