@@ -8,14 +8,19 @@ OPTION(ENABLE_PROFILING "Enable performance counters" OFF)
 OPTION(ENABLE_ASAN "Enable address sanitizer" OFF)
 OPTION(ENABLE_TSAN "Enable thread sanitizer" OFF)
 
-OPTION(ENABLE_OPENMP "Enable OpenMP Support" ON)
-OPTION(ENABLE_MPI "Enable MPI Support" OFF)
-OPTION(ENABLE_GASPI "Enable GASPI Support" OFF)
+OPTION(SCHEDULING "Enable OpenMP Support" ON)
 
-# INIT CMAKE
+SET(BPMF_NUMLATENT 32 CACHE INT "Number of latent dimensions") 
 
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g -fstrict-aliasing")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -fPIC")
+SET(BPMF_COMM "NO_COMM" CACHE STRING "Communication library used")
+SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS 
+  GPI_COMM 
+  MPI_ISENDIRECV_COMM 
+  MPI_PUT_COMM 
+  MPI_ALLREDUCE_COMM 
+  MPI_BCAST_COMM 
+  NO_COMM)
+
 
 set(CMAKE_CXX_STANDARD 14)
 
@@ -49,36 +54,25 @@ endif()
 
 message(STATUS "GIT describe ${BPMF_VERSION}")
 
-string(REGEX REPLACE "-[^-]+$"
-    "" BPMF_VERSION_CLEAN
-    ${BPMF_VERSION})
-
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
+add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
+add_definitions(-DBPMF_${BPMF_COMM})
 
-message(STATUS "Cleaned version: ${BPMF_VERSION_CLEAN}")
-
-add_definitions(-DBPMF_NUMLATENT=32)
-
-# CONFIGURE DEPENDENCIES
-if(ENABLE_MPI)
+if(BPMF_COMM MATCHES ^MPI)
   find_package(MPI REQUIRED)
-  add_definitions(-DBPMF_MPI_ISENDIRECV_COMM)
-elif(ENABLE_GASPI)
+elif(BPMF_COMM MATCHES ^GPI)
   find_package(GASPI REQUIRED)
-  add_definitions(-DBPMF_GPI_COMM)
-else()
-  add_definitions(-DBPMF_NO_COMM)
 endif()
 
 if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
-  add_definitions(-DBPMF_NO_COMM)
 endif()
 
 find_package(Eigen3 REQUIRED)
+find_library(z REQUIRED)
 
 if(${ENABLE_PROFILING})
-    add_definitions(-DPROFILING)
+    add_definitions(-DBPMF_PROFILING)
 endif()
 
 include_directories(cpp)
@@ -87,5 +81,5 @@ FILE (GLOB SOURCE_FILES "c++/*.cpp" "c++/*.h")
 
 #SETUP OUTPUT
 add_executable (bpmf ${SOURCE_FILES})
-target_link_libraries (bpmf Eigen3::Eigen)
+target_link_libraries (bpmf Eigen3::Eigen z)
 
