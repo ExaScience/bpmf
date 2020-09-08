@@ -81,6 +81,7 @@ target_link_libraries (bpmf Eigen3::Eigen z)
 
 if(BPMF_COMM MATCHES ^.PI)
   find_package(MPI REQUIRED)
+  set(MPIRUN mpirun -np 4)
   target_link_libraries (bpmf MPI::MPI_C)
   if(BPMF_COMM MATCHES ^GPI)
     find_package(GASPI REQUIRED)
@@ -88,3 +89,14 @@ if(BPMF_COMM MATCHES ^.PI)
   endif()
 endif()
 
+enable_testing()
+
+add_test(bpmf_uncompressed ${MPIRUN} bpmf -i 4 
+  -n ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-train.mtx
+  -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx
+)
+
+add_test(bpmf_compressed ${MPIRUN} bpmf -i 4 
+  -n ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-train.mtx.gz
+  -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx.gz
+)
