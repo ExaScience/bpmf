@@ -82,7 +82,7 @@ add_executable (bpmf ${SOURCE_FILES})
 target_link_libraries (bpmf Eigen3::Eigen z)
 
 if(BPMF_COMM MATCHES ^.PI)
-  find_package(MPI REQUIRED)
+  find_package(MPI REQUIRED COMPONENTS C)
   set(MPIRUN mpirun -np 4)
   target_link_libraries (bpmf MPI::MPI_C)
   if(BPMF_COMM MATCHES ^GPI)
