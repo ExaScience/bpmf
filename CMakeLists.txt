@@ -105,8 +105,6 @@ add_test(bpmf_compressed ${MPIRUN} bpmf -i 4
   -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx.gz
 )
 
-if(BPMF_COMM STREQUAL "NO_COMM")
-  add_test(NAME bpmf_tiny_rmse 
-    COMMAND ./run_test.sh "${MPIRUN} ${CMAKE_CURRENT_BINARY_DIR}/bpmf" 4.1
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/tiny)
-endif()
+#  add_test(NAME bpmf_tiny_rmse 
+#    COMMAND ./run_test.sh "${MPIRUN} ${CMAKE_CURRENT_BINARY_DIR}/bpmf" 4.1
+#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/tiny)
