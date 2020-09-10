@@ -59,8 +59,6 @@ add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 add_definitions(-DBPMF_${BPMF_COMM})
 
-
-
 if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
 endif()
@@ -87,7 +85,7 @@ if(BPMF_COMM MATCHES ^.PI)
     find_path(GASPI_INCLUDE_DIR GASPI.h REQUIRED)
     include_directories(${GASPI_INCLUDE_DIR})
     find_library(GASPI_LIBRARY GPI2 REQUIRED)
-    target_link_libraries (bpmf $GASPI_LIBRARY)
+    target_link_libraries (bpmf ${GASPI_LIBRARY})
   endif()
 endif()
 
@@ -102,3 +100,5 @@ add_test(bpmf_compressed ${MPIRUN} bpmf -i 4
   -n ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-train.mtx.gz
   -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx.gz
 )
+
+add_test(bpmf_checlrmse cd ${CMAKE_CURRENT_SOURCE_DIR}/data/tiny && ./run_test.sh bpmf 4.1)
