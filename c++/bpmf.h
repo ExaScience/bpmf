@@ -128,7 +128,7 @@ struct Sys {
     virtual void alloc_and_init() = 0;
 
     //-- sparse matrix
-    SparseMatrixD M;        // known ratings
+    SparseMatrixD M; // known ratings
     double mean_rating;
     int num() const { return M.cols(); }
     int nnz() const { return M.nonZeros(); }
@@ -204,10 +204,13 @@ struct Sys {
     void bcast_sum_cov_norm();
     virtual void sample(Sys &in);
 
-    //-- sum of all U-vectors
-    VectorNd sum;
-
     //-- covariance
+    double *sum_ptr;
+    MapNXd sum_map() const { return MapNXd(sum_ptr, num_latent, Sys::nprocs); }
+    MapNXd::ColXpr sum(int i)  const { return sum_map().col(i); }
+    MapNXd::ColXpr local_sum() const { return sum(Sys::procid); }
+    VectorNd aggr_sum() const { return sum_map().rowwise().sum(); }
+
     double *cov_ptr;
     MapNXd cov_map() const { return MapNXd(cov_ptr, num_latent, Sys::nprocs * num_latent); }
     MapNXd cov(int i) const { return MapNXd(cov_ptr + i*num_latent*num_latent, num_latent, num_latent); }
@@ -227,7 +230,7 @@ struct Sys {
 
     //-- hyper params
     HyperParams hp;
-    virtual void sample_hp() { hp.sample(num(), sum, aggr_cov()); }
+    virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)

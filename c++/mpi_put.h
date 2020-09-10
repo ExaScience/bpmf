@@ -30,18 +30,22 @@ void MPI_Sys::alloc_and_init()
 {
  
     const int items_size = sizeof(double) * num_latent * num();
+    const int sum_size   = sizeof(double) * num_latent * Sys::nprocs;
     const int cov_size   = sizeof(double) * num_latent * num_latent * Sys::nprocs;
     const int norm_size  = sizeof(double) * Sys::nprocs;
 
     MPI_Alloc_mem(items_size, MPI_INFO_NULL, &items_ptr);
+    MPI_Alloc_mem(sum_size,   MPI_INFO_NULL, &sum_ptr);
     MPI_Alloc_mem(cov_size,   MPI_INFO_NULL, &cov_ptr);
     MPI_Alloc_mem(norm_size,  MPI_INFO_NULL, &norm_ptr);
 
     MPI_Win_create(items_ptr, items_size, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &items_win); 
+    MPI_Win_create(sum_ptr,   sum_size,   sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &sum_win); 
     MPI_Win_create(cov_ptr,   cov_size,   sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &cov_win); 
     MPI_Win_create(norm_ptr,  norm_size,  sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &norm_win); 
 
     MPI_Win_fence(0,items_win);
+    MPI_Win_fence(0,sum_win);
     MPI_Win_fence(0,cov_win);
     MPI_Win_fence(0,norm_win);
 
@@ -76,6 +80,12 @@ void MPI_Sys::sample(Sys &in)
         for(int k = 0; k < Sys::nprocs; k++) {
             if (k == Sys::procid) continue;
             auto base = Sys::procid;
+            {
+                //-- sum
+                auto offset = base * num_latent;
+                auto size = num_latent;
+                MPI_Put(sum_ptr+offset, size, MPI_DOUBLE, k, offset, size, MPI_DOUBLE, sum_win); 
+            }
             {
                 //-- cov
                 auto offset = base * num_latent * num_latent;
