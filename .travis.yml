@@ -4,19 +4,25 @@ dist: xenial
 
 matrix:
   include:
-    - env: BUILD_TYPE="nocomm-omp"
-    - env: BUILD_TYPE="nocomm-ser"
-    - env: BUILD_TYPE="nocomm-omp-reduce"
-    - env: BUILD_TYPE="nocomm-ser-reduce"
-    - env: BUILD_TYPE="mpi-pure"
-    - env: BUILD_TYPE="mpi-omp"
-    - env: BUILD_TYPE="mpi-allreduce-omp"
-    - env: BUILD_TYPE="mpi-bcast-omp"
-    - env: BUILD_TYPE="mpi-put-omp"
+    - env: CMAKE_FLAGS="-DBPMF_COMM=NO_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=OFF"
+    - env: CMAKE_FLAGS="-DBPMF_COMM=NO_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=OFF"
+    - env: CMAKE_FLAGS="-DBPMF_COMM=NO_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=ON"
+    - env: CMAKE_FLAGS="-DBPMF_COMM=NO_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=ON"
+
+    - env: CMAKE_FLAGS="-DBPMF_COMM=MPI_ISEND_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=OFF"
+    - env: CMAKE_FLAGS="-DBPMF_COMM=MPI_ISEND_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=OFF"
+
+    - env: CMAKE_FLAGS="-DBPMF_COMM=MPI_PUT_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=OFF"
+    - env: CMAKE_FLAGS="-DBPMF_COMM=MPI_PUT_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=OFF"
+
+    - env: CMAKE_FLAGS="-DBPMF_COMM=MPI_BCAST_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=OFF"
+    - env: CMAKE_FLAGS="-DBPMF_COMM=MPI_BCAST_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=OFF"
+
+    - env: CMAKE_FLAGS="-DBPMF_COMM=MPI_ALLREDUCE_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=OFF"
+    - env: CMAKE_FLAGS="-DBPMF_COMM=MPI_ALLREDUCE_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=OFF"
 
 env:
   global:
-    - MAKEFLAGS="-j 2"
     - OMPI_MCA_btl=tcp,self
 
 addons:
@@ -33,6 +39,7 @@ addons:
 
 script:
     - cd "${TRAVIS_BUILD_DIR}"
-    - cd build/makefiles/${BUILD_TYPE}
+    - mkdir build && cd build 
+    - cmake .. $CMAKE_FLAGS
     - make
     - make test

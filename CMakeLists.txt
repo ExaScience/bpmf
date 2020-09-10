@@ -8,14 +8,15 @@ OPTION(ENABLE_PROFILING "Enable performance counters" OFF)
 OPTION(ENABLE_ASAN "Enable address sanitizer" OFF)
 OPTION(ENABLE_TSAN "Enable thread sanitizer" OFF)
 
-OPTION(SCHEDULING "Enable OpenMP Support" ON)
+OPTION(ENABLE_OPENMP "Enable OpenMP Support" ON)
+OPTION(ENABLE_REDUCE "Reduce Mu/Lambda version" OFF)
 
 SET(BPMF_NUMLATENT 32 CACHE INT "Number of latent dimensions") 
 
 SET(BPMF_COMM "NO_COMM" CACHE STRING "Communication library used")
 SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS 
   GPI_COMM 
-  MPI_ISENDIRECV_COMM 
+  MPI_ISEND_COMM 
   MPI_PUT_COMM 
   MPI_ALLREDUCE_COMM 
   MPI_BCAST_COMM 
@@ -58,6 +59,9 @@ message(STATUS "comm: ${BPMF_COMM}")
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 add_definitions(-DBPMF_${BPMF_COMM})
+if (ENABLE_REDUCE)
+  add_definitions(-DBPMF_REDUCE)
+endif()
 
 if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
