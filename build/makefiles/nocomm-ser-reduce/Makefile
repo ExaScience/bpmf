@@ -1,4 +1,0 @@
-CFLAGS+=-DBPMF_NO_COMM  -DBPMF_PROFILING
-CFLAGS+=-DBPMF_REDUCE
-
-include ../Makefile.common

@@ -79,7 +79,7 @@ target_link_libraries (bpmf Eigen3::Eigen z)
 
 if(BPMF_COMM MATCHES ^.PI)
   find_package(MPI REQUIRED)
-  set(MPIRUN "mpirun -np 4")
+  set(MPIRUN mpirun -np 4)
   target_link_libraries (bpmf MPI::MPI_C)
   if(BPMF_COMM MATCHES ^GPI)
     find_path(GASPI_INCLUDE_DIR GASPI.h REQUIRED)
@@ -101,6 +101,8 @@ add_test(bpmf_compressed ${MPIRUN} bpmf -i 4
   -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx.gz
 )
 
-add_test(NAME bpmf_tiny_rmse 
-  COMMAND ./run_test.sh "${MPIRUN} ${CMAKE_CURRENT_BINARY_DIR}/bpmf" 4.1
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/tiny)
+if(BPMF_COMM STREQUAL "NO_COMM")
+  add_test(NAME bpmf_tiny_rmse 
+    COMMAND ./run_test.sh "${MPIRUN} ${CMAKE_CURRENT_BINARY_DIR}/bpmf" 4.1
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/tiny)
+endif()
