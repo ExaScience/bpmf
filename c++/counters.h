@@ -9,7 +9,7 @@
 
 #include <string>
 #include <map>
-#include <thread_vector.h>
+#include "thread_vector.h"
 
 #define BPMF_COUNTER(name) Counter c(name)
 
