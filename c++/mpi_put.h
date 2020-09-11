@@ -59,6 +59,8 @@ void MPI_Sys::sample(Sys &in)
         Sys::sample(in);
     }
 
+    bcast_sum_cov_norm();
+
     {
         BPMF_COUNTER("fence");
         MPI_Win_fence(0,items_win);
