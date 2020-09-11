@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
         auto stop = tick();
         double items_per_sec = (users.num() + movies.num()) / (stop - start);
         double ratings_per_sec = (users.nnz()) / (stop - start);
-        movies.print(items_per_sec, ratings_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
+        movies.print(items_per_sec, ratings_per_sec, sqrt(users.norm), sqrt(movies.norm));
         average_items_sec += items_per_sec;
         average_ratings_sec += ratings_per_sec;
 

@@ -174,8 +174,8 @@ void Sys::init()
     mean_rating = M.sum() / M.nonZeros();
     items().setZero();
     sum.setZero();
-    cov_map().setZero();
-    norm_map().setZero();
+    cov.setZero();
+    norm = 0.;
     col_permutation.setIdentity(num());
 
 #ifdef BPMF_REDUCE
@@ -377,11 +377,10 @@ void Sys::sample(Sys &other)
 
     sum = sums.combine();
     MatrixNNd prod = prods.combine();   
-    double norm = norms.combine();
+    norm = norms.combine();
 
     const int N = num();
-    local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
-    local_norm() = norm;
+    cov = (prod - (sum * sum.transpose() / N)) / (N-1);
 }
 
 void Sys::register_time(int i, double t)

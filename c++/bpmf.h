@@ -204,30 +204,13 @@ struct Sys {
     void bcast_sum_cov_norm();
     virtual void sample(Sys &in);
 
-    //-- sum of all U-vectors
-    VectorNd sum;
-
-    //-- covariance
-    double *cov_ptr;
-    MapNXd cov_map() const { return MapNXd(cov_ptr, num_latent, Sys::nprocs * num_latent); }
-    MapNXd cov(int i) const { return MapNXd(cov_ptr + i*num_latent*num_latent, num_latent, num_latent); }
-    MapNXd local_cov() { return cov(Sys::procid); }
-    MatrixNNd aggr_cov() const { 
-        MatrixNNd ret(MatrixNNd::Zero());
-        for(int i=0; i<Sys::nprocs; ++i) ret += cov(i);
-        return ret;
-    }
-
-    // norm
-    double *norm_ptr;
-    MapXd norm_map() const { return MapXd(norm_ptr, Sys::nprocs); }
-    double &norm(int i) const { return norm_ptr[i]; }
-    double &local_norm() const { return norm(Sys::procid); }
-    double aggr_norm() const { return norm_map().sum(); }
+    VectorNd sum;  //-- sum of all U-vectors
+    MatrixNNd cov; //-- covariance
+    double norm; 
 
     //-- hyper params
     HyperParams hp;
-    virtual void sample_hp() { hp.sample(num(), sum, aggr_cov()); }
+    virtual void sample_hp() { hp.sample(num(), sum, cov); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)

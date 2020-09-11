@@ -29,20 +29,10 @@ void MPI_Sys::alloc_and_init()
 {
  
     const int items_size = sizeof(double) * num_latent * num();
-    const int cov_size   = sizeof(double) * num_latent * num_latent * Sys::nprocs;
-    const int norm_size  = sizeof(double) * Sys::nprocs;
 
     MPI_Alloc_mem(items_size, MPI_INFO_NULL, &items_ptr);
-    MPI_Alloc_mem(cov_size,   MPI_INFO_NULL, &cov_ptr);
-    MPI_Alloc_mem(norm_size,  MPI_INFO_NULL, &norm_ptr);
-
     MPI_Win_create(items_ptr, items_size, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &items_win); 
-    MPI_Win_create(cov_ptr,   cov_size,   sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &cov_win); 
-    MPI_Win_create(norm_ptr,  norm_size,  sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &norm_win); 
-
     MPI_Win_fence(0,items_win);
-    MPI_Win_fence(0,cov_win);
-    MPI_Win_fence(0,norm_win);
 
     init();
 }
@@ -70,32 +60,8 @@ void MPI_Sys::sample(Sys &in)
     }
 
     {
-        BPMF_COUNTER("reduce");
-
-        for(int k = 0; k < Sys::nprocs; k++) {
-            if (k == Sys::procid) continue;
-            auto base = Sys::procid;
-            {
-                //-- cov
-                auto offset = base * num_latent * num_latent;
-                auto size = num_latent * num_latent;
-                MPI_Put(cov_ptr+offset, size, MPI_DOUBLE, k, offset, size, MPI_DOUBLE, cov_win); 
-            }
-            {
-                //-- norm
-                auto offset = base;
-                auto size = 1;
-                MPI_Put(norm_ptr+offset, size, MPI_DOUBLE, k, offset, size, MPI_DOUBLE, norm_win); 
-            }
-        }
-    }
-
-    {
         BPMF_COUNTER("fence");
-
         MPI_Win_fence(0,items_win);
-        MPI_Win_fence(0,cov_win);
-        MPI_Win_fence(0,norm_win);
     }
 }
 

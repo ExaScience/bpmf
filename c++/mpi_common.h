@@ -35,8 +35,6 @@ void Sys::Abort(int err)
 void MPI_Sys::alloc_and_init()
 {
     items_ptr = (double *)malloc(sizeof(double) * num_latent * num());
-    cov_ptr = (double *)malloc(sizeof(double) * num_latent * num_latent * MPI_Sys::nprocs);
-    norm_ptr = (double *)malloc(sizeof(double) * MPI_Sys::nprocs);
 
     init();
 }
@@ -50,7 +48,7 @@ void MPI_Sys::bcast_sum_cov_norm()
     {
         //sum, cov, norm
         MPI_Allreduce(MPI_IN_PLACE, sum.data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Bcast(cov(k).data(), cov(k).size(), MPI_DOUBLE, k, MPI_COMM_WORLD);
-        MPI_Bcast(&norm(k), 1, MPI_DOUBLE, k, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, cov.data(), num_latent * num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     }
 }

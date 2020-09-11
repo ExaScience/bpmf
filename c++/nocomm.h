@@ -29,9 +29,6 @@ void Sys::Finalize()
 void NC_Sys::alloc_and_init()
 {
     items_ptr = (double *)malloc(sizeof(double) * num_latent * num());
-    cov_ptr = (double *)malloc(sizeof(double) * num_latent * num_latent * NC_Sys::nprocs);
-    norm_ptr = (double *)malloc(sizeof(double) * NC_Sys::nprocs);
-
     init();
 }
 
