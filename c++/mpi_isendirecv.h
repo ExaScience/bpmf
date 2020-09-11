@@ -163,7 +163,7 @@ struct MPI_Sys : public Sys
     virtual void alloc_and_init();
 
     // common 
-    void bcast_sum_cov_norm();
+    void reduce_sum_cov_norm();
 
     //-- local status
     typedef std::pair<int,VectorNd> ElBuf;
@@ -216,7 +216,7 @@ void MPI_Sys::sample(Sys &in)
     for(auto b : rb) { delete b; } rb.clear();
     
     //Sys::cout() << Sys::procid << ": ------------ doing bcast --------------\n";
-    bcast_sum_cov_norm();
+    reduce_sum_cov_norm();
 }
 
 void MPI_Sys::send_item(int i)

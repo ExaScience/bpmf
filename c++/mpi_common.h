@@ -41,9 +41,9 @@ void MPI_Sys::alloc_and_init()
 #endif
 
 
-void MPI_Sys::bcast_sum_cov_norm()
+void MPI_Sys::reduce_sum_cov_norm()
 {
-    BPMF_COUNTER("bcast");
+    BPMF_COUNTER("reduce_sum_cov_norm");
     MPI_Allreduce(MPI_IN_PLACE, sum.data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, cov.data(), num_latent * num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);

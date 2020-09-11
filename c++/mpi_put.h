@@ -17,7 +17,7 @@ struct MPI_Sys : public Sys
     virtual void send_item(int i);
     virtual void sample(Sys &in);
 
-    void bcast_sum_cov_norm();
+    void reduce_sum_cov_norm();
 
     MPI_Win items_win;
     MPI_Win cov_win;
@@ -59,7 +59,7 @@ void MPI_Sys::sample(Sys &in)
         Sys::sample(in);
     }
 
-    bcast_sum_cov_norm();
+    reduce_sum_cov_norm();
 
     {
         BPMF_COUNTER("fence");
