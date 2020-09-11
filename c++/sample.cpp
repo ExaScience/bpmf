@@ -173,7 +173,7 @@ void Sys::init()
     assert(M.rows() > 0 && M.cols() > 0);
     mean_rating = M.sum() / M.nonZeros();
     items().setZero();
-    sum_map().setZero();
+    sum.setZero();
     cov_map().setZero();
     norm_map().setZero();
     col_permutation.setIdentity(num());
@@ -375,12 +375,11 @@ void Sys::sample(Sys &other)
     }
 #pragma omp taskwait
 
-    VectorNd sum = sums.combine();
+    sum = sums.combine();
     MatrixNNd prod = prods.combine();   
     double norm = norms.combine();
 
     const int N = num();
-    local_sum() = sum;
     local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
     local_norm() = norm;
 }
