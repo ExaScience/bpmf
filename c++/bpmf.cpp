@@ -169,16 +169,8 @@ int main(int argc, char *argv[])
         BPMF_COUNTER("main");
         auto start = tick();
 
-        {
-            BPMF_COUNTER("movies");
-            movies.sample_hp();
-            movies.sample(users);
-        }
-        {
-            BPMF_COUNTER("users");
-            users.sample_hp();
-            users.sample(movies);
-        }
+        { BPMF_COUNTER("movies"); movies.sample(users); }
+        { BPMF_COUNTER("users"); users.sample(movies); }
 
         { 
             BPMF_COUNTER("eval");

@@ -347,6 +347,8 @@ void Sys::sample(Sys &other)
     thread_vector<double>    norms(0.0); // squared norm
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
+    sample_hp();
+
 #ifdef BPMF_REDUCE
     other.precMu.setZero();
     other.precLambda.setZero();
