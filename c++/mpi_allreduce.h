@@ -26,7 +26,14 @@ void MPI_Sys::sample(Sys &in)
     {
         BPMF_COUNTER("communicate");
 
-        reduce_sum_cov_norm();
+        // 1. -- Worker sends updates to PS
+        //     - sends norm, cov and sum 
+        //     - sends precMu, precLambda
+
+        /* CODE HERE */
+
+        // 2. -- PS combines precMu, precLambda
+        //       Reduction for each movie/user accross workers
 
         for (int i = 0; i < nprocs; i++)
         {
@@ -46,6 +53,11 @@ void MPI_Sys::sample(Sys &in)
             }
         }
 
+        // 3. -- PS sends combined precMu, precLambda
+        //          sends cov/norm/sum
+
+        // 4. -- Worker reduces sum/norm/cov
+        reduce_sum_cov_norm();
     }
 
     { BPMF_COUNTER("compute"); Sys::sample(in); }
