@@ -26,6 +26,7 @@ void MPI_Sys::sample(Sys &in)
     {
         BPMF_COUNTER("communicate");
 
+        reduce_sum_cov_norm();
 
         for (int i = 0; i < nprocs; i++)
         {
@@ -50,7 +51,6 @@ void MPI_Sys::sample(Sys &in)
     { BPMF_COUNTER("compute"); Sys::sample(in); }
 
 
-    reduce_sum_cov_norm();
 }
 
 #include "mpi_common.h"
