@@ -35,23 +35,8 @@ void MPI_Sys::sample(Sys &in)
         // 2. -- PS combines precMu, precLambda
         //       Reduction for each movie/user accross workers
 
-        for (int i = 0; i < nprocs; i++)
-        {
-            auto col = from(i);
-            auto num_cols = num(i);
-
-            {
-                auto recv_buf = precMu.col(col).data();
-                auto send_buf = (i == procid) ? MPI_IN_PLACE : recv_buf;
-                MPI_Reduce(send_buf, recv_buf, num_cols * num_latent, MPI_DOUBLE, MPI_SUM, i, MPI_COMM_WORLD);
-            }
-
-            {
-                auto recv_buf = precLambda.col(col).data();
-                auto send_buf = (i == procid) ? MPI_IN_PLACE : recv_buf;
-                MPI_Reduce(send_buf, recv_buf, num_cols * num_latent * num_latent, MPI_DOUBLE, MPI_SUM, i, MPI_COMM_WORLD);
-            }
-        }
+        MPI_Allreduce(MPI_IN_PLACE, precMu.data(), precMu.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, precLambda.data(), precLambda.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
         // 3. -- PS sends combined precMu, precLambda
         //          sends cov/norm/sum
