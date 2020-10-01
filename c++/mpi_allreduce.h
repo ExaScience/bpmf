@@ -25,24 +25,11 @@ void MPI_Sys::sample(Sys &in)
 {
     {
         BPMF_COUNTER("communicate");
-
-        // 1. -- Worker sends updates to PS
-        //     - sends norm, cov and sum 
-        //     - sends precMu, precLambda
-
-        /* CODE HERE */
-
-        // 2. -- PS combines precMu, precLambda
-        //       Reduction for each movie/user accross workers
-
+        MPI_Allreduce(MPI_IN_PLACE, sum.data(), sum.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, cov.data(), cov.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(MPI_IN_PLACE, precMu.data(), precMu.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(MPI_IN_PLACE, precLambda.data(), precLambda.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-        // 3. -- PS sends combined precMu, precLambda
-        //          sends cov/norm/sum
-
-        // 4. -- Worker reduces sum/norm/cov
-        reduce_sum_cov_norm();
     }
 
     { BPMF_COUNTER("compute"); Sys::sample(in); }
