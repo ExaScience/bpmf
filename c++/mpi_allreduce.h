@@ -21,22 +21,9 @@ struct MPI_Sys : public Sys
 };
 
 
-void MPI_Sys::sample(Sys &in)
-{
-    {
-        BPMF_COUNTER("communicate");
-        MPI_Allreduce(MPI_IN_PLACE, sum.data(), sum.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Allreduce(MPI_IN_PLACE, cov.data(), cov.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Allreduce(MPI_IN_PLACE, precMu.data(), precMu.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Allreduce(MPI_IN_PLACE, precLambda.data(), precLambda.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    }
 
-    { BPMF_COUNTER("compute"); Sys::sample(in); }
 
-}
-
-struct Block
+struct AllReduceBlock
 {
     std::vector<double> all_data;
 
@@ -54,19 +41,13 @@ struct Block
     Eigen::Map<Eigen::MatrixXd> precMu_map() { return Eigen::Map<Eigen::MatrixXd>(precMu_ptr, precMu_rows, precMu_cols); }
     Eigen::Map<Eigen::MatrixXd> precLambda_map() { return Eigen::Map<Eigen::MatrixXd>(precLambda_ptr, precLambda_rows, precLambda_cols); }
 
-    Block(
+    AllReduceBlock(
         const VectorNd &sum,  //-- sum of all U-vectors
         const MatrixNNd &cov, //-- covariance
         double norm,
         const Eigen::MatrixXd &precMu,
         const Eigen::MatrixXd &precLambda
-    ) : all_data(
-            sum.nonZeros() +
-            cov.nonZeros() +
-            1 +
-            precMu.nonZeros() +
-            precLambda.nonZeros()
-        )
+    ) : all_data(sum.nonZeros() + cov.nonZeros() + 1 + precMu.nonZeros() + precLambda.nonZeros())
     {
         double *p = all_data.data();
 
@@ -100,6 +81,31 @@ struct Block
     }
 }; 
 
+void MPI_Sys::sample(Sys &in)
+{
+    if (0) {
+        BPMF_COUNTER("communicate");
+        MPI_Allreduce(MPI_IN_PLACE, sum.data(), sum.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, cov.data(), cov.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, precMu.data(), precMu.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, precLambda.data(), precLambda.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    } else {
+        AllReduceBlock block(sum, cov, norm, precMu, precLambda);
+
+        MPI_Allreduce(MPI_IN_PLACE, block.all_data.data(), block.all_data.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+        sum = block.sum_map();
+        cov = block.cov_map();
+        norm = block.norm_ref();
+        precMu = block.precMu_map();
+        precLambda = block.precLambda_map();
+
+    }
+
+    { BPMF_COUNTER("compute"); Sys::sample(in); }
+
+}
 /*
         Block b; // layout sum, cov, norm, mu, Lambda
         b << sum << cov << norm << precMu << precLambda;
