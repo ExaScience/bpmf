@@ -29,8 +29,18 @@ The single node OpenMP version of BPMF can be installed using Conda::
 Building the C++ version
 ------------------------
 
-See the `README <build/makefiles/README.rst>`_ in `build/makefiles`
+CMake is used. The most interesting CMake options are:
 
+- ENABLE_OPENMP: Enable OpenMP Support
+- ENABLE_REDUCE: Reduce Mu/Lambda version
+- BPMF_NUMLATENT: Number of latent dimensions
+- BPMF_COMM: Communication library used, one of
+   - GPI_COMM 
+   - MPI_ISEND_COMM 
+   - MPI_PUT_COMM 
+   - MPI_ALLREDUCE_COMM 
+   - MPI_BCAST_COMM 
+   - NO_COMM
 
 Running the C++ version
 -----------------------
