@@ -221,6 +221,18 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
     void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
 };
 
+void Sys::preComputeMuLambda(const Sys &other)
+{
+#pragma omp parallel for schedule(guided)
+    for (int i = 0; i < num(); ++i)
+    {
+        VectorNd mu = VectorNd::Zero();
+        MatrixNNd Lambda = MatrixNNd::Zero();
+        computeMuLambda(i, other, mu, Lambda, true);
+        precLambdaMatrix(i) = Lambda;
+        precMu.col(i) = mu;
+    }
+}
 
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
 {
@@ -311,15 +323,7 @@ void Sys::sample(Sys &other)
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
 #ifdef BPMF_REDUCE
-#pragma omp parallel for schedule(guided)
-    for (int i = 0; i < num(); ++i)
-    {
-        VectorNd mu = VectorNd::Zero();
-        MatrixNNd Lambda = MatrixNNd::Zero();
-        computeMuLambda(i, other, mu, Lambda, true);
-        precLambdaMatrix(i) = Lambda;
-        precMu.col(i) = mu;
-    }
+    preComputeMuLambda(other);
 #endif
 
 #pragma omp parallel for schedule(guided)

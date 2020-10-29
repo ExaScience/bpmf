@@ -177,6 +177,7 @@ struct Sys {
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
+    void preComputeMuLambda(const Sys &other);
     void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
 
 #ifdef BPMF_REDUCE
