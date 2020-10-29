@@ -182,15 +182,12 @@ struct Sys {
     void preComputeMuLambda(const Sys &other);
     void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
 
-#ifdef BPMF_REDUCE
     //-- to pre-compute Lambda/Mu from other side
     Eigen::MatrixXd precMu, precLambda;
     Eigen::Map<MatrixNNd> precLambdaMatrix(int idx) 
     {
         return Eigen::Map<MatrixNNd>(precLambda.col(idx).data());
     }
-
-#endif
 
     //-- for propagated posterior
     Eigen::MatrixXd propMu, propLambda;
