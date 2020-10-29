@@ -223,6 +223,7 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
 {
+    BPMF_COUNTER("computeMuLambda");
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).
     if (count < breakpoint2)
@@ -320,11 +321,18 @@ VectorNd Sys::sample(long idx, Sys &other)
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
 #ifdef BPMF_REDUCE
-    #pragma omp critical
+    {
+        BPMF_COUNTER("update_Lambda");
+
+        MatrixNNd Lambda_update;
+        Lambda_update.triangularView<Eigen::Upper>() = rr * rr.transpose();
+
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
-        other.precLambdaMatrix(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
-        other.precMu.col(it.row()).noalias() += rr * (it.value() - mean_rating) * alpha;
+            other.precLambdaMatrix(it.row()).triangularView<Eigen::Upper>() += Lambda_update;
+            VectorNd mu_update = rr * (it.value() - mean_rating) * alpha;
+            other.precMu.col(it.row()).noalias() += mu_update;
+        }
     }
 #endif
 
