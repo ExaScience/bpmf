@@ -320,22 +320,6 @@ VectorNd Sys::sample(long idx, Sys &other)
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
-#ifdef BPMF_REDUCE
-    {
-        BPMF_COUNTER("update_Lambda");
-
-        MatrixNNd Lambda_update;
-        Lambda_update.triangularView<Eigen::Upper>() = rr * rr.transpose();
-
-    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
-    {
-            other.precLambdaMatrix(it.row()).triangularView<Eigen::Upper>() += Lambda_update;
-            VectorNd mu_update = rr * (it.value() - mean_rating) * alpha;
-            other.precMu.col(it.row()).noalias() += mu_update;
-        }
-    }
-#endif
-
     auto stop = tick();
     register_time(idx, 1e6 * (stop - start));
     //Sys::cout() << "  " << count << ": " << 1e6*(stop - start) << std::endl;
@@ -356,8 +340,15 @@ void Sys::sample(Sys &other)
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
 #ifdef BPMF_REDUCE
-    other.precMu.setZero();
-    other.precLambda.setZero();
+#pragma omp parallel for schedule(guided)
+    for (int i = from(); i < to(); ++i)
+    {
+        VectorNd mu = VectorNd::Zero();
+        MatrixNNd Lambda = MatrixNNd::Zero();
+        computeMuLambda(i, other, mu, Lambda);
+        precLambdaMatrix(i) = Lambda;
+        precMu.col(i) = mu;
+    }
 #endif
 
 #pragma omp parallel for schedule(guided)
