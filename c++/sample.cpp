@@ -322,9 +322,6 @@ void Sys::sample(Sys &other)
     thread_vector<double>    norms(0.0); // squared norm
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
-#ifdef BPMF_REDUCE
-    preComputeMuLambda(other);
-#endif
 
 #pragma omp parallel for schedule(guided)
     for (int i = from(); i < to(); ++i)
@@ -348,6 +345,10 @@ void Sys::sample(Sys &other)
         }
     }
 #pragma omp taskwait
+
+#ifdef BPMF_REDUCE
+    other.preComputeMuLambda(*this);
+#endif
 
     VectorNd sum = sums.combine();
     MatrixNNd prod = prods.combine();   
