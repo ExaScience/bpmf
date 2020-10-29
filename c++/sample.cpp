@@ -223,6 +223,7 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 
 void Sys::preComputeMuLambda(const Sys &other)
 {
+    BPMF_COUNTER("preComputeMuLambda");
 #pragma omp parallel for schedule(guided)
     for (int i = 0; i < num(); ++i)
     {
