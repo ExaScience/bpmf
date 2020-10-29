@@ -10,6 +10,7 @@
 #include <iostream>
 #include <climits>
 #include <stdexcept>
+#include <cmath>
 
 #include "error.h"
 #include "bpmf.h"
@@ -221,11 +222,12 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 };
 
 
-void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
+void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
 {
     BPMF_COUNTER("computeMuLambda");
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
+        if (local_only && (it.row() < other.from() || it.row() >= other.to())) continue;
         auto col = other.items().col(it.row());
         MM.triangularView<Eigen::Upper>() += col * col.transpose();
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
@@ -263,7 +265,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     rr += precMu.col(idx);
     MM += precLambdaMatrix(idx);
 #else
-    computeMuLambda(idx, other, rr, MM);
+    computeMuLambda(idx, other, rr, MM, false);
 #endif
     
     // copy upper -> lower part, matrix is symmetric.
@@ -310,11 +312,11 @@ void Sys::sample(Sys &other)
 
 #ifdef BPMF_REDUCE
 #pragma omp parallel for schedule(guided)
-    for (int i = from(); i < to(); ++i)
+    for (int i = 0; i < num(); ++i)
     {
         VectorNd mu = VectorNd::Zero();
         MatrixNNd Lambda = MatrixNNd::Zero();
-        computeMuLambda(i, other, mu, Lambda);
+        computeMuLambda(i, other, mu, Lambda, true);
         precLambdaMatrix(i) = Lambda;
         precMu.col(i) = mu;
     }
