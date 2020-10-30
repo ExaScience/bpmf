@@ -210,12 +210,12 @@ int main(int argc, char *argv[])
     auto end = tick();
     auto elapsed = end - begin;
 
+    users.bcast();
+    movies.bcast();
+    movies.predict(users, true);
+
     //-- if we need to generate output files, collect all data on proc 0
     if (Sys::odirname.size()) {
-        users.bcast();
-        movies.bcast();
-        movies.predict(users, true);
-
         // restore original order
         users.unpermuteCols(movies);
         movies.unpermuteCols(users);
