@@ -22,13 +22,9 @@
 #error Define BPMF_NUMLATENT
 #endif
 
-#ifdef BPMF_HYBRID_COMM
-#define BPMF_GPI_COMM
-#define BPMF_MPI_COMM
-#endif
-
 #ifdef BPMF_GPI_COMM
 #define BPMF_MPI_COMM
+#define BPMF_HYBRID_COMM
 #elif defined(BPMF_MPI_PUT_COMM)
 #define BPMF_MPI_COMM
 #elif defined(BPMF_MPI_BCAST_COMM)
