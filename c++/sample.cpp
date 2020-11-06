@@ -50,11 +50,20 @@ void Sys::predict(Sys& other, bool all)
    
     double se(0.0); // squared err
     double se_avg(0.0); // squared avg err
-    unsigned nump(0); // number of predictions
+    num_predict = 0; // number of predictions
 
-    int lo = all ? 0 : from();
-    int hi = all ? num() : to();
-    #pragma omp parallel for reduction(+:se,se_avg,nump)
+    int lo = from();
+    int hi = to();
+    if (all) {
+#ifdef BPMF_REDUCE
+        Sys::cout() << "WARNING: predict all items in test set not available in BPMF_REDUCE mode" << std::endl;
+#else
+        lo = 0;
+        hi = num();
+#endif
+    }
+
+    #pragma omp parallel for reduction(+:se,se_avg,num_predict)
     for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
@@ -79,12 +88,12 @@ void Sys::predict(Sys& other, bool all)
             m2 = (n == 0) ? 0 : m2 + delta * (pred - avg);
             se_avg += sqr(it.value() - avg);
 
-            nump++;
+            num_predict++;
         }
     }
 
-    rmse = sqrt( se / nump );
-    rmse_avg = sqrt( se_avg / nump );
+    rmse = sqrt( se / num_predict );
+    rmse_avg = sqrt( se_avg / num_predict );
 }
 
 //

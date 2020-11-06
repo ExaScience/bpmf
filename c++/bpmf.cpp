@@ -212,13 +212,13 @@ int main(int argc, char *argv[])
 
     users.bcast();
     movies.bcast();
-    movies.predict(users, true);
 
     //-- if we need to generate output files, collect all data on proc 0
     if (Sys::odirname.size()) {
         // restore original order
         users.unpermuteCols(movies);
         movies.unpermuteCols(users);
+        movies.predict(users, true);
 
         if (Sys::procid == 0) {
             // sparse
@@ -234,11 +234,16 @@ int main(int argc, char *argv[])
             write_matrix(Sys::odirname + "/V-mu.ddm", movies.aggrMu);
             write_matrix(Sys::odirname + "/V-Lambda.ddm", movies.aggrLambda);
         }
+    } else {
+        movies.predict(users, true);
     }
 
     if (Sys::procid == 0) {
         Sys::cout() << "Total time: " << elapsed <<endl <<flush;
         Sys::cout() << "Final Avg RMSE: " << movies.rmse_avg <<endl <<flush;
+        Sys::cout() << "  computed on " << movies.num_predict << " items ("
+                    << int(100. * movies.num_predict / movies.T.nonZeros()) 
+                    << "% of total items in test set)" << endl << flush;
         Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
         Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
     }

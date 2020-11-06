@@ -232,6 +232,7 @@ struct Sys {
     SparseMatrixD T, Torig; // test matrix (input)
     SparseMatrixD Pavg, Pm2; // predictions for items in T (output)`
     double rmse, rmse_avg;
+    int num_predict;
     void predict(Sys& other, bool all = false);
     void print(double, double, double, double); 
 
