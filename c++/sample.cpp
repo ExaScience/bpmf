@@ -50,7 +50,7 @@ void Sys::predict(Sys& other, bool all)
    
     double se(0.0); // squared err
     double se_avg(0.0); // squared avg err
-    num_predict = 0; // number of predictions
+    int nump = 0; // number of predictions
 
     int lo = from();
     int hi = to();
@@ -63,7 +63,7 @@ void Sys::predict(Sys& other, bool all)
 #endif
     }
 
-    #pragma omp parallel for reduction(+:se,se_avg,num_predict)
+    #pragma omp parallel for reduction(+:se,se_avg,nump)
     for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
@@ -88,12 +88,13 @@ void Sys::predict(Sys& other, bool all)
             m2 = (n == 0) ? 0 : m2 + delta * (pred - avg);
             se_avg += sqr(it.value() - avg);
 
-            num_predict++;
+            nump++;
         }
     }
 
     rmse = sqrt( se / num_predict );
     rmse_avg = sqrt( se_avg / num_predict );
+    num_predict = nump;
 }
 
 //
