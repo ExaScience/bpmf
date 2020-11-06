@@ -2,4 +2,4 @@
 *.csv
 *.zip
 .vscode
-build
+build*

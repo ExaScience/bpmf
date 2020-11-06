@@ -10,6 +10,7 @@
 #include <iostream>
 #include <climits>
 #include <stdexcept>
+#include <cmath>
 
 #include "error.h"
 #include "bpmf.h"
@@ -49,11 +50,20 @@ void Sys::predict(Sys& other, bool all)
    
     double se(0.0); // squared err
     double se_avg(0.0); // squared avg err
-    unsigned nump(0); // number of predictions
+    num_predict = 0; // number of predictions
 
-    int lo = all ? 0 : from();
-    int hi = all ? num() : to();
-    #pragma omp parallel for reduction(+:se,se_avg,nump)
+    int lo = from();
+    int hi = to();
+    if (all) {
+#ifdef BPMF_REDUCE
+        Sys::cout() << "WARNING: predict all items in test set not available in BPMF_REDUCE mode" << std::endl;
+#else
+        lo = 0;
+        hi = num();
+#endif
+    }
+
+    #pragma omp parallel for reduction(+:se,se_avg,num_predict)
     for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
@@ -78,12 +88,12 @@ void Sys::predict(Sys& other, bool all)
             m2 = (n == 0) ? 0 : m2 + delta * (pred - avg);
             se_avg += sqr(it.value() - avg);
 
-            nump++;
+            num_predict++;
         }
     }
 
-    rmse = sqrt( se / nump );
-    rmse_avg = sqrt( se_avg / nump );
+    rmse = sqrt( se / num_predict );
+    rmse_avg = sqrt( se_avg / num_predict );
 }
 
 //
@@ -220,45 +230,29 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
     void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
 };
 
-
-void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
+void Sys::preComputeMuLambda(const Sys &other)
 {
-    const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
-                                                     // (how many movies watched idx-th user?).
-    if (count < breakpoint2)
+    BPMF_COUNTER("preComputeMuLambda");
+#pragma omp parallel for schedule(guided)
+    for (int i = 0; i < num(); ++i)
     {
-        for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
-        {
-            auto col = other.items().col(it.row());
-            MM.triangularView<Eigen::Upper>() += col * col.transpose();
-            rr.noalias() += col * ((it.value() - mean_rating) * alpha);
-        }
+        VectorNd mu = VectorNd::Zero();
+        MatrixNNd Lambda = MatrixNNd::Zero();
+        computeMuLambda(i, other, mu, Lambda, true);
+        precLambdaMatrix(i) = Lambda;
+        precMu.col(i) = mu;
     }
-    else
+}
+
+void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
+{
+    BPMF_COUNTER("computeMuLambda");
+    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
-        const int task_size = int(count / 100) + 1;
-
-        unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
-        unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
-
-        thread_vector<VectorNd> rrs(VectorNd::Zero());
-        thread_vector<MatrixNNd> MMs(MatrixNNd::Zero());
-
-#pragma omp taskloop shared(rrs, MMs, other) grainsize(task_size)
-        for (unsigned j = from; j < to; j++)
-        {
-            // for each nonzeros elemen in the i-th row of M matrix
-            auto val = M.valuePtr()[j];        // value of the j-th nonzeros element from idx-th row of M matrix
-            auto idx = M.innerIndexPtr()[j];   // index "j" of the element [i,j] from M matrix in compressed M matrix
-            auto col = other.items().col(idx); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
-
-            MMs.local().triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
-            rrs.local().noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
-        }
-
-        // accumulate
-        MM += MMs.combine();
-        rr += rrs.combine();
+        if (local_only && (it.row() < other.from() || it.row() >= other.to())) continue;
+        auto col = other.items().col(it.row());
+        MM.triangularView<Eigen::Upper>() += col * col.transpose();
+        rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
 }
 
@@ -293,7 +287,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     rr += precMu.col(idx);
     MM += precLambdaMatrix(idx);
 #else
-    computeMuLambda(idx, other, rr, MM);
+    computeMuLambda(idx, other, rr, MM, false);
 #endif
     
     // copy upper -> lower part, matrix is symmetric.
@@ -318,15 +312,6 @@ VectorNd Sys::sample(long idx, Sys &other)
     rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
-
-#ifdef BPMF_REDUCE
-    #pragma omp critical
-    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
-    {
-        other.precLambdaMatrix(it.row()).triangularView<Eigen::Upper>() += rr * rr.transpose();
-        other.precMu.col(it.row()).noalias() += rr * (it.value() - mean_rating) * alpha;
-    }
-#endif
 
     auto stop = tick();
     register_time(idx, 1e6 * (stop - start));
@@ -377,7 +362,11 @@ void Sys::sample(Sys &other)
     }
 #pragma omp taskwait
 
-    sum = sums.combine();
+#ifdef BPMF_REDUCE
+    other.preComputeMuLambda(*this);
+#endif
+
+    VectorNd sum = sums.combine();
     MatrixNNd prod = prods.combine();   
     norm = norms.combine();
 

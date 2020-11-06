@@ -22,19 +22,17 @@
 #error Define BPMF_NUMLATENT
 #endif
 
-#ifdef BPMF_HYBRID_COMM
-#define BPMF_GPI_COMM
-#define BPMF_MPI_COMM
-#endif
-
 #ifdef BPMF_GPI_COMM
 #define BPMF_MPI_COMM
+#define BPMF_HYBRID_COMM
 #elif defined(BPMF_MPI_PUT_COMM)
 #define BPMF_MPI_COMM
 #elif defined(BPMF_MPI_BCAST_COMM)
 #define BPMF_MPI_COMM
 #elif defined(BPMF_MPI_ALLREDUCE_COMM)
+#ifndef BPMF_REDUCE
 #define BPMF_REDUCE
+#endif
 #define BPMF_MPI_COMM
 #elif defined(BPMF_MPI_ISEND_COMM)
 #define BPMF_MPI_COMM
@@ -177,17 +175,15 @@ struct Sys {
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
-    void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
+    void preComputeMuLambda(const Sys &other);
+    void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
 
-#ifdef BPMF_REDUCE
     //-- to pre-compute Lambda/Mu from other side
     Eigen::MatrixXd precMu, precLambda;
     Eigen::Map<MatrixNNd> precLambdaMatrix(int idx) 
     {
         return Eigen::Map<MatrixNNd>(precLambda.col(idx).data());
     }
-
-#endif
 
     //-- for propagated posterior
     Eigen::MatrixXd propMu, propLambda;
@@ -216,6 +212,7 @@ struct Sys {
     SparseMatrixD T, Torig; // test matrix (input)
     SparseMatrixD Pavg, Pm2; // predictions for items in T (output)`
     double rmse, rmse_avg;
+    int num_predict;
     void predict(Sys& other, bool all = false);
     void print(double, double, double, double); 
 
