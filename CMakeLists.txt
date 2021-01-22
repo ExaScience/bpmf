@@ -8,10 +8,11 @@ OPTION(ENABLE_PROFILING "Enable performance counters" OFF)
 OPTION(ENABLE_ASAN "Enable address sanitizer" OFF)
 OPTION(ENABLE_TSAN "Enable thread sanitizer" OFF)
 
-OPTION(ENABLE_OPENMP "Enable OpenMP Support" ON)
+OPTION(ENABLE_OPENMP "Enable OpenMP Support" OFF)
+OPTION(ENABLE_OMPSS "Enable OmpSS Support" OFF)
 
 SET(BPMF_NUMLATENT 32 CACHE INT "Number of latent dimensions") 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 11)
 
 # suppress some pesky Eigen 3.3.7 warnings
 if (CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 7.0)
@@ -47,7 +48,7 @@ add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 
 find_package(Eigen3 REQUIRED)
-# find_library(z REQUIRED)
+find_library(z REQUIRED)
 
 if(${ENABLE_PROFILING})
     add_definitions(-DBPMF_PROFILING)
@@ -64,6 +65,13 @@ if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
   target_link_libraries(bpmf OpenMP::OpenMP_CXX)
 endif()
+
+if(ENABLE_OMPSS)
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+  find_package (MCC REQUIRED)
+endif()
+
 
 enable_testing()
 
