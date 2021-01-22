@@ -19,8 +19,6 @@
 static const bool measure_perf = false;
 
 std::ostream *Sys::os;
-int Sys::procid = -1;
-int Sys::nprocs = -1;
 
 int Sys::nsims;
 int Sys::burnin;
@@ -29,7 +27,6 @@ double Sys::alpha = 2.0;
 
 std::string Sys::odirname = "";
 
-bool Sys::permute = true;
 bool Sys::verbose = false;
 
 // verifies that A has the same non-zero structure as B
@@ -99,8 +96,8 @@ void Sys::predict(Sys& other, bool all)
 void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, double norm_m) {
   char buf[1024];
   std::string phase = (iter < Sys::burnin) ? "Burnin" : "Sampling";
-  sprintf(buf, "%d: %s iteration %d:\t RMSE: %3.4f\tavg RMSE: %3.4f\tFU(%6.2f)\tFM(%6.2f)\titems/sec: %6.2f\tratings/sec: %6.2fM\n",
-                    Sys::procid, phase.c_str(), iter, rmse, rmse_avg, norm_u, norm_m, items_per_sec, ratings_per_sec / 1e6);
+  sprintf(buf, "%s iteration %d:\t RMSE: %3.4f\tavg RMSE: %3.4f\tFU(%6.2f)\tFM(%6.2f)\titems/sec: %6.2f\tratings/sec: %6.2fM\n",
+                    phase.c_str(), iter, rmse, rmse_avg, norm_u, norm_m, items_per_sec, ratings_per_sec / 1e6);
   Sys::cout() << buf;
 }
 
@@ -108,9 +105,8 @@ void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, dou
 // Constructor with that reads MTX files
 // 
 Sys::Sys(std::string name, std::string fname, std::string probename)
-    : name(name), iter(-1), assigned(false), dom(nprocs+1)
+    : name(name), iter(-1)
 {
-
     read_matrix(fname, M);
     read_matrix(probename, T);
 
@@ -121,13 +117,14 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
     Pm2 = Pavg = Torig = T; // reference ratings and predicted ratings
     assert(M.rows() == Pavg.rows());
     assert(M.cols() == Pavg.cols());
-    assert(Sys::nprocs <= (int)Sys::max_procs);
 }
 
 //
 // Constructs Sys as transpose of existing Sys
 //
-Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt) : name(name), iter(-1), assigned(false), dom(nprocs+1) {
+Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt)
+   : name(name), iter(-1)
+{
     M = Mt.transpose();
     Pm2 = Pavg = T = Torig = Pt.transpose(); // reference ratings and predicted ratings
     assert(M.rows() == Pavg.rows());
@@ -138,7 +135,7 @@ Sys::~Sys()
 {
     if (measure_perf) {
         Sys::cout() << " --------------------\n";
-        Sys::cout() << name << ": sampling times on " << procid << "\n";
+        Sys::cout() << name << ": sampling times\n";
         for(int i = from(); i<to(); ++i) 
         {
             Sys::cout() << "\t" << nnz(i) << "\t" << sample_time.at(i) / nsims  << "\n";
@@ -156,16 +153,9 @@ void Sys::init()
     assert(M.rows() > 0 && M.cols() > 0);
     mean_rating = M.sum() / M.nonZeros();
     items().setZero();
-    sum_map().setZero();
-    cov_map().setZero();
-    norm_map().setZero();
-    col_permutation.setIdentity(num());
-
-    if (Sys::odirname.size())
-    {
-        aggrMu = Eigen::MatrixXd::Zero(num_latent, num());
-        aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
-    }
+    sum.setZero();
+    cov.setZero();
+    norm = .0;
 
     int count_larger_bp1 = 0;
     int count_larger_bp2 = 0;
@@ -184,10 +174,6 @@ void Sys::init()
     Sys::cout() << "rows > break_point1: " << 100. * (double)count_larger_bp1 / (double)M.cols() << std::endl;
     Sys::cout() << "rows > break_point2: " << 100. * (double)count_larger_bp2 / (double)M.cols() << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
-    if (has_prop_posterior())
-    {
-        Sys::cout() << "with propagated posterior" << std::endl;
-    }
 
     if (measure_perf) sample_time.resize(num(), .0);
 }
@@ -261,35 +247,25 @@ VectorNd Sys::sample(long idx, Sys &other)
 void Sys::sample(Sys &other) 
 {
     iter++;
-    thread_vector<VectorNd>  sums(VectorNd::Zero()); // sum
-    thread_vector<double>    norms(0.0); // squared norm
-    thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
+    VectorNd  local_sum(VectorNd::Zero()); // sum
+    double    local_norm(0.0); // squared norm
+    MatrixNNd local_prod(MatrixNNd::Zero()); // outer prod
 
-
-#pragma omp parallel for schedule(guided)
+#pragma omp parallel for schedule(guided) reduction(+:local_sum, local_norm, local_prod) 
     for (int i = from(); i < to(); ++i)
     {
-#pragma omp task
-        {
             auto r = sample(i, other);
 
-            MatrixNNd cov = (r * r.transpose());
-            prods.local() += cov;
-            sums.local() += r;
-            norms.local() += r.squaredNorm();
+            local_prod += (r * r.transpose());
+            local_sum  += r;
+            local_norm += r.squaredNorm();
             send_item(i);
-        }
     }
-#pragma omp taskwait
-
-    VectorNd sum = sums.combine();
-    MatrixNNd prod = prods.combine();   
-    double norm = norms.combine();
 
     const int N = num();
-    local_sum() = sum;
-    local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
-    local_norm() = norm;
+    sum = local_sum;
+    cov = (local_prod - (sum * sum.transpose() / N)) / (N-1);
+    norm = local_norm;
 }
 
 void Sys::register_time(int i, double t)

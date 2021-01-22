@@ -17,21 +17,7 @@
 using namespace std;
 using namespace Eigen;
 
-#ifdef BPMF_GPI_COMM
-#include "bpmf_gaspi.h"
-#elif defined(BPMF_MPI_PUT_COMM)
-#include "mpi_put.h"
-#elif defined(BPMF_MPI_BCAST_COMM)
-#include "mpi_bcast.h"
-#elif defined(BPMF_MPI_ALLREDUCE_COMM)
-#include "mpi_allreduce.h"
-#elif defined(BPMF_MPI_ISEND_COMM)
-#include "mpi_isendirecv.h"
-#elif defined(BPMF_NO_COMM)
 #include "nocomm.h"
-#else
-#error no comm include
-#endif
 
 void usage() 
 {
@@ -63,8 +49,7 @@ void usage()
 
 int main(int argc, char *argv[])
 {
-  Sys::Init();
-  {
+    Sys::Init();
     int ch;
     string fname, probename;
     string mname, lname;
@@ -95,7 +80,6 @@ int main(int argc, char *argv[])
             case 'l': lname = optarg; break;
 
             case 'r': redirect = true; break;
-            case 'k': Sys::permute = false; break;
             case 'v': Sys::verbose = true; break;
             case '?':
             case 'h': 
@@ -103,13 +87,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (Sys::nprocs >1 || redirect) {
-        std::stringstream ofname;
-        ofname << "bpmf_" << Sys::procid << ".out";
-        Sys::os = new std::ofstream(ofname.str());
-    } else {
-        Sys::os = &std::cout;
-    }
+    Sys::os = &std::cout;
 
     if (fname.empty() || probename.empty()) { 
         usage();
@@ -120,25 +98,9 @@ int main(int argc, char *argv[])
     SYS movies("movs", fname, probename);
     SYS users("users", movies.M, movies.Pavg);
 
-    movies.add_prop_posterior(mname);
-    users.add_prop_posterior(lname);
-
     movies.alloc_and_init();
     users.alloc_and_init();
 
-    // assign users and movies to the computation nodes
-    movies.assign(users);
-    users.assign(movies);
-    movies.assign(users);
-    users.assign(movies);
-
-    // build connectivity matrix
-    // contains what items needs to go to what nodes
-    users.build_conn(movies);
-    movies.build_conn(users);
-    assert(movies.nnz() == users.nnz());
-
-    threads::init(nthrds);
     perf_data_init();
 
     long double average_items_sec = .0;
@@ -150,16 +112,11 @@ int main(int argc, char *argv[])
     Sys::cout() << "pid: " << getpid() << endl;
     if (getenv("PBS_JOBID")) Sys::cout() << "jobid: " << getenv("PBS_JOBID") << endl;
  
-    if(Sys::procid == 0)
-    {
-        Sys::cout() << "num_latent: " << num_latent<<endl;
-        Sys::cout() << "nprocs: " << Sys::nprocs << endl;
-        Sys::cout() << "nthrds: " << threads::get_max_threads() << endl;
-        Sys::cout() << "nsims: " << Sys::nsims << endl;
-        Sys::cout() << "burnin: " << Sys::burnin << endl;
-        Sys::cout() << "alpha: " << Sys::alpha << endl;
-        Sys::cout() << "update_freq: " << Sys::update_freq << endl;
-    }
+    Sys::cout() << "num_latent: " << num_latent<<endl;
+    Sys::cout() << "nsims: " << Sys::nsims << endl;
+    Sys::cout() << "burnin: " << Sys::burnin << endl;
+    Sys::cout() << "alpha: " << Sys::alpha << endl;
+    Sys::cout() << "update_freq: " << Sys::update_freq << endl;
 
     Sys::sync();
 
@@ -189,20 +146,9 @@ int main(int argc, char *argv[])
         auto stop = tick();
         double items_per_sec = (users.num() + movies.num()) / (stop - start);
         double ratings_per_sec = (users.nnz()) / (stop - start);
-        movies.print(items_per_sec, ratings_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
+        movies.print(items_per_sec, ratings_per_sec, sqrt(users.norm), sqrt(movies.norm));
         average_items_sec += items_per_sec;
         average_ratings_sec += ratings_per_sec;
-
-        if (Sys::verbose)
-        {
-            users.bcast();
-            movies.bcast();
-            if (Sys::procid == 0)
-            {
-            write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
-            write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
-        }
-    }
     }
 
     Sys::sync();
@@ -210,82 +156,19 @@ int main(int argc, char *argv[])
     auto end = tick();
     auto elapsed = end - begin;
 
-    users.bcast();
-    movies.bcast();
+    // predict all
+    movies.predict(users, true);
 
-    //-- if we need to generate output files, collect all data on proc 0
-    if (Sys::odirname.size()) {
-        // restore original order
-        users.unpermuteCols(movies);
-        movies.unpermuteCols(users);
-        movies.predict(users, true);
+    Sys::cout() << "Total time: " << elapsed <<endl <<flush;
+    Sys::cout() << "Final Avg RMSE: " << movies.rmse_avg <<endl <<flush;
+    Sys::cout() << "  computed on " << movies.num_predict << " items ("
+                << int(100. * movies.num_predict / movies.T.nonZeros()) 
+                << "% of total items in test set)" << endl << flush;
+    Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
+    Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
 
-        if (Sys::procid == 0) {
-            // sparse
-            write_matrix(Sys::odirname + "/Pavg.sdm", movies.Pavg);
-            write_matrix(Sys::odirname + "/Pm2.sdm", movies.Pm2);
+    perf_data_print();
+    Sys::Finalize();
 
-            // dense
-            users.finalize_mu_lambda();
-            write_matrix(Sys::odirname + "/U-mu.ddm", users.aggrMu);
-            write_matrix(Sys::odirname + "/U-Lambda.ddm", users.aggrLambda);
-
-            movies.finalize_mu_lambda();
-            write_matrix(Sys::odirname + "/V-mu.ddm", movies.aggrMu);
-            write_matrix(Sys::odirname + "/V-Lambda.ddm", movies.aggrLambda);
-        }
-    } else {
-        movies.predict(users, true);
-    }
-
-    if (Sys::procid == 0) {
-        Sys::cout() << "Total time: " << elapsed <<endl <<flush;
-        Sys::cout() << "Final Avg RMSE: " << movies.rmse_avg <<endl <<flush;
-        Sys::cout() << "  computed on " << movies.num_predict << " items ("
-                    << int(100. * movies.num_predict / movies.T.nonZeros()) 
-                    << "% of total items in test set)" << endl << flush;
-        Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
-        Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
-    }
-
-  }
-  perf_data_print();
-  Sys::Finalize();
-  if (Sys::nprocs >1) delete Sys::os;
-
-
-   return 0;
-}
-
-
-void Sys::bcast()
-{
-    for(int i = 0; i < num(); i++) {
-#ifdef BPMF_MPI_COMM
-        MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        if (aggrMu.nonZeros())
-            MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        if (aggrLambda.nonZeros())
-            MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-#else
-        assert(Sys::nprocs == 1);
-#endif
-    }
-}
-
-
-void Sys::finalize_mu_lambda()
-{
-    assert(aggrLambda.nonZeros());
-    assert(aggrMu.nonZeros());
-    // calculate real mu and Lambda
-    for(int i = 0; i < num(); i++) {
-        int nsamples = Sys::nsims - Sys::burnin;
-        auto sum = aggrMu.col(i);
-        auto prod = Eigen::Map<MatrixNNd>(aggrLambda.col(i).data());
-        MatrixNNd cov = (prod - (sum * sum.transpose() / nsamples)) / (nsamples - 1);
-        MatrixNNd prec = cov.inverse(); // precision = covariance^-1
-        aggrLambda.col(i) = Eigen::Map<Eigen::VectorXd>(prec.data(), num_latent * num_latent);
-        aggrMu.col(i) = sum / nsamples;
-    }
+    return 0;
 }

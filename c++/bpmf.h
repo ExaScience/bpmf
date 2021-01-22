@@ -16,31 +16,10 @@
 #include "Eigen/Sparse"
 
 #include "counters.h"
-#include "thread_vector.h"
 
 #ifndef BPMF_NUMLATENT
 #error Define BPMF_NUMLATENT
 #endif
-
-#ifdef BPMF_GPI_COMM
-#define BPMF_MPI_COMM
-#define BPMF_HYBRID_COMM
-#elif defined(BPMF_MPI_PUT_COMM)
-#define BPMF_MPI_COMM
-#elif defined(BPMF_MPI_BCAST_COMM)
-#define BPMF_MPI_COMM
-#elif defined(BPMF_MPI_ALLREDUCE_COMM)
-#ifndef BPMF_REDUCE
-#define BPMF_REDUCE
-#endif
-#define BPMF_MPI_COMM
-#elif defined(BPMF_MPI_ISEND_COMM)
-#define BPMF_MPI_COMM
-#elif defined(BPMF_NO_COMM)
-#else
-#error no comm include
-#endif
-
 
 const int num_latent = BPMF_NUMLATENT;
 
@@ -127,6 +106,8 @@ struct Sys {
     SparseMatrixD M; // known ratings
     double mean_rating;
     int num() const { return M.cols(); }
+    int from() const { return 0; }
+    int to() const { return num(); }
     int nnz() const { return M.nonZeros(); }
     int nnz(int i) const { return M.col(i).nonZeros(); }
 
@@ -152,7 +133,7 @@ struct Sys {
 
     //-- hyper params
     HyperParams hp;
-    virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
+    virtual void sample_hp() { hp.sample(num(), sum, cov); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)

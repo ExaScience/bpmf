@@ -18,8 +18,6 @@ struct NC_Sys : public Sys
 
 void Sys::Init()
 {
-    NC_Sys::procid = 0;
-    NC_Sys::nprocs = 1;
 }
 
 void Sys::Finalize()
@@ -29,10 +27,6 @@ void Sys::Finalize()
 void NC_Sys::alloc_and_init()
 {
     items_ptr = (double *)malloc(sizeof(double) * num_latent * num());
-    sum_ptr = (double *)malloc(sizeof(double) * num_latent * NC_Sys::nprocs);
-    cov_ptr = (double *)malloc(sizeof(double) * num_latent * num_latent * NC_Sys::nprocs);
-    norm_ptr = (double *)malloc(sizeof(double) * NC_Sys::nprocs);
-
     init();
 }
 

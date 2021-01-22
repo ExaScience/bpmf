@@ -24,17 +24,11 @@ using namespace Eigen;
   it needs mutable state.
 */
 
-thread_vector<std::mt19937> r(std::mt19937(42));
+std::mt19937 r(std::mt19937(42));
 
 std::mt19937 &rng()
 {
-    static bool isinit = false;
-    if (! isinit) {
-        r.init();
-        isinit=true;
-    }
-    return r.local();
-
+    return r;
 }
 
 double randn() {

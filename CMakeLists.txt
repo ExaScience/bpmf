@@ -9,20 +9,8 @@ OPTION(ENABLE_ASAN "Enable address sanitizer" OFF)
 OPTION(ENABLE_TSAN "Enable thread sanitizer" OFF)
 
 OPTION(ENABLE_OPENMP "Enable OpenMP Support" ON)
-OPTION(ENABLE_REDUCE "Reduce Mu/Lambda version" OFF)
 
 SET(BPMF_NUMLATENT 32 CACHE INT "Number of latent dimensions") 
-
-SET(BPMF_COMM "NO_COMM" CACHE STRING "Communication library used")
-SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS 
-  GPI_COMM 
-  MPI_ISEND_COMM 
-  MPI_PUT_COMM 
-  MPI_ALLREDUCE_COMM 
-  MPI_BCAST_COMM 
-  NO_COMM)
-
-
 set(CMAKE_CXX_STANDARD 14)
 
 # suppress some pesky Eigen 3.3.7 warnings
@@ -54,17 +42,12 @@ endif()
 
 message(STATUS "Version from git: ${BPMF_VERSION}")
 message(STATUS "num-latent: ${BPMF_NUMLATENT}")
-message(STATUS "comm: ${BPMF_COMM}")
 
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
-add_definitions(-DBPMF_${BPMF_COMM})
-if (ENABLE_REDUCE)
-  add_definitions(-DBPMF_REDUCE)
-endif()
 
 find_package(Eigen3 REQUIRED)
-find_library(z REQUIRED)
+# find_library(z REQUIRED)
 
 if(${ENABLE_PROFILING})
     add_definitions(-DBPMF_PROFILING)
@@ -80,21 +63,6 @@ target_link_libraries (bpmf Eigen3::Eigen z)
 if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
   target_link_libraries(bpmf OpenMP::OpenMP_CXX)
-endif()
-
-if(BPMF_COMM MATCHES ^.PI)
-  find_package(MPI REQUIRED COMPONENTS CXX)
-  set(MPIRUN mpirun -np 4)
-  target_link_libraries (bpmf MPI::MPI_CXX)
-  if(BPMF_COMM MATCHES ^GPI)
-    find_path(GASPI_INCLUDE_DIR GASPI.h REQUIRED)
-    include_directories(${GASPI_INCLUDE_DIR})
-    find_library(GASPI_REL_LIBRARY GPI2 REQUIRED)
-    find_library(GASPI_DEBUG_LIBRARY GPI2-dbg REQUIRED)
-    find_library(IBVERBS_LIBRARY ibverbs REQUIRED)
-    target_link_libraries (bpmf debug ${GASPI_DEBUG_LIBRARY} ${IBVERBS_LIBRARY})
-    target_link_libraries (bpmf optimized ${GASPI_REL_LIBRARY} ${IBVERBS_LIBRARY})
-  endif()
 endif()
 
 enable_testing()
