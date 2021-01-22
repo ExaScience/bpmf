@@ -67,10 +67,6 @@ void Sys::predict(Sys& other, bool all)
     for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
-#ifdef BPMF_REDUCE
-            if (it.row() >= other.to() || it.row() < other.from())
-                continue;
-#endif
             auto m = items().col(it.col());
             auto u = other.items().col(it.row());
 
@@ -151,30 +147,6 @@ Sys::~Sys()
     }
 }
 
-bool Sys::has_prop_posterior() const
-{
-    return propMu.nonZeros() > 0;
-}
-
-void Sys::add_prop_posterior(std::string fnames)
-{
-    if (fnames.empty()) return;
-
-    std::size_t pos = fnames.find_first_of(",");
-    std::string mu_name = fnames.substr(0, pos);
-    std::string lambda_name = fnames.substr(pos+1);
-
-    read_matrix(mu_name, propMu);
-    read_matrix(lambda_name, propLambda);
-
-    assert(propMu.cols() == num());
-    assert(propLambda.cols() == num());
-
-    assert(propMu.rows() == num_latent);
-    assert(propLambda.rows() == num_latent * num_latent);
-
-}
-
 //
 // Intializes internal Matrices and Vectors
 //
@@ -188,11 +160,6 @@ void Sys::init()
     cov_map().setZero();
     norm_map().setZero();
     col_permutation.setIdentity(num());
-
-#ifdef BPMF_REDUCE
-    precMu = MatrixNXd::Zero(num_latent, num());
-    precLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
-#endif
 
     if (Sys::odirname.size())
     {
@@ -231,20 +198,6 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
     void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
 };
 
-void Sys::preComputeMuLambda(const Sys &other)
-{
-    BPMF_COUNTER("preComputeMuLambda");
-#pragma omp parallel for schedule(guided)
-    for (int i = 0; i < num(); ++i)
-    {
-        VectorNd mu = VectorNd::Zero();
-        MatrixNNd Lambda = MatrixNNd::Zero();
-        computeMuLambda(i, other, mu, Lambda, true);
-        precLambdaMatrix(i) = Lambda;
-        precMu.col(i) = mu;
-    }
-}
-
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
 {
     BPMF_COUNTER("computeMuLambda");
@@ -264,37 +217,16 @@ VectorNd Sys::sample(long idx, Sys &other)
 {
     auto start = tick();
 
-    VectorNd hp_mu;
-    MatrixNNd hp_LambdaF; 
-    MatrixNNd hp_LambdaL; 
-    if (has_prop_posterior())
-    {
-        hp_mu = propMu.col(idx);
-        hp_LambdaF = Eigen::Map<MatrixNNd>(propLambda.col(idx).data()); 
-        hp_LambdaL =  hp_LambdaF.llt().matrixL();
-    }
-    else
-    {
-        hp_mu = hp.mu;
-        hp_LambdaF = hp.LambdaF; 
-        hp_LambdaL = hp.LambdaL; 
-    }
-
-    VectorNd rr = hp_LambdaF * hp.mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
+    VectorNd rr = hp.LambdaF * hp.mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
     MatrixNNd MM(MatrixNNd::Zero());
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
-#ifdef BPMF_REDUCE
-    rr += precMu.col(idx);
-    MM += precLambdaMatrix(idx);
-#else
     computeMuLambda(idx, other, rr, MM, false);
-#endif
     
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
 
-    chol.compute(hp_LambdaF + alpha * MM);
+    chol.compute(hp.LambdaF + alpha * MM);
 
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 
@@ -345,21 +277,10 @@ void Sys::sample(Sys &other)
             prods.local() += cov;
             sums.local() += r;
             norms.local() += r.squaredNorm();
-
-            if (iter >= burnin && Sys::odirname.size())
-            {
-                aggrMu.col(i) += r;
-                aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
-            }
-
             send_item(i);
         }
     }
 #pragma omp taskwait
-
-#ifdef BPMF_REDUCE
-    other.preComputeMuLambda(*this);
-#endif
 
     VectorNd sum = sums.combine();
     MatrixNNd prod = prods.combine();   

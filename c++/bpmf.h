@@ -101,9 +101,7 @@ struct Sys;
 // for the two factors
 struct Sys {
     //-- static info
-    static bool permute;
     static bool verbose;
-    static int nprocs, procid;
     static int burnin, nsims, update_freq;
     static double alpha;
     static std::string odirname;
@@ -132,97 +130,25 @@ struct Sys {
     int nnz() const { return M.nonZeros(); }
     int nnz(int i) const { return M.col(i).nonZeros(); }
 
-    // assignment and connectivity
-    typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
-    void permuteCols(const PermMatrix &, Sys &other); 
-    void unpermuteCols(Sys &other); 
-    PermMatrix col_permutation;
-    void assign(Sys &);
-    bool assigned;
-
-    std::vector<int> dom;
-    int proc(int pos) const {
-        int proc = 0;
-        while (dom[proc+1] <= pos) proc++;
-        return proc;
-    }
-
-    // assignment domain of users/movies to nodes
-    // assignment is continues: node i is assigned items from(i) until to(i)
-    int num(int i) const { return to(i) - from(i); } // number of items on node i
-    int from(int i = procid) const { return dom.at(i); } 
-    int to(int i = procid) const { return dom.at(i+1); }
-    void print_dom(std::ostream &os) {
-        for (int i = 0; i < nprocs; ++i)
-            os << i << ": [" << from(i) << ":" << to(i) << "[" << std::endl;
-    }
-
-    // connectivity matrix tells what what items need to be sent to what nodes
-    void opt_conn(Sys& to);
-    void update_conn(Sys& to);
-    void build_conn(Sys& to);
-    static const unsigned max_procs = 1024;
-    typedef std::bitset<max_procs> bm;
-    const bm &conn(unsigned idx) const { assert(nprocs>1); return conn_map.at(idx); }
-    bool conn(unsigned from, int to) { return (nprocs>1) && conn_map.at(from).test(to); }
-    std::vector<bm> conn_map;
-    std::map<std::pair<unsigned, unsigned>, unsigned> conn_count_map;
-    unsigned conn_count(int from, int to) { assert(nprocs>1);  return conn_count_map[std::make_pair(from, to)]; }
-    unsigned send_count(int to) { return conn_count(Sys::procid, to); }
-    unsigned recv_count(int from) { return conn_count(from, Sys::procid); }
 
     //-- factors of the MF
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
-    void preComputeMuLambda(const Sys &other);
     void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
 
-    //-- to pre-compute Lambda/Mu from other side
-    Eigen::MatrixXd precMu, precLambda;
-    Eigen::Map<MatrixNNd> precLambdaMatrix(int idx) 
-    {
-        return Eigen::Map<MatrixNNd>(precLambda.col(idx).data());
-    }
-
-    //-- for propagated posterior
-    Eigen::MatrixXd propMu, propLambda;
-    void add_prop_posterior(std::string);
-    bool has_prop_posterior() const;
-
-    //-- for aggregated posterior
-    Eigen::MatrixXd aggrMu, aggrLambda;
-    void finalize_mu_lambda();
-    
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_item(int i) = 0;
     void bcast();
     void bcast_sum_cov_norm();
     virtual void sample(Sys &in);
 
-    //-- covariance
-    double *sum_ptr;
-    MapNXd sum_map() const { return MapNXd(sum_ptr, num_latent, Sys::nprocs); }
-    MapNXd::ColXpr sum(int i)  const { return sum_map().col(i); }
-    MapNXd::ColXpr local_sum() const { return sum(Sys::procid); }
-    VectorNd aggr_sum() const { return sum_map().rowwise().sum(); }
-
-    double *cov_ptr;
-    MapNXd cov_map() const { return MapNXd(cov_ptr, num_latent, Sys::nprocs * num_latent); }
-    MapNXd cov(int i) const { return MapNXd(cov_ptr + i*num_latent*num_latent, num_latent, num_latent); }
-    MapNXd local_cov() { return cov(Sys::procid); }
-    MatrixNNd aggr_cov() const { 
-        MatrixNNd ret(MatrixNNd::Zero());
-        for(int i=0; i<Sys::nprocs; ++i) ret += cov(i);
-        return ret;
-    }
-
-    // norm
-    double *norm_ptr;
-    MapXd norm_map() const { return MapXd(norm_ptr, Sys::nprocs); }
-    double &norm(int i) const { return norm_ptr[i]; }
-    double &local_norm() const { return norm(Sys::procid); }
-    double aggr_norm() const { return norm_map().sum(); }
+    //-- colwise sum of U
+    VectorNd sum;
+    //-- colwise covariance of U
+    MatrixNNd cov;
+    //-- elementwise norm of U
+    double norm;
 
     //-- hyper params
     HyperParams hp;
@@ -240,8 +166,6 @@ struct Sys {
     std::vector<double> sample_time;
     void register_time(int i, double t);
 };
-
-
 
 const int breakpoint1 = 24; 
 const int breakpoint2 = 10500;
