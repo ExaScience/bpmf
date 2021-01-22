@@ -116,12 +116,9 @@ struct Sys {
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
-    void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
+    void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
 
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
-    virtual void send_item(int i) = 0;
-    void bcast();
-    void bcast_sum_cov_norm();
     virtual void sample(Sys &in);
 
     //-- colwise sum of U

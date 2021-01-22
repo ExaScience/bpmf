@@ -263,7 +263,6 @@ void Sys::sample(Sys &other)
             local_prod += (r * r.transpose());
             local_sum  += r;
             local_norm += r.squaredNorm();
-            send_item(i);
     }
 
     const int N = num();
