@@ -251,7 +251,13 @@ void Sys::sample(Sys &other)
     double    local_norm(0.0); // squared norm
     MatrixNNd local_prod(MatrixNNd::Zero()); // outer prod
 
-#pragma omp parallel for schedule(guided) // reduction(+:local_sum, local_norm, local_prod) 
+#pragma omp declare reduction (+: VectorNd: omp_out=omp_out+omp_in) \
+     initializer(omp_priv=VectorNd::Zero(omp_orig.size()))
+
+#pragma omp declare reduction (+: MatrixNNd: omp_out=omp_out+omp_in) \
+     initializer(omp_priv=MatrixNNd::Zero(omp_orig.rows(), omp_orig.cols()))
+
+#pragma omp parallel for schedule(guided) reduction(+:local_sum, local_norm, local_prod) 
     for (int i = from(); i < to(); ++i)
     {
             auto r = sample(i, other);
