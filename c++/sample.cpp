@@ -236,6 +236,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     register_time(idx, 1e6 * (stop - start));
     //Sys::cout() << "  " << count << ": " << 1e6*(stop - start) << std::endl;
 
+
     assert(rr.norm() > .0);
 
     return rr;
