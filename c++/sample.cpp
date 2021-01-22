@@ -22,7 +22,6 @@ std::ostream *Sys::os;
 
 int Sys::nsims;
 int Sys::burnin;
-int Sys::update_freq;
 double Sys::alpha = 2.0;
 
 std::string Sys::odirname = "";
@@ -252,11 +251,11 @@ void Sys::sample(Sys &other)
     double    local_norm(0.0); // squared norm
     MatrixNNd local_prod(MatrixNNd::Zero()); // outer prod
 
-#pragma omp parallel for schedule(guided) reduction(+:local_sum, local_norm, local_prod) 
+#pragma omp parallel for schedule(guided) // reduction(+:local_sum, local_norm, local_prod) 
     for (int i = from(); i < to(); ++i)
     {
             auto r = sample(i, other);
-
+#pragma omp critical
             local_prod += (r * r.transpose());
             local_sum  += r;
             local_norm += r.squaredNorm();

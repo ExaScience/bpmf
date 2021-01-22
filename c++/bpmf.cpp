@@ -57,7 +57,6 @@ int main(int argc, char *argv[])
     bool redirect = false;
     Sys::nsims = 20;
     Sys::burnin = 5;
-    Sys::update_freq = 1;
     
  
     while((ch = getopt(argc, argv, "krvn:t:p:i:b:f:g:w:u:v:o:s:m:l:a:d:")) != -1)
@@ -66,7 +65,6 @@ int main(int argc, char *argv[])
         {
             case 'i': Sys::nsims = atoi(optarg); break;
             case 'b': Sys::burnin = atoi(optarg); break;
-            case 'f': Sys::update_freq = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
             case 'a': Sys::alpha = atof(optarg); break;
             case 'd': assert(num_latent == atoi(optarg)); break;
@@ -116,7 +114,6 @@ int main(int argc, char *argv[])
     Sys::cout() << "nsims: " << Sys::nsims << endl;
     Sys::cout() << "burnin: " << Sys::burnin << endl;
     Sys::cout() << "alpha: " << Sys::alpha << endl;
-    Sys::cout() << "update_freq: " << Sys::update_freq << endl;
 
     Sys::sync();
 

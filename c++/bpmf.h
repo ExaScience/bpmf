@@ -81,7 +81,7 @@ struct Sys;
 struct Sys {
     //-- static info
     static bool verbose;
-    static int burnin, nsims, update_freq;
+    static int burnin, nsims;
     static double alpha;
     static std::string odirname;
 
