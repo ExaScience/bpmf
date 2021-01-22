@@ -261,7 +261,6 @@ void Sys::sample(Sys &other)
     for (int i = from(); i < to(); ++i)
     {
             auto r = sample(i, other);
-#pragma omp critical
             local_prod += (r * r.transpose());
             local_sum  += r;
             local_norm += r.squaredNorm();
