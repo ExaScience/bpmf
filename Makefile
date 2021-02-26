@@ -10,6 +10,7 @@ CXXFLAGS=$(CFLAGS) -std=c++11   # original line
 
 CXXFLAGS+=-Wall -Wextra -Wfatal-errors -I$(ROOT)
 CXXFLAGS+=-Wno-unknown-pragmas
+CXXFLAGS+=-Wno-unused-local-typedefs
 CXXFLAGS+=-I/usr/include/eigen3
 CXXFLAGS+=-DEIGEN_DONT_PARALLELIZE
 CXXFLAGS+=-DBPMF_NUMLATENT=$(BPMF_NUMLATENT)
@@ -38,8 +39,8 @@ ompss.o: $(ROOT)/ompss.cpp
 %.o: $(ROOT)/%.cpp
 	g++ -c $(CXXFLAGS) $^ -o $@
 
-bpmf: mvnormal.o bpmf.o sample.o assign.o counters.o io.o gzstream.o
-	$(LINK.o) $^ $(LDFLAGS) -o $@
+bpmf: mvnormal.o bpmf.o sample.o counters.o io.o gzstream.o ompss.o
+	mcxx $^ $(LDFLAGS) -o $@
 
 clean:
 	rm -f */*.o *.o */*.d *.d
