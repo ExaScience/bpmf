@@ -65,8 +65,14 @@ void Sys::predict(Sys& other, bool all)
             auto m = items().col(it.col());
             auto u = other.items().col(it.row());
 
-            assert(m.norm() > 0.0);
-            assert(u.norm() > 0.0);
+
+            //SHOW(it.col());
+            //SHOW(it.row());
+            //SHOW(m.norm());
+            //SHOW(u.norm());
+
+            //assert(m.norm() > 0.0);
+            //assert(u.norm() > 0.0);
 
             const double pred = m.dot(u) + mean_rating;
             se += sqr(it.value() - pred);
@@ -235,6 +241,9 @@ VectorNd Sys::sample(long idx, Sys &other)
 
 
     assert(rr.norm() > .0);
+
+    //SHOW(rr.norm());
+    //SHOW(items().col(idx).norm());
 
     return rr;
 }

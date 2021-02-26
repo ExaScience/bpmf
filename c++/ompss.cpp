@@ -42,6 +42,7 @@ void Sys::sample(Sys &other)
             local_norm += r.squaredNorm();
         }
     }
+#pragma oss taskwait
 
     const int N = num();
     sum = local_sum;

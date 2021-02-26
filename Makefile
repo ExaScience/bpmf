@@ -1,5 +1,6 @@
 
-ROOT=../c++
+TOPDIR=..
+ROOT=$(TOPDIR)/c++
 
 ifndef BPMF_NUMLATENT
 	BPMF_NUMLATENT=32
@@ -24,6 +25,8 @@ CXXFLAGS+=-DBPMF_NUMLATENT=$(BPMF_NUMLATENT)
 CXXFLAGS+=-O2 -g 
 #CXXFLAGS+=-O0 -g
 
+MCXXFLAGS=--ompss-2
+
 LDFLAGS=-lz
 
 LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
@@ -33,14 +36,14 @@ OUTPUT_OPTION=-MMD -MP -o $@
 
 all: bpmf
 
-ompss.o: $(ROOT)/ompss.cpp
-	mcxx -c $(CXXFLAGS) $^ -o $@
+ompss.o: $(ROOT)/ompss.cpp $(TOPDIR)/Makefile
+	mcxx -c $(MCXXFLAGS) $(CXXFLAGS) $< -o $@
 
-%.o: $(ROOT)/%.cpp
-	g++ -c $(CXXFLAGS) $^ -o $@
+%.o: $(ROOT)/%.cpp $(TOPDIR)/Makefile
+	g++ -c $(CXXFLAGS) $< -o $@
 
 bpmf: mvnormal.o bpmf.o sample.o counters.o io.o gzstream.o ompss.o
-	mcxx $^ $(LDFLAGS) -o $@
+	mcxx $^ $(MCXXFLAGS) $(LDFLAGS) -o $@
 
 clean:
 	rm -f */*.o *.o */*.d *.d
