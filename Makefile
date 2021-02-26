@@ -1,14 +1,62 @@
-#!/bin/sh
 
-set -x
+ROOT=../c++
 
-LIB_SRC="../c++/bpmf.cpp ../c++/counters.cpp ../c++/gzstream.cpp ../c++/io.cpp ../c++/mvnormal.cpp ../c++/sample.cpp"
-CXX_FLAGS="-std=c++11 -DBPMF_NUMLATENT=16 -Wno-deprecated-declarations -I$EBROOTEIGEN/include"
+ifndef BPMF_NUMLATENT
+	BPMF_NUMLATENT=32
+endif
 
-CXX=g++
-$CXX -c $CXX_FLAGS $LIB_SRC
+#CXXFLAGS=$(CFLAGS) -std=c++0x #-cxxlib=/opt/gcc/6.3.0/snos/lib64 # Intel Compiler
+CXXFLAGS=$(CFLAGS) -std=c++11   # original line
 
-MCXX=mcxx
-$MCXX -c $CXX_FLAGS ../c++/ompss.cpp
+CXXFLAGS+=-Wall -Wextra -Wfatal-errors -I$(ROOT)
+CXXFLAGS+=-Wno-unknown-pragmas
+CXXFLAGS+=-I/usr/include/eigen3
+CXXFLAGS+=-DEIGEN_DONT_PARALLELIZE
+CXXFLAGS+=-DBPMF_NUMLATENT=$(BPMF_NUMLATENT)
 
-#g++ -DBPMF_NUMLATENT=16 -Wno-deprecated-declarations mcxx_ompss.cpp ../c++/bpmf.cpp ../c++/counters.cpp ../c++/gzstream.cpp ../c++/io.cpp ../c++/mvnormal.cpp ../c++/sample.cpp  -lz 2>&1 | less
+#CXXFLAGS+=-w -O3 -g -DNDEBUG
+#CXXFLAGS+=-no-inline-max-size -no-inline-max-total-size -O3 -g -DNDEBUG # -w=1 #-axSSSE3 # Intel Compiler
+#CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG  # original line
+#CXXFLAGS+=-fopt-info-optimized=gnu_fopt_info_optimized.txt -O3 -g -DNDEBUG -ffast-math #-fopt-info-vec #-ftree-loop-optimize # Report for GNU
+#CXXFLAGS+=-ffast-math -O3 -g -DNDEBUG # report for Cray Compiler
+
+CXXFLAGS+=-O2 -g 
+#CXXFLAGS+=-O0 -g
+
+LDFLAGS=-lz
+
+LINK.o=$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
+OUTPUT_OPTION=-MMD -MP -o $@
+
+.PHONY: all clean test
+
+all: bpmf
+
+ompss.o: $(ROOT)/ompss.cpp
+	mcxx -c $(CXXFLAGS) $^ -o $@
+
+%.o: $(ROOT)/%.cpp
+	g++ -c $(CXXFLAGS) $^ -o $@
+
+bpmf: mvnormal.o bpmf.o sample.o assign.o counters.o io.o gzstream.o
+	$(LINK.o) $^ $(LDFLAGS) -o $@
+
+clean:
+	rm -f */*.o *.o */*.d *.d
+	rm -f bpmf
+
+run: bpmf
+	$(MPIRUN) ./bpmf -i 4 -n $(TOPDIR)/data/movielens/ml-train.mtx -p $(TOPDIR)/data/movielens/ml-test.mtx
+	$(MPIRUN) ./bpmf -i 4 -n $(TOPDIR)/data/movielens/ml-train.mtx.gz -p $(TOPDIR)/data/movielens/ml-test.mtx.gz
+
+check: run
+	cd $(TOPDIR)/data/tiny && ./run_test.sh $(PWD)/bpmf 4.1
+
+install: bpmf
+	install bpmf $(PREFIX)/bin
+
+# DFILES 
+DFILES=$(CCFILES:.cpp=.d)
+DFILES=$(wildcard */*.d *.d)
+
+-include $(DFILES)
