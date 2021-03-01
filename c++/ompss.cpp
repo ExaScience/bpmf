@@ -16,6 +16,22 @@
 #include "bpmf.h"
 #include "io.h"
 
+
+std::vector<const double *> Sys::collectColumns(long idx, const double *other) const
+{
+    std::vector<const double *> columns;
+    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+    {
+#pragma oss task in(other[it.row() * num_latent;num_latent])
+        const auto col = &other[it.row() * num_latent];
+        columns.push_back(col);
+    }
+#pragma oss taskwait
+
+    return columns;
+}
+
+
 // 
 // update ALL movies / users in parallel
 //

@@ -53,8 +53,6 @@ int main(int argc, char *argv[])
     int ch;
     string fname, probename;
     string mname, lname;
-    int nthrds = -1;
-    bool redirect = false;
     Sys::nsims = 20;
     Sys::burnin = 5;
     
@@ -65,7 +63,6 @@ int main(int argc, char *argv[])
         {
             case 'i': Sys::nsims = atoi(optarg); break;
             case 'b': Sys::burnin = atoi(optarg); break;
-            case 't': nthrds = atoi(optarg); break;
             case 'a': Sys::alpha = atof(optarg); break;
             case 'd': assert(num_latent == atoi(optarg)); break;
             case 'n': fname = optarg; break;
@@ -77,7 +74,6 @@ int main(int argc, char *argv[])
             case 'm': mname = optarg; break;
             case 'l': lname = optarg; break;
 
-            case 'r': redirect = true; break;
             case 'v': Sys::verbose = true; break;
             case '?':
             case 'h': 

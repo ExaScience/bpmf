@@ -1,0 +1,234 @@
+# This file is part of Nanos6 and is licensed under the terms contained in the COPYING file
+#
+# Copyright (C) 2020 Barcelona Supercomputing Center (BSC)
+
+# The Nanos6 default configuration file. More details about the configuration options and the possible
+# values are available on the OmpSs-2 User Guide (https://pm.bsc.es/ftp/ompss-2/doc/user-guide/) or on
+# the README.md in the Nanos6 repository (https://github.com/bsc-pm/nanos6)
+
+[version]
+	# Choose whether the runtime runs with debug symbols and internal asserts. Enabling this option
+	# may produce significant overheads, so production or performance executions should disable this
+	# option. Default is false
+	debug = true
+	# Choose the dependency system implementation. Default is "discrete"
+	# Possible values: "discrete", "regions"
+	dependencies = "regions"
+	# Choose the instrumentation variant to run. Default is "none"
+	# Possible values: "none", "ctf", "extrae", "graph", "lint", "stats", "verbose"
+	instrument = "none"
+
+[turbo]
+	# Choose whether enabling floating-point unit optimizations in all Nanos6 threads. Enabling this
+	# option can speedup the floating-point computations in user tasks, but may produce imprecise
+	# results. It enables flush-to-zero (FZ) and denormals are zero (DAZ) optimizations in Intel®
+	# processors. Default is false
+	enabled = false
+
+[scheduler]
+	# Choose the task scheduling policy. Default is "fifo"
+	# Possible values: "fifo", "lifo"
+	policy = "fifo"
+	# Enable the immediate successor feature to improve cache data reutilization between successor
+	# tasks. If enabled, when a CPU finishes a task it starts executing the successor task (computed
+	# through their data dependencies). Default is true
+	immediate_successor = true
+	# Indicate whether the scheduler should consider task priorities defined by the user in the
+	# task's priority clause. Default is true
+	priority = true
+
+[cpumanager]
+	# The underlying policy of the CPU manager for the handling of CPUs. Default is "default", which
+	# corresponds to "idle"
+	# Possible values: "default", "idle", "busy", "lewi", "greedy"
+	policy = "default"
+
+[taskfor]
+	# Choose the total number of CPU groups that will execute the worksharing tasks (taskfors). Default
+	# is none (not set), which means that the runtime will create one taskfor group per NUMA node
+	# groups = 1
+	# Indicate whether should print the taskfor groups information
+	report = false
+
+[throttle]
+	# Enable throttle to stop creating tasks when certain conditions are met. Default is false
+	enabled = false
+	# Maximum number of child tasks that can be created before throttling. Default is 5000000
+	tasks = 5000000
+	# Maximum memory pressure (percent of max_memory) before throttling. Default is 70 (%)
+	pressure = 70 # %
+	# Maximum memory that can be used by the runtime. Default is "0", which equals half of system memory
+	max_memory = "0"
+
+[hardware_counters]
+	# Enable the verbose mode of hardware counters, printing a small summary of metrics at the
+	# end of the execution. Default is false
+	verbose = false
+	# The verbose file's name. Default is "nanos6-output-hwcounters.txt"
+	verbose_file = "nanos6-output-hwcounters.txt"
+	[hardware_counters.papi]
+		# Enable the PAPI backend of the hardware counters module. Default is false
+		enabled = false
+		# The list of PAPI counters to read. Default is "PAPI_TOT_INS" and "PAPI_TOT_CYC"
+		counters = [
+			"PAPI_TOT_INS",
+			"PAPI_TOT_CYC"
+		]
+	[hardware_counters.rapl]
+		# Enable the RAPL backend of the hardware counters module for runtime-wise energy
+		# metrics. Default is false
+		enabled = false
+
+[monitoring]
+	# Indicate whether enabling the Monitoring of tasks and CPUs, which allows the usage of
+	# prediction-based policies. Disabled by default
+	enabled = false
+	# Indicate whether enabling the "Wisdom" mechanism of Monitoring, saving normalized metrics for
+	# future executions and loading previously saved metrics when the runtime initializes. Default
+	# is false
+	wisdom = false
+	# Enable the verbose mode of Monitoring, which prints a detailed summary of task type metrics
+	# at the end of the execution. Default is true
+	verbose = true
+	# The verbose file's name. Default is "output-monitoring.txt"
+	verbose_file = "output-monitoring.txt"
+	# The prediction rate at which CPU usage predictions are infered. Default is once every 100µs
+	cpuusage_prediction_rate = 100 # µs
+	# The number of samples (window) of the normalized exponential moving average for predictions
+	# Default is 20
+	rolling_window = 20
+
+[devices]
+
+[instrument]
+	[instrument.ctf]
+		# Choose the temporary directory where to store intermediate CTF files. Default is none
+		# (not set), which means that $TMPDIR will be used if present, or /tmp otherwise
+		# tmpdir = "/tmp"
+		[instrument.ctf.converter]
+			# Indicate whether the trace converter should automatically generate the trace after
+			# executing a program with CTF instrumentation
+			enabled = true
+			# Indicate the location of the ctf2prv converter script. Default is none (not set),
+			# which means that the $CTF2PRV will be used if present, or ctf2prv in $PATH
+			# otherwise
+			# location = "path/to/ctf2prv"
+		# Choose the events that will be traced
+		[instrument.ctf.events]
+			# Linux Kernel events options. Nanos6 can collect Linux kernel internal events using the
+			# perf_event_open system call. This requires to set /proc/sys/kernel/perf_event_paranoid
+			# to -1 and read permissions for either /sys/kernel/tracing or /sys/kernel/debug/tracing.
+			# Events can be selected individually and/or using Nanos6-defined presets
+			[instrument.ctf.events.kernel]
+				# Select one or more predefined sets of events. Available options are:
+				#  - preemption: Trace context switches and interrupts
+				#  - context_switch: Trace context switches
+				#  - syscall: Trace all kernel syscalls entry and exit
+				# presets = [
+				# 	"preemption"
+				# ]
+				# Provide a file with a list of individual events to enable, one event per line.
+				# Lines starting with "#" are omitted.
+				# file = "./nanos6_kernel_events"
+				# Exclude selected events. Disable events even if enabled in a preset or the
+				# user provided file.
+				# exclude = [
+				# 	"sys_enter_gettimeofday",
+				# 	"sys_exit_gettimeofday"
+				# ]
+	[instrument.extrae]
+		# Indicate whether the trace should show the activity of the threads instead of the CPUs'
+		# activity. Default is false, which shows the activity of CPUs
+		as_threads = false
+		# Choose the detail level of the information generated in extrae traces. Default is 1
+		detail_level = 1
+		# Generate internal cluster communication events in the extrae traces.  Default is true.
+		instrument_cluster = true
+	[instrument.graph]
+		# Indicate whether the resulting PDF should be opened automatically with the display
+		# command. Default is false
+		display = false
+		# Choose the command to be used to automatically display the resulting PDF
+		display_command = "xdg-open"
+		# Indicate whether the graph nodes should remove the directories from the source code
+		# file names. Default is false
+		shorten_filenames = false
+		# Indicate whether should show the internal data structures that determine when tasks
+		# are ready. Default is false
+		show_dependency_structures = false
+		# Include the information about the range of data or region that is covered when showing
+		# internal data structures. Default is false
+		show_regions = false
+		# Indicate whether should show the internal data structures that do not determine dependencies
+		# or that are redundant by transitivity. Default is false
+		show_spurious_dependency_structures = false
+		# Choose whether should force future and previous dependencies to be shown with different
+		# graphical attributes. Default is false
+		show_dead_dependencies = false
+		# Include the internal data structures after they are no longer relevant. Default is false
+		show_dead_dependency_structures = false
+		# Instead of trying to collapse in one step as many related changes as possible, show one
+		# at a time. Default is false
+		show_all_steps = false
+		# Show superaccess links. Default is true
+		show_superaccess_links = true
+		# Choose whether to emit a table next to the graph with a description of the changes in
+		# each frame. Default is false
+		show_log = false
+	[instrument.stats]
+		# The outfile file for emitting the statistics. Default is the standard error
+		output_file = "/dev/stderr"
+	[instrument.verbose]
+		# Output device or file for verbose log. Default is "/dev/stderr"
+		output_file = "/dev/stderr"
+		# Print timestamps on log. Default is true
+		timestamps = true
+		# Delay verbose output to prevent mixing with application output. Default is false
+		dump_only_on_exit = false
+		# Verbose log concepts to display. Possible values on README.md
+		areas = ["all", "!ComputePlaceManagement", "!DependenciesByAccess", "!DependenciesByAccessLinks",
+			"!DependenciesByGroup", "!LeaderThread", "!TaskStatus",	"!ThreadManagement"]
+
+[cluster]
+	# Choose the communication layer to be used for Cluster communication between processes. The
+	# "disabled" value disables the Cluster mode. Default is "disabled"
+	# Possible values: "disabled", "mpi-2sided"
+	communication = "mpi-2sided"
+	# Choose the distributed memory for Cluster mode. Default is 2GB
+	distributed_memory = "2G"
+	# Choose the local memory for Cluster mode. Default is none (not set), which means that the
+	# runtime will allocate minimum between 2GB and the 5% of the total physical memory of the
+	# machine
+	# local_memory = "2G"
+	# Indicate the scheduling policy for Cluster mode. Default is "locality"
+	# Possible values: "locality", "random"
+	scheduling_policy = "locality"
+	# Indicate the virtual address space start. If set to 0x00000000, the runtime will find a
+	# suitable address. Default is 0x00000000
+	va_start = 0x00000000
+
+[memory]
+	[memory.pool]
+		# Indicate the global allocation size for the global memory pool. Considered only in
+		# Cluster installations. Default is 8MB
+		global_alloc_size = "8M"
+		# Indicate the chunk size for the global memory pool. Considered only in Cluster
+		# installations. Default is 128KB
+		chunk_size = "128K"
+
+[misc]
+	# Stack size of threads created by the runtime. Default is 8M
+	stack_size = "8M"
+	# Frequency for polling services expressed in microseconds. Default is 1ms
+	polling_frequency = 1000 # µs
+
+[loader]
+	# Enable verbose output of the loader, to debug dynamic linking problems. Default is false
+	verbose = false
+	# Choose whether to print a warning when there is any invalid NANOS6 environment variables
+	# defined when running a program. Default is true
+	warn_envars = true
+	# Path to the nanos6 libraries. Default is none
+	# library_path = "path/to/nanos6/lib"
+	# Prefix for the report printing all the runtime variables. Default is none
+	# report_prefix = "#"
