@@ -22,15 +22,16 @@ std::vector<const double *> Sys::collectColumns(long idx, const double *other) c
     std::vector<const double *> columns;
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
-#pragma oss task in(other[it.row() * num_latent;num_latent])
-        const auto col = &other[it.row() * num_latent];
-        columns.push_back(col);
+        const auto in_ptr = &other[it.row() * num_latent];
+#pragma oss task in(in_ptr[0; num_latent])
+        {
+            columns.push_back(in_ptr);
+        }
     }
 #pragma oss taskwait
 
     return columns;
 }
-
 
 // 
 // update ALL movies / users in parallel
@@ -52,7 +53,8 @@ void Sys::sample(Sys &other)
     {
         const double *out_ptr = items().col(i).data();
 
-#pragma oss task reduction(+:local_sum, local_norm, local_prod) \
+// reduction(+:local_sum, local_norm, local_prod) 
+#pragma oss task \
     out(out_ptr[0;num_latent]) \
     shared(other) private(i)
         {
