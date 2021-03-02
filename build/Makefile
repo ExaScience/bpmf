@@ -2,8 +2,9 @@
 TOPDIR=..
 ROOT=$(TOPDIR)/c++
 
-
 include $(TOPDIR)/Makefile.common
+
+MCXXFLAGS=--ompss-2 -k -Wno-deprecated-declarations
 
 ompss.o: $(ROOT)/ompss.cpp $(TOPDIR)/Makefile.common Makefile
 	mcxx -c $(MCXXFLAGS) $(CXXFLAGS) $< -o $@
