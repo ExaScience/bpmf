@@ -50,7 +50,11 @@ void Sys::sample(Sys &other)
 
     for (int i = from(); i < to(); ++i)
     {
-#pragma oss task reduction(+:local_sum, local_norm, local_prod) shared(other) private(i)
+        const double *out_ptr = items().col(i).data();
+
+#pragma oss task reduction(+:local_sum, local_norm, local_prod) \
+    out(out_ptr[0;num_latent]) \
+    shared(other) private(i)
         {
             auto r = sample(i, other);
             local_prod += (r * r.transpose());
