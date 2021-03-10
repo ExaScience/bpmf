@@ -183,10 +183,12 @@ void Sys::init()
     //-- M
     assert(M.rows() > 0 && M.cols() > 0);
     mean_rating = M.sum() / M.nonZeros();
+#ifndef BPMF_ARGO_COMM
     items().setZero();
     sum_map().setZero();
     cov_map().setZero();
     norm_map().setZero();
+#endif
     col_permutation.setIdentity(num());
 
 #ifdef BPMF_REDUCE

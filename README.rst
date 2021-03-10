@@ -40,6 +40,7 @@ CMake is used. The most interesting CMake options are:
    - MPI_PUT_COMM 
    - MPI_ALLREDUCE_COMM 
    - MPI_BCAST_COMM 
+   - ARGO_COMM 
    - NO_COMM
 
 Running the C++ version
@@ -85,6 +86,17 @@ The Julia version takes two command line arguments:
 ``./bpmf <train_matrix.mtx> <test_matrix.mtx>``
 
 Matrices should be in the MatrixMarket format. Other options need to be changed in the source code itself. E.g. the number of iterations, the size of the features vectors, ...
+
+ArgoDSM version
+---------------
+
+The ArgoDSM version is being developed by Ioannis Anevlavis (Eta Scale AB).
+
+For building, it is necessary to add the argodsm folder to $PATH.
+
+For running, you might need to change the size of the global address space (``argo::init``) based on the size of the globally allocated data structures.
+
+For optimal performance, consider experimenting with a variety of memory allocation policies (see https://etascale.github.io/argodsm/tutorial.html)
 
 Acknowledgements
 ----------------

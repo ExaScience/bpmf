@@ -20,6 +20,7 @@ SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS
   MPI_PUT_COMM 
   MPI_ALLREDUCE_COMM 
   MPI_BCAST_COMM 
+  ARGO_COMM 
   NO_COMM)
 
 
@@ -95,6 +96,22 @@ if(BPMF_COMM MATCHES ^.PI)
     target_link_libraries (bpmf debug ${GASPI_DEBUG_LIBRARY} ${IBVERBS_LIBRARY})
     target_link_libraries (bpmf optimized ${GASPI_REL_LIBRARY} ${IBVERBS_LIBRARY})
   endif()
+endif()
+
+if(BPMF_COMM MATCHES ^ARGO)
+  find_package(MPI REQUIRED COMPONENTS CXX)
+  set(MPIRUN mpirun -np 4)
+  target_link_libraries (bpmf MPI::MPI_CXX)
+  # IN ORDER TO BYPASS EIGEN ALIGNMENT ISSUES
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_DONT_VECTORIZE")
+  # NEED TO ADD ARGODSM FOLDER TO ENV $PATH
+  find_path(ARGO_INCLUDE_DIR argo.hpp PATH_SUFFIXES "src" REQUIRED)
+  include_directories(${ARGO_INCLUDE_DIR})
+  find_library(ARGO_LIBRARY argo PATH_SUFFIXES "build/lib" REQUIRED)
+  find_library(ARGO_BACKEND_MPI_LIBRARY argobackend-mpi PATH_SUFFIXES "build/lib" REQUIRED)
+  find_library(NUMA_LIBRARY numa REQUIRED)
+  find_library(RT_LIBRARY rt REQUIRED)
+  target_link_libraries (bpmf optimized ${ARGO_LIBRARY} ${ARGO_BACKEND_MPI_LIBRARY} ${NUMA_LIBRARY} ${RT_LIBRARY})
 endif()
 
 enable_testing()
