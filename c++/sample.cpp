@@ -188,17 +188,6 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
     void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
 };
 
-void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
-{
-    BPMF_COUNTER("computeMuLambda");
-
-    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
-    {
-        auto col = other.items().col(it.row());
-        MM.triangularView<Eigen::Upper>() += col * col.transpose();
-        rr.noalias() += col * ((it.value() - mean_rating) * alpha);
-    }
-}
 
 //
 // Update ONE movie or one user
@@ -211,7 +200,13 @@ VectorNd Sys::sample(long idx, Sys &other)
     MatrixNNd MM(MatrixNNd::Zero());
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
-    computeMuLambda(idx, other, rr, MM);
+    //computeMuLambda(idx, other, rr, MM);
+    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+    {
+        auto col = other.items().col(it.row());
+        MM.triangularView<Eigen::Upper>() += col * col.transpose();
+        rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+    }
     
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
