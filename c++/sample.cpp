@@ -191,13 +191,10 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
 {
     BPMF_COUNTER("computeMuLambda");
-    auto columns = collectColumns(idx, other.items().data());
 
-    int i = 0;
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
-        const double *col_ptr = columns[i++];
-        Eigen::Map<const VectorNd> col(col_ptr++);
+        auto col = other.items().col(it.row());
         MM.triangularView<Eigen::Upper>() += col * col.transpose();
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }

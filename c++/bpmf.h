@@ -117,7 +117,6 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
     void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
-    std::vector<const double*> collectColumns(long idx, const double *items) const;
 
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void sample(Sys &in);
