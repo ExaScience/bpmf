@@ -189,19 +189,19 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 
 void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
 {
-    SHOW(N);
-    SHOW(sum);
-    SHOW(cov);
-    SHOW(mu0);
-    SHOW(b0);
-    SHOW(df);
-    SHOW(WI);
+    //SHOW(N);
+    //SHOW(sum);
+    //SHOW(cov);
+    //SHOW(mu0);
+    //SHOW(b0);
+    //SHOW(df);
+    //SHOW(WI);
 
     std::tie(mu, LambdaU) = CondNormalWishart(N, cov, sum / N, mu0, b0, WI, df);
     LambdaF = LambdaU.triangularView<Eigen::Upper>().transpose() * LambdaU;
     LambdaL = LambdaU.transpose();
 
-    SHOW(LambdaF);
+    //SHOW(LambdaF);
 }
 
 //
@@ -215,8 +215,8 @@ VectorNd Sys::sample(long idx, Sys &other)
     MatrixNNd MM(MatrixNNd::Zero());
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
-    SHOW(hp().mu);
-    SHOW(hp().LambdaF);
+    //SHOW(hp().mu);
+    //SHOW(hp().LambdaF);
 
     //computeMuLambda(idx, other, rr, MM);
     for (SparseMapD::InnerIterator it(M(), idx); it; ++it)
