@@ -53,7 +53,7 @@ void Sys::alloc_and_init()
     for(int k = 0; k<M().cols(); k++) 
         assert(M().col(k).nonZeros() == _M.col(k).nonZeros());
 
-    items_ptr = (double *)nanos6_lmalloc(sizeof(double) * num_latent * num());
+    items_ptr = (double *)nanos6_dmalloc(sizeof(double) * num_latent * num(), nanos6_equpart_distribution, 0, NULL);
 
     init();
 
