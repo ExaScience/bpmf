@@ -22,3 +22,4 @@ bpmf: $(OBJS)
 clean:
 	rm -f */*.o *.o */*.d *.d
 	rm -f bpmf
+	rm -f mcxx_*.cpp

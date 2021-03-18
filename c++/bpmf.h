@@ -52,8 +52,8 @@ struct HyperParams {
     int num, other_num, nnz;
 
     // fixed params
-    const int b0 = 2;
-    const int df = num_latent;
+    static const int b0 = 2;
+    static const int df = num_latent;
     VectorNd mu0;
     MatrixNNd WI;
 
@@ -70,7 +70,7 @@ struct HyperParams {
         mu0.setZero();
     }
 
-    void sample(const int N, const VectorNd &sum, const MatrixNNd &cov, double mr, double a);
+    void sample(const int N, const VectorNd &sum, const MatrixNNd &cov);
 };
 
 struct Sys;
@@ -138,7 +138,7 @@ struct Sys {
     HyperParams *hp_ptr;
     const HyperParams &hp() const { return *hp_ptr; };
     HyperParams &hp() { return *hp_ptr; };
-    void sample_hp() { hp().sample(num(), sum, cov, mean_rating, alpha); }
+    void sample_hp() { hp().sample(num(), sum, cov); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)

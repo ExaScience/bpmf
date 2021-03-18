@@ -36,7 +36,7 @@ void Sys::Abort(int) { abort();  }
 void Sys::alloc_and_init()
 {
     hp_ptr = (HyperParams *)nanos6_lmalloc(sizeof(HyperParams));
-
+    hp() = HyperParams();
     hp().alpha = alpha;
     hp().num = _M.cols();
     hp().other_num = _M.rows();
@@ -44,11 +44,11 @@ void Sys::alloc_and_init()
 
     ratings_ptr = (double *)nanos6_lmalloc(sizeof(double) * _M.nonZeros());
     inner_ptr   = (int *)nanos6_lmalloc(sizeof(double) * _M.nonZeros());
-    outer_ptr   = (int *)nanos6_lmalloc(sizeof(double) * _M.outerSize());
+    outer_ptr   = (int *)nanos6_lmalloc(sizeof(double) * ( _M.outerSize() + 1));
 
-    std::memcpy(M().valuePtr(), _M.valuePtr(), M().nonZeros());
-    std::memcpy(M().innerIndexPtr(), _M.innerIndexPtr(), M().nonZeros());
-    std::memcpy(M().outerIndexPtr(), _M.outerIndexPtr(), M().outerSize());
+    std::memcpy(M().valuePtr(),      _M.valuePtr(),      sizeof(double) * M().nonZeros());
+    std::memcpy(M().innerIndexPtr(), _M.innerIndexPtr(), sizeof(int) * M().nonZeros());
+    std::memcpy(M().outerIndexPtr(), _M.outerIndexPtr(), sizeof(int) * ( M().outerSize() + 1));
 
     for(int k = 0; k<M().cols(); k++) 
         assert(M().col(k).nonZeros() == _M.col(k).nonZeros());
@@ -72,17 +72,11 @@ void Sys::sample(Sys &other)
 
     for (int i = from(); i < to(); ++i)
     {
-//#pragma oss task \
-//    out(out_ptr[0;num_latent]) \
-//    shared(other) private(i)
-        {
-            auto r = sample(i, other);
-            local_prod += (r * r.transpose());
-            local_sum += r;
-            local_norm += r.squaredNorm();
-        }
+        auto r = sample(i, other);
+        local_prod += (r * r.transpose());
+        local_sum += r;
+        local_norm += r.squaredNorm();
     }
-#pragma oss taskwait
 
     const int N = num();
     sum = local_sum;
