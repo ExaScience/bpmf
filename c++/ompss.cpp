@@ -72,7 +72,14 @@ void Sys::sample(Sys &other)
 
     for (int i = from(); i < to(); ++i)
     {
-        auto r = sample(i, other);
+        #pragma oss task out(ratings_ptr[0;num()]) shared(other) private(i)
+        sample(i, other);
+    }
+#pragma oss taskwait
+
+    for (int i = from(); i < to(); ++i)
+    {
+        const auto &r = items().col(i);
         local_prod += (r * r.transpose());
         local_sum += r;
         local_norm += r.squaredNorm();
