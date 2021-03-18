@@ -65,7 +65,6 @@ void Sys::predict(Sys& other, bool all)
             auto m = items().col(it.col());
             auto u = other.items().col(it.row());
 
-
             //SHOW(it.col());
             //SHOW(it.row());
             //SHOW(m.norm());
@@ -188,6 +187,14 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
     void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
 };
 
+void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov, double mr, double a)
+{
+    mean_rating = mr;
+    alpha = a;
+    std::tie(mu, LambdaU) = CondNormalWishart(N, cov, sum / N, mu0, b0, WI, df);
+    LambdaF = LambdaU.triangularView<Eigen::Upper>().transpose() * LambdaU;
+    LambdaL = LambdaU.transpose();
+}
 
 //
 // Update ONE movie or one user
@@ -205,13 +212,13 @@ VectorNd Sys::sample(long idx, Sys &other)
     {
         auto col = other.items().col(it.row());
         MM.triangularView<Eigen::Upper>() += col * col.transpose();
-        rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+        rr.noalias() += col * ((it.value() - hp.mean_rating) * hp.alpha);
     }
     
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
 
-    chol.compute(hp.LambdaF + alpha * MM);
+    chol.compute(hp.LambdaF + hp.alpha * MM);
 
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 
@@ -243,8 +250,6 @@ VectorNd Sys::sample(long idx, Sys &other)
 
     return rr;
 }
-
-
 
 void Sys::register_time(int i, double t)
 {

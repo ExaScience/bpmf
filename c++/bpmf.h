@@ -24,6 +24,7 @@
 const int num_latent = BPMF_NUMLATENT;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
+typedef Eigen::Map<Eigen::SparseMatrix<double>> SparseMapD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
 typedef Eigen::Matrix<double, num_latent, Eigen::Dynamic> MatrixNXd;
 typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
@@ -45,6 +46,10 @@ inline double sqr(double x) { return x*x; }
 // sampled hyper parameters for priors
 //
 struct HyperParams {
+    // global constants
+    double alpha;
+    double mean_rating;
+
     // fixed params
     const int b0 = 2;
     const int df = num_latent;
@@ -64,12 +69,7 @@ struct HyperParams {
         mu0.setZero();
     }
 
-    void sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
-    {
-        std::tie(mu, LambdaU) = CondNormalWishart(N, cov, sum / N, mu0, b0, WI, df);
-        LambdaF = LambdaU.triangularView<Eigen::Upper>().transpose() * LambdaU;
-        LambdaL = LambdaU.transpose();
-    }
+    void sample(const int N, const VectorNd &sum, const MatrixNNd &cov, double mr, double a);
 };
 
 struct Sys;
@@ -103,7 +103,10 @@ struct Sys {
     void alloc_and_init();
 
     //-- sparse matrix
-    SparseMatrixD M; // known ratings
+    double* ratings_ptr;
+    int *outer_ptr, *inner_ptr, *value_ptr;
+    //SparseMapD ratings_map; // known ratings
+    SparseMatrixD M;
     double mean_rating;
     int num() const { return M.cols(); }
     int from() const { return 0; }
@@ -129,7 +132,7 @@ struct Sys {
 
     //-- hyper params
     HyperParams hp;
-    void sample_hp() { hp.sample(num(), sum, cov); }
+    void sample_hp() { hp.sample(num(), sum, cov, mean_rating, alpha); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)
