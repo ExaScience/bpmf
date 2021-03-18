@@ -49,6 +49,7 @@ struct HyperParams {
     // global constants
     double alpha;
     double mean_rating;
+    int num, other_num, nnz;
 
     // fixed params
     const int b0 = 2;
@@ -102,17 +103,20 @@ struct Sys {
     void init();
     void alloc_and_init();
 
-    //-- sparse matrix
+    //-- sparse ratings matrix
     double* ratings_ptr;
     int *outer_ptr, *inner_ptr, *value_ptr;
-    //SparseMapD ratings_map; // known ratings
-    SparseMatrixD M;
+    SparseMatrixD _M;
+
+    SparseMapD M() const { return SparseMapD(other_num(), num(), nnz(), outer_ptr, inner_ptr, ratings_ptr); }
+
     double mean_rating;
-    int num() const { return M.cols(); }
+    int other_num() const { return hp().other_num; }
+    int num() const { return hp().num; }
     int from() const { return 0; }
     int to() const { return num(); }
-    int nnz() const { return M.nonZeros(); }
-    int nnz(int i) const { return M.col(i).nonZeros(); }
+    int nnz() const { return hp().nnz; }
+    int nnz(int i) const { return M().col(i).nonZeros(); }
 
 
     //-- factors of the MF
@@ -131,8 +135,10 @@ struct Sys {
     double norm;
 
     //-- hyper params
-    HyperParams hp;
-    void sample_hp() { hp.sample(num(), sum, cov, mean_rating, alpha); }
+    HyperParams *hp_ptr;
+    const HyperParams &hp() const { return *hp_ptr; };
+    HyperParams &hp() { return *hp_ptr; };
+    void sample_hp() { hp().sample(num(), sum, cov, mean_rating, alpha); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)

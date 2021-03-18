@@ -110,16 +110,16 @@ void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, dou
 Sys::Sys(std::string name, std::string fname, std::string probename)
     : name(name), iter(-1)
 {
-    read_matrix(fname, M);
+    read_matrix(fname, _M);
     read_matrix(probename, T);
 
-    auto rows = std::max(M.rows(), T.rows());
-    auto cols = std::max(M.cols(), T.cols());
-    M.conservativeResize(rows,cols);
+    auto rows = std::max(_M.rows(), T.rows());
+    auto cols = std::max(_M.cols(), T.cols());
+    _M.conservativeResize(rows,cols);
     T.conservativeResize(rows,cols);
     Pm2 = Pavg = Torig = T; // reference ratings and predicted ratings
-    assert(M.rows() == Pavg.rows());
-    assert(M.cols() == Pavg.cols());
+    assert(_M.rows() == Pavg.rows());
+    assert(_M.cols() == Pavg.cols());
 }
 
 //
@@ -128,10 +128,10 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
 Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt)
    : name(name), iter(-1)
 {
-    M = Mt.transpose();
+    _M = Mt.transpose();
     Pm2 = Pavg = T = Torig = Pt.transpose(); // reference ratings and predicted ratings
-    assert(M.rows() == Pavg.rows());
-    assert(M.cols() == Pavg.cols());
+    assert(_M.rows() == Pavg.rows());
+    assert(_M.cols() == Pavg.cols());
 }
 
 Sys::~Sys() 
@@ -153,8 +153,8 @@ Sys::~Sys()
 void Sys::init()
 {
     //-- M
-    assert(M.rows() > 0 && M.cols() > 0);
-    mean_rating = M.sum() / M.nonZeros();
+    assert(M().rows() > 0 && M().cols() > 0);
+    mean_rating = M().sum() / M().nonZeros();
     items().setZero();
     sum.setZero();
     cov.setZero();
@@ -163,19 +163,19 @@ void Sys::init()
     int count_larger_bp1 = 0;
     int count_larger_bp2 = 0;
     int count_sum = 0;
-    for(int k = 0; k<M.cols(); k++) {
-        int count = M.col(k).nonZeros();
+    for(int k = 0; k<M().cols(); k++) {
+        int count = M().col(k).nonZeros();
         count_sum += count;
         if (count > breakpoint1) count_larger_bp1++;
         if (count > breakpoint2) count_larger_bp2++;
     }
 
     Sys::cout() << "mean rating: " << mean_rating << std::endl;
-    Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
+    Sys::cout() << "total number of ratings in train: " << M().nonZeros() << std::endl;
     Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
-    Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M.cols() << std::endl;
-    Sys::cout() << "rows > break_point1: " << 100. * (double)count_larger_bp1 / (double)M.cols() << std::endl;
-    Sys::cout() << "rows > break_point2: " << 100. * (double)count_larger_bp2 / (double)M.cols() << std::endl;
+    Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M().cols() << std::endl;
+    Sys::cout() << "rows > break_point1: " << 100. * (double)count_larger_bp1 / (double)M().cols() << std::endl;
+    Sys::cout() << "rows > break_point2: " << 100. * (double)count_larger_bp2 / (double)M().cols() << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
 
     if (measure_perf) sample_time.resize(num(), .0);
@@ -203,22 +203,22 @@ VectorNd Sys::sample(long idx, Sys &other)
 {
     auto start = tick();
 
-    VectorNd rr = hp.LambdaF * hp.mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
+    VectorNd rr = hp().LambdaF * hp().mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
     MatrixNNd MM(MatrixNNd::Zero());
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
     //computeMuLambda(idx, other, rr, MM);
-    for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+    for (SparseMapD::InnerIterator it(M(), idx); it; ++it)
     {
         auto col = other.items().col(it.row());
         MM.triangularView<Eigen::Upper>() += col * col.transpose();
-        rr.noalias() += col * ((it.value() - hp.mean_rating) * hp.alpha);
+        rr.noalias() += col * ((it.value() - hp().mean_rating) * hp().alpha);
     }
     
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
 
-    chol.compute(hp.LambdaF + hp.alpha * MM);
+    chol.compute(hp().LambdaF + hp().alpha * MM);
 
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 

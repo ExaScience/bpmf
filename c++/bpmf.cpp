@@ -14,9 +14,6 @@
 #include "io.h"
 #include "bpmf.h"
 
-using namespace std;
-using namespace Eigen;
-
 void usage() 
 {
     std::cout << "Usage: bpmf -n <MTX> -p <MTX> [-o DIR/] [-i N] [-b N] [-f N] [-krv] [-t N] [-m MTX,MTX] [-l MTX,MTX]\n"
@@ -49,8 +46,8 @@ int main(int argc, char *argv[])
 {
     Sys::Init();
     int ch;
-    string fname, probename;
-    string mname, lname;
+    std::string fname, probename;
+    std::string mname, lname;
     Sys::nsims = 20;
     Sys::burnin = 5;
     
@@ -88,7 +85,7 @@ int main(int argc, char *argv[])
 
 
     Sys movies("movs", fname, probename);
-    Sys users("users", movies.M, movies.Pavg);
+    Sys users("users", movies._M, movies.Pavg);
 
     movies.alloc_and_init();
     users.alloc_and_init();
@@ -100,14 +97,14 @@ int main(int argc, char *argv[])
     
     char name[1024];
     gethostname(name, 1024);
-    Sys::cout() << "hostname: " << name << endl;
-    Sys::cout() << "pid: " << getpid() << endl;
-    if (getenv("PBS_JOBID")) Sys::cout() << "jobid: " << getenv("PBS_JOBID") << endl;
+    Sys::cout() << "hostname: " << name << std::endl;
+    Sys::cout() << "pid: " << getpid() << std::endl;
+    if (getenv("PBS_JOBID")) Sys::cout() << "jobid: " << getenv("PBS_JOBID") << std::endl;
  
-    Sys::cout() << "num_latent: " << num_latent<<endl;
-    Sys::cout() << "nsims: " << Sys::nsims << endl;
-    Sys::cout() << "burnin: " << Sys::burnin << endl;
-    Sys::cout() << "alpha: " << Sys::alpha << endl;
+    Sys::cout() << "num_latent: " << num_latent<< std::endl;
+    Sys::cout() << "nsims: " << Sys::nsims << std::endl;
+    Sys::cout() << "burnin: " << Sys::burnin << std::endl;
+    Sys::cout() << "alpha: " << Sys::alpha << std::endl;
 
     Sys::sync();
 
@@ -150,13 +147,13 @@ int main(int argc, char *argv[])
     // predict all
     movies.predict(users, true);
 
-    Sys::cout() << "Total time: " << elapsed <<endl <<flush;
-    Sys::cout() << "Final Avg RMSE: " << movies.rmse_avg <<endl <<flush;
+    Sys::cout() << "Total time: " << elapsed << std::endl  << std::flush;
+    Sys::cout() << "Final Avg RMSE: " << movies.rmse_avg  << std::endl  << std::flush;
     Sys::cout() << "  computed on " << movies.num_predict << " items ("
                 << int(100. * movies.num_predict / movies.T.nonZeros()) 
-                << "% of total items in test set)" << endl << flush;
-    Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << endl <<flush;
-    Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << endl <<flush;
+                << "% of total items in test set)" << std::endl  << std::flush;
+    Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << std::endl  << std::flush;
+    Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << std::endl  << std::flush;
 
     perf_data_print();
     Sys::Finalize();

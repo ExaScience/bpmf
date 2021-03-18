@@ -11,6 +11,7 @@
 #include <climits>
 #include <stdexcept>
 #include <cmath>
+#include <cstring>
 
 #include "error.h"
 #include "bpmf.h"
@@ -34,8 +35,29 @@ void Sys::Abort(int) { abort();  }
 
 void Sys::alloc_and_init()
 {
+    hp_ptr = (HyperParams *)nanos6_lmalloc(sizeof(HyperParams));
+
+    hp().alpha = alpha;
+    hp().num = _M.cols();
+    hp().other_num = _M.rows();
+    hp().nnz = _M.nonZeros();
+
+    ratings_ptr = (double *)nanos6_lmalloc(sizeof(double) * _M.nonZeros());
+    inner_ptr   = (int *)nanos6_lmalloc(sizeof(double) * _M.nonZeros());
+    outer_ptr   = (int *)nanos6_lmalloc(sizeof(double) * _M.outerSize());
+
+    std::memcpy(M().valuePtr(), _M.valuePtr(), M().nonZeros());
+    std::memcpy(M().innerIndexPtr(), _M.innerIndexPtr(), M().nonZeros());
+    std::memcpy(M().outerIndexPtr(), _M.outerIndexPtr(), M().outerSize());
+
+    for(int k = 0; k<M().cols(); k++) 
+        assert(M().col(k).nonZeros() == _M.col(k).nonZeros());
+
     items_ptr = (double *)nanos6_lmalloc(sizeof(double) * num_latent * num());
+
     init();
+
+    hp().mean_rating = mean_rating;
 }     
 
 // 
