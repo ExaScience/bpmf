@@ -16,7 +16,7 @@
 	dependencies = "regions"
 	# Choose the instrumentation variant to run. Default is "none"
 	# Possible values: "none", "ctf", "extrae", "graph", "lint", "stats", "verbose"
-	instrument = "none"
+	instrument = "verbose"
 
 [turbo]
 	# Choose whether enabling floating-point unit optimizations in all Nanos6 threads. Enabling this
@@ -202,7 +202,7 @@
 	# local_memory = "2G"
 	# Indicate the scheduling policy for Cluster mode. Default is "locality"
 	# Possible values: "locality", "random"
-	scheduling_policy = "locality"
+	scheduling_policy = "random"
 	# Indicate the virtual address space start. If set to 0x00000000, the runtime will find a
 	# suitable address. Default is 0x00000000
 	va_start = 0x00000000
