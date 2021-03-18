@@ -17,8 +17,6 @@
 using namespace std;
 using namespace Eigen;
 
-#include "nocomm.h"
-
 void usage() 
 {
     std::cout << "Usage: bpmf -n <MTX> -p <MTX> [-o DIR/] [-i N] [-b N] [-f N] [-krv] [-t N] [-m MTX,MTX] [-l MTX,MTX]\n"
@@ -89,8 +87,8 @@ int main(int argc, char *argv[])
     }
 
 
-    SYS movies("movs", fname, probename);
-    SYS users("users", movies.M, movies.Pavg);
+    Sys movies("movs", fname, probename);
+    Sys users("users", movies.M, movies.Pavg);
 
     movies.alloc_and_init();
     users.alloc_and_init();

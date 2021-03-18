@@ -98,9 +98,9 @@ struct Sys {
     int iter;
     Sys(std::string name, std::string fname, std::string pname);
     Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &Pavg);
-    virtual ~Sys();
+    ~Sys();
     void init();
-    virtual void alloc_and_init() = 0;
+    void alloc_and_init();
 
     //-- sparse matrix
     SparseMatrixD M; // known ratings
@@ -119,7 +119,7 @@ struct Sys {
     void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
 
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
-    virtual void sample(Sys &in);
+    void sample(Sys &in);
 
     //-- colwise sum of U
     VectorNd sum;
@@ -130,7 +130,7 @@ struct Sys {
 
     //-- hyper params
     HyperParams hp;
-    virtual void sample_hp() { hp.sample(num(), sum, cov); }
+    void sample_hp() { hp.sample(num(), sum, cov); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)

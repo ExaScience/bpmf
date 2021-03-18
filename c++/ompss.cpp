@@ -23,6 +23,21 @@
 #pragma oss declare reduction (+: MatrixNNd: omp_out=omp_out+omp_in) \
      initializer(omp_priv=MatrixNNd::Zero(omp_orig.rows(), omp_orig.cols()))
 
+
+void Sys::Init() { }
+
+void Sys::Finalize() { } 
+
+void Sys::sync() {}
+
+void Sys::Abort(int) { abort();  }
+
+void Sys::alloc_and_init()
+{
+    items_ptr = (double *)nanos6_lmalloc(sizeof(double) * num_latent * num());
+    init();
+}     
+
 // 
 // update ALL movies / users in parallel
 //
