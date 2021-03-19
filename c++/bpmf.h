@@ -109,7 +109,7 @@ struct Sys {
 
     //-- sparse ratings matrix
     double* ratings_ptr;
-    int *outer_ptr, *inner_ptr, *value_ptr;
+    int *outer_ptr, *inner_ptr;
     SparseMatrixD _M;
 
     SparseMapD M() const { return SparseMapD(other_num(), num(), nnz(), outer_ptr, inner_ptr, ratings_ptr); }
