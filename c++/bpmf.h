@@ -73,7 +73,11 @@ struct HyperParams {
     void sample(const int N, const VectorNd &sum, const MatrixNNd &cov);
 };
 
-struct Sys;
+class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
+{
+  public:
+    void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
+};
 
 // 
 // System represent all things related to the movies OR users

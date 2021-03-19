@@ -181,11 +181,7 @@ void Sys::init()
     if (measure_perf) sample_time.resize(num(), .0);
 }
 
-class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
-{
-  public:
-    void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
-};
+
 
 void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
 {
