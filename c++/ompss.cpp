@@ -111,6 +111,7 @@ void Sys::sample(Sys &other)
     int num_ratings = M().nonZeros();
     int outer_size = M().outerSize();
     int num_items = num();
+    int other_num_items = other_num();
 
     for (int i = from(); i < to(); ++i)
     {
@@ -119,8 +120,8 @@ void Sys::sample(Sys &other)
             in(ratings_ptr[0;num_ratings]) \
             in(inner_ptr[0;num_ratings]) \
             in(outer_ptr[0;outer_size]) \
-            in(other.items_ptr[0;num_items]) \
-            out(items_ptr[0;num_items])
+            in(other.items_ptr[0;other_num_items*num_latent]) \
+            out(items_ptr[i*num_latent;num_latent])
         sample_task(i, hp_ptr, other.items_ptr, ratings_ptr, inner_ptr, outer_ptr, items_ptr);
     }
 #pragma oss taskwait
