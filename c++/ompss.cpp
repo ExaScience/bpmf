@@ -60,6 +60,44 @@ void Sys::alloc_and_init()
     hp().mean_rating = mean_rating;
 }     
 
+void sample_task(
+    long idx,
+    const HyperParams *hp_ptr, 
+    const double *other_ptr,
+    const double *ratings_ptr,
+    const int *inner_ptr,
+    const int *outer_ptr,
+    double *items_ptr)
+{
+    const Eigen::Map<const SparseMatrixD> M( hp_ptr->other_num, hp_ptr->num, hp_ptr->nnz, outer_ptr, inner_ptr, ratings_ptr);
+    const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
+    Eigen::Map<MatrixNXd> items(items_ptr, num_latent, hp_ptr->num);
+
+    VectorNd rr = hp_ptr->LambdaF * hp_ptr->mu;
+    MatrixNNd MM(MatrixNNd::Zero());
+    PrecomputedLLT chol;
+
+    //computeMuLambda(idx, other, rr, MM);
+    for (Eigen::Map<const SparseMatrixD>::InnerIterator it(M,idx); it; ++it)
+    {
+        auto col = other.col(it.row());
+        MM.triangularView<Eigen::Upper>() += col * col.transpose();
+        rr.noalias() += col * ((it.value() - hp_ptr->mean_rating) * hp_ptr->alpha);
+    }
+    
+    // copy upper -> lower part, matrix is symmetric.
+    MM.triangularView<Eigen::Lower>() = MM.transpose();
+
+    chol.compute(hp_ptr->LambdaF + hp_ptr->alpha * MM);
+
+    if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
+
+    chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
+    rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
+    chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
+    items.col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
+}
+
 // 
 // update ALL movies / users in parallel
 //
@@ -70,9 +108,19 @@ void Sys::sample(Sys &other)
     double    local_norm(0.0); // squared norm
     MatrixNNd local_prod(MatrixNNd::Zero()); // outer prod
 
+    int num_ratings = M().nonZeros();
+    int outer_size = M().outerSize();
+    int num_items = num();
+
     for (int i = from(); i < to(); ++i)
     {
-        #pragma oss task out(ratings_ptr[0;num()]) shared(other) private(i)
+        #pragma oss task \
+            in(hp_ptr[0]) \
+            in(ratings_ptr[0;num_ratings]) \
+            in(inner_ptr[0;num_ratings]) \
+            in(outer_ptr[0;outer_size]) \
+            in(other) \
+            inout(items_ptr[0;num_items])
         sample(i, other);
     }
 #pragma oss taskwait
