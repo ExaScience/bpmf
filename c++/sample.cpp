@@ -120,6 +120,9 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
     Pm2 = Pavg = Torig = T; // reference ratings and predicted ratings
     assert(_M.rows() == Pavg.rows());
     assert(_M.cols() == Pavg.cols());
+    //SHOW(sizeof(*this));
+    //SHOW(sizeof(_M));
+    //SHOW(&(_M));
 }
 
 //
@@ -132,6 +135,7 @@ Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt)
     Pm2 = Pavg = T = Torig = Pt.transpose(); // reference ratings and predicted ratings
     assert(_M.rows() == Pavg.rows());
     assert(_M.cols() == Pavg.cols());
+    SHOW(sizeof(*this));
 }
 
 Sys::~Sys() 
@@ -198,64 +202,6 @@ void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
     LambdaL = LambdaU.transpose();
 
     //SHOW(LambdaF);
-}
-
-//
-// Update ONE movie or one user
-//
-VectorNd Sys::sample(long idx, Sys &other)
-{
-    auto start = tick();
-
-    VectorNd rr = hp().LambdaF * hp().mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
-    MatrixNNd MM(MatrixNNd::Zero());
-    PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
-
-    //SHOW(hp().mu);
-    //SHOW(hp().LambdaF);
-
-    //computeMuLambda(idx, other, rr, MM);
-    for (SparseMapD::InnerIterator it(M(), idx); it; ++it)
-    {
-        auto col = other.items().col(it.row());
-        MM.triangularView<Eigen::Upper>() += col * col.transpose();
-        rr.noalias() += col * ((it.value() - hp().mean_rating) * hp().alpha);
-    }
-    
-    // copy upper -> lower part, matrix is symmetric.
-    MM.triangularView<Eigen::Lower>() = MM.transpose();
-
-    chol.compute(hp().LambdaF + hp().alpha * MM);
-
-    if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
-
-    // now we should calculate formula (14) from the paper
-    // u_i for k-th iteration = Gaussian distribution N(u_i | mu_i with *, [lambda_i with *]^-1) =
-    //                        = mu_i with * + s * [U]^-1, 
-    //                        where 
-    //                              s is a random vector with N(0, I),
-    //                              mu_i with * is a vector num_latent x 1, 
-    //                              mu_i with * = [lambda_i with *]^-1 * rr,
-    //                              lambda_i with * = L * U       
-
-    // Expression u_i = U \ (s + (L \ rr)) in Matlab looks for Eigen library like: 
-
-    chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
-    rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
-    chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
-    items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
-
-    auto stop = tick();
-    register_time(idx, 1e6 * (stop - start));
-    //Sys::cout() << "  " << count << ": " << 1e6*(stop - start) << std::endl;
-
-
-    assert(rr.norm() > .0);
-
-    //SHOW(rr.norm());
-    //SHOW(items().col(idx).norm());
-
-    return rr;
 }
 
 void Sys::register_time(int i, double t)

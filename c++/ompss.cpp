@@ -119,9 +119,9 @@ void Sys::sample(Sys &other)
             in(ratings_ptr[0;num_ratings]) \
             in(inner_ptr[0;num_ratings]) \
             in(outer_ptr[0;outer_size]) \
-            in(other) \
-            inout(items_ptr[0;num_items])
-        sample(i, other);
+            in(other.items_ptr[0;num_items]) \
+            out(items_ptr[0;num_items])
+        sample_task(i, hp_ptr, other.items_ptr, ratings_ptr, inner_ptr, outer_ptr, items_ptr);
     }
 #pragma oss taskwait
 

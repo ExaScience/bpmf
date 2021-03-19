@@ -11,6 +11,7 @@
 #include <random>
 #include <unistd.h>
 
+#include "error.h"
 #include "io.h"
 #include "bpmf.h"
 
@@ -84,8 +85,13 @@ int main(int argc, char *argv[])
     }
 
 
+    //SHOW(sizeof(Sys));
     Sys movies("movs", fname, probename);
+    //SHOW(sizeof(movies._M));
+    //SHOW(&(movies._M));
+    //SHOW(sizeof(Sys));
     Sys users("users", movies._M, movies.Pavg);
+    //SHOW(sizeof(Sys));
 
     movies.alloc_and_init();
     users.alloc_and_init();

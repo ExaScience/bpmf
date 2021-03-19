@@ -126,9 +126,7 @@ struct Sys {
     //-- factors of the MF
     double* items_ptr;
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
-    VectorNd sample(long idx, Sys &in);
 
-    // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     void sample(Sys &in);
 
     //-- colwise sum of U
