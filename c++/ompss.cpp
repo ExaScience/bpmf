@@ -115,17 +115,27 @@ void Sys::sample(Sys &other)
     int other_num_items = other_num();
     const double *other_ptr = other.items_ptr;
 
+    const HyperParams *this_hp_ptr = this->hp_ptr;
+    const int *this_inner_ptr = this->inner_ptr;
+    const int *this_outer_ptr = this->outer_ptr;
+    const double *this_ratings_ptr = this->ratings_ptr;
+    double *this_items_ptr = this->items_ptr;
+
+    /*
+     * printf values inside task
+     */
     for (int i = from(); i < to(); ++i)
     {
         #pragma oss task \
-            in(hp_ptr[0]) \
-            in(ratings_ptr[0;num_ratings]) \
-            in(inner_ptr[0;num_ratings]) \
-            in(outer_ptr[0;outer_size]) \
+            in(this_hp_ptr[0]) \
+            in(this_ratings_ptr[0;num_ratings]) \
+            in(this_inner_ptr[0;num_ratings]) \
+            in(this_outer_ptr[0;outer_size]) \
             in(other_ptr[0;other_num_items*num_latent]) \
-            out(items_ptr[i*num_latent;num_latent])
-        sample_task(i, hp_ptr, other.items_ptr, ratings_ptr, inner_ptr, outer_ptr, items_ptr);
+            out(this_items_ptr[i*num_latent;num_latent])
+        sample_task(i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
     }
+    // taskwait copies outputs from sample_task to this task
 #pragma oss taskwait
 
     for (int i = from(); i < to(); ++i)
