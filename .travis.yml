@@ -3,11 +3,11 @@ os: linux
 dist: focal
 
 addons:
+  apt:
     packages:
       - libblas-dev
       - liblapack-dev
       - liblapacke-dev
-      - libopenmpi-dev
       - libeigen3-dev
 
 script:
