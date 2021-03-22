@@ -36,6 +36,7 @@ void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
 
+void rng_init(int);
 double randn();
  
 #define nrandn(n) (Eigen::VectorXd::NullaryExpr((n), [](double) { return randn(); }))
@@ -128,6 +129,7 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
 
     void sample(Sys &in);
+    VectorNd sample(long idx, Sys &other);
 
     //-- colwise sum of U
     VectorNd sum;

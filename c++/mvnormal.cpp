@@ -18,22 +18,36 @@
 using namespace std;
 using namespace Eigen;
 
-/*
-  We need a functor that can pretend it's const,
-  but to be a good random number generator 
-  it needs mutable state.
-*/
-
-std::mt19937 r(std::mt19937(42));
-
-std::mt19937 &rng()
+static struct RNG
 {
-    return r;
-}
+  std::normal_distribution<> normal_d;
+  std::mt19937 generator;
+
+  unsigned long long counter = 0;
+  unsigned long long capacity;
+
+  std::vector<double> stash;
+
+  RNG(unsigned long long c = 100000) : capacity(c)
+  {
+    for (unsigned long long i = 0; i < c; ++i)
+      stash.push_back(normal_d(generator));
+  }
+
+  ~RNG() {
+    std::cerr << "Generated " << counter << " normal random numbers" << std::endl;
+  }
+
+  double &operator()()
+  {
+    counter++;
+    return stash[counter % capacity];
+  }
+
+} rng;
 
 double randn() {
-    normal_distribution<> nd;
-    return nd(rng());
+    return rng();
 }
 
 /*
@@ -42,9 +56,9 @@ double randn() {
 */
 VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const VectorNd & mean)
 {
-  VectorNd r = nrandn(num_latent);
-  Lambda_U.triangularView<Upper>().solveInPlace(r);
-  return (r / sqrt(kappa)) + mean;
+  VectorNd rng_generator = nrandn(num_latent);
+  Lambda_U.triangularView<Upper>().solveInPlace(rng_generator);
+  return (rng_generator / sqrt(kappa)) + mean;
 }
 
 
@@ -53,8 +67,8 @@ void WishartUnitChol(int df, MatrixNNd & c) {
 
     for ( int i = 0; i < num_latent; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
-        c(i,i) = sqrt(2.0 * gam(rng()));
-        VectorXd r = nrandn(num_latent-i-1);
+        c(i,i) = sqrt(2.0 * gam(rng.generator));
+        VectorXd rng_generator = nrandn(num_latent-i-1);
         for(int j=i+1;j<num_latent;j++) c.coeffRef(i,j) = randn();
     }
 }
