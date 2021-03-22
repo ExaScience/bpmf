@@ -35,6 +35,7 @@ void Sys::Abort(int) { abort();  }
 
 void Sys::alloc_and_init()
 {
+    // shouldn't be needed --> on stack
     hp_ptr = (HyperParams *)nanos6_lmalloc(sizeof(HyperParams));
     hp() = HyperParams();
     hp().alpha = alpha;
@@ -43,8 +44,8 @@ void Sys::alloc_and_init()
     hp().nnz = _M.nonZeros();
 
     ratings_ptr = (double *)nanos6_lmalloc(sizeof(double) * _M.nonZeros());
-    inner_ptr   = (int *)nanos6_lmalloc(sizeof(double) * _M.nonZeros());
-    outer_ptr   = (int *)nanos6_lmalloc(sizeof(double) * ( _M.outerSize() + 1));
+    inner_ptr   = (int *)nanos6_lmalloc(sizeof(int) * _M.nonZeros());
+    outer_ptr   = (int *)nanos6_lmalloc(sizeof(int) * ( _M.outerSize() + 1));
 
     std::memcpy(M().valuePtr(),      _M.valuePtr(),      sizeof(double) * M().nonZeros());
     std::memcpy(M().innerIndexPtr(), _M.innerIndexPtr(), sizeof(int) * M().nonZeros());
@@ -112,6 +113,7 @@ void Sys::sample(Sys &other)
     int outer_size = M().outerSize();
     int num_items = num();
     int other_num_items = other_num();
+    const double *other_ptr = other.items_ptr;
 
     for (int i = from(); i < to(); ++i)
     {
@@ -120,7 +122,7 @@ void Sys::sample(Sys &other)
             in(ratings_ptr[0;num_ratings]) \
             in(inner_ptr[0;num_ratings]) \
             in(outer_ptr[0;outer_size]) \
-            in(other.items_ptr[0;other_num_items*num_latent]) \
+            in(other_ptr[0;other_num_items*num_latent]) \
             out(items_ptr[i*num_latent;num_latent])
         sample_task(i, hp_ptr, other.items_ptr, ratings_ptr, inner_ptr, outer_ptr, items_ptr);
     }
