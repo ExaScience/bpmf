@@ -208,6 +208,9 @@ void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
 //
 VectorNd Sys::sample(long idx, Sys &other)
 {
+    rng.counter = (idx+1) * num_latent * iter;
+    std::cout << "-- start of " << idx << ": " << rng.counter << std::endl;
+
     auto start = tick();
 
     VectorNd rr = hp().LambdaF * hp().mu;                // vector num_latent x 1, we will use it in formula (14) from the paper

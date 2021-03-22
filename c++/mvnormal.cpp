@@ -18,49 +18,51 @@
 using namespace std;
 using namespace Eigen;
 
-static struct RNG
+struct RNG rng;
+
+RNG::RNG(unsigned long long c)
+  : generator(42), capacity(c), counter(0)
 {
-  std::normal_distribution<> normal_d;
-  std::mt19937 generator;
-
-  unsigned long long counter = 0;
-  unsigned long long capacity;
-
-  std::vector<double> stash;
-
-  RNG(unsigned long long c = 100000) : capacity(c)
+  std::cerr << " RNG: ";
+  for (unsigned long long i = 0; i < c; ++i)
   {
-    for (unsigned long long i = 0; i < c; ++i)
-      stash.push_back(normal_d(generator));
+      double d = normal_d(generator);
+      if (i<10) std::cerr << d << " ";
+      stash.push_back(d);
   }
+  std::cerr << std::endl;
+}
 
-  ~RNG() {
-    std::cerr << "Generated " << counter << " normal random numbers" << std::endl;
-  }
+RNG::~RNG() {
+  std::cerr << "Generated " << counter << " normal random numbers" << std::endl;
+}
 
-  double &operator()()
-  {
-    counter++;
-    return stash[counter % capacity];
-  }
-
-} rng;
+double &RNG::operator()()
+{
+  counter++;
+  return stash[counter % capacity];
+}
 
 double randn() {
     return rng();
 }
 
+void rng_set_pos(unsigned long long p)
+{
+  rng.counter = p;
+}
+
+
 /*
   Draw nn samples from a size-dimensional normal distribution
-  with a specified mean and covariance
+  with a specified mean and precision matrix
 */
 VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const VectorNd & mean)
 {
-  VectorNd rng_generator = nrandn(num_latent);
-  Lambda_U.triangularView<Upper>().solveInPlace(rng_generator);
-  return (rng_generator / sqrt(kappa)) + mean;
+  VectorNd r = nrandn(num_latent);
+  Lambda_U.triangularView<Upper>().solveInPlace(r);
+  return (r / sqrt(kappa)) + mean;
 }
-
 
 void WishartUnitChol(int df, MatrixNNd & c) {
     c.setZero();
@@ -68,7 +70,6 @@ void WishartUnitChol(int df, MatrixNNd & c) {
     for ( int i = 0; i < num_latent; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
         c(i,i) = sqrt(2.0 * gam(rng.generator));
-        VectorXd rng_generator = nrandn(num_latent-i-1);
         for(int j=i+1;j<num_latent;j++) c.coeffRef(i,j) = randn();
     }
 }

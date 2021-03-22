@@ -62,6 +62,7 @@ void Sys::alloc_and_init()
 }     
 
 void sample_task(
+    long iter,
     long idx,
     const HyperParams *hp_ptr, 
     const double *other_ptr,
@@ -70,6 +71,9 @@ void sample_task(
     const int *outer_ptr,
     double *items_ptr)
 {
+    rng.counter = (idx+1) * num_latent * iter;
+    std::cout << "-- start of " << idx << ": " << rng.counter << std::endl;
+
     const Eigen::Map<const SparseMatrixD> M( hp_ptr->other_num, hp_ptr->num, hp_ptr->nnz, outer_ptr, inner_ptr, ratings_ptr);
     const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
     Eigen::Map<MatrixNXd> items(items_ptr, num_latent, hp_ptr->num);
@@ -121,9 +125,6 @@ void Sys::sample(Sys &other)
     const double *this_ratings_ptr = this->ratings_ptr;
     double *this_items_ptr = this->items_ptr;
 
-    /*
-     * printf values inside task
-     */
     for (int i = from(); i < to(); ++i)
     {
         #pragma oss task \
@@ -133,17 +134,21 @@ void Sys::sample(Sys &other)
             in(this_outer_ptr[0;outer_size]) \
             in(other_ptr[0;other_num_items*num_latent]) \
             out(this_items_ptr[i*num_latent;num_latent])
-        sample_task(i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+        sample_task(iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
     }
     // taskwait copies outputs from sample_task to this task
 #pragma oss taskwait
 
+
     for (int i = from(); i < to(); ++i)
     {
-        const auto &r = items().col(i);
-        local_prod += (r * r.transpose());
-        local_sum += r;
-        local_norm += r.squaredNorm();
+        const VectorNd &r1 = items().col(i);
+        SHOW(r1);
+        auto r2 = Sys::sample(i, other);
+        SHOW(r2);
+        local_prod += (r1 * r1.transpose());
+        local_sum += r1;
+        local_norm += r1.squaredNorm();
     }
 
     const int N = num();
