@@ -23,18 +23,18 @@ struct RNG rng;
 RNG::RNG(unsigned long long c)
   : generator(42), capacity(c), counter(0)
 {
-  std::cerr << " RNG: ";
+  Sys::cout() << " RNG: ";
   for (unsigned long long i = 0; i < c; ++i)
   {
       double d = normal_d(generator);
-      if (i<10) std::cerr << d << " ";
+      if (i<10) Sys::cout() << d << " ";
       stash.push_back(d);
   }
-  std::cerr << std::endl;
+  Sys::cout() << std::endl;
 }
 
 RNG::~RNG() {
-  std::cerr << "Generated " << counter << " normal random numbers" << std::endl;
+  Sys::cout() << "Generated " << counter << " normal random numbers" << std::endl;
 }
 
 double &RNG::operator()()

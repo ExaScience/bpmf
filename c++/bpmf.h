@@ -113,8 +113,7 @@ struct Sys {
     static void Abort(int);
     static void sync();
 
-    static std::ostream *os;
-    static std::ostream &cout() { os->flush(); return *os; }
+    static std::ostream &cout() { return std::cout; }
     
     //-- c'tor
     std::string name;

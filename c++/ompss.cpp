@@ -72,7 +72,7 @@ void sample_task(
     double *items_ptr)
 {
     rng.counter = (idx+1) * num_latent * iter;
-    std::cout << "-- start of " << idx << ": " << rng.counter << std::endl;
+    Sys::cout() << "-- oss start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     const Eigen::Map<const SparseMatrixD> M( hp_ptr->other_num, hp_ptr->num, hp_ptr->nnz, outer_ptr, inner_ptr, ratings_ptr);
     const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
@@ -101,6 +101,9 @@ void sample_task(
     rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
     items.col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
+
+    SHOW(rr.transpose());
+    Sys::cout() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 }
 
 // 
@@ -125,6 +128,8 @@ void Sys::sample(Sys &other)
     const double *this_ratings_ptr = this->ratings_ptr;
     double *this_items_ptr = this->items_ptr;
 
+    Sys::cout() << "Start scheduling oss tasks - iter " << iter << std::endl;
+
     for (int i = from(); i < to(); ++i)
     {
         #pragma oss task \
@@ -136,16 +141,17 @@ void Sys::sample(Sys &other)
             out(this_items_ptr[i*num_latent;num_latent])
         sample_task(iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
     }
+
+    Sys::cout() << "Finished scheduling oss tasks - iter " << iter << std::endl;
     // taskwait copies outputs from sample_task to this task
 #pragma oss taskwait
 
-
+    Sys::cout() << "Finished taskwait oss tasks - iter " << iter << std::endl;
     for (int i = from(); i < to(); ++i)
     {
-        const VectorNd &r1 = items().col(i);
-        SHOW(r1);
-        auto r2 = Sys::sample(i, other);
-        SHOW(r2);
+        const VectorNd r1 = items().col(i);
+        const VectorNd r2 = Sys::sample(i, other);
+        assert((r1-r2).norm() < 0.0001);
         local_prod += (r1 * r1.transpose());
         local_sum += r1;
         local_norm += r1.squaredNorm();
