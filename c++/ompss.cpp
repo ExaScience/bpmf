@@ -47,6 +47,8 @@ void Sys::alloc_and_init()
     inner_ptr   = (int *)nanos6_lmalloc(sizeof(int) * _M.nonZeros());
     outer_ptr   = (int *)nanos6_lmalloc(sizeof(int) * ( _M.outerSize() + 1));
 
+    _M.makeCompressed();
+
     std::memcpy(M().valuePtr(),      _M.valuePtr(),      sizeof(double) * M().nonZeros());
     std::memcpy(M().innerIndexPtr(), _M.innerIndexPtr(), sizeof(int) * M().nonZeros());
     std::memcpy(M().outerIndexPtr(), _M.outerIndexPtr(), sizeof(int) * ( M().outerSize() + 1));
@@ -71,16 +73,27 @@ void sample_task(
     const int *outer_ptr,
     double *items_ptr)
 {
-    rng.counter = (idx+1) * num_latent * iter;
+    rng.counter = (idx+1) * num_latent * (iter+1);
     Sys::cout() << "-- oss start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     const Eigen::Map<const SparseMatrixD> M( hp_ptr->other_num, hp_ptr->num, hp_ptr->nnz, outer_ptr, inner_ptr, ratings_ptr);
     const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
     Eigen::Map<MatrixNXd> items(items_ptr, num_latent, hp_ptr->num);
 
+    SHOW(hp_ptr->other_num);
+    SHOW(hp_ptr->num);
+    SHOW(hp_ptr->nnz);
+    SHOW(M.outerSize());
+    SHOW(M.innerSize());
+    SHOW(M.nonZeros());
+
     VectorNd rr = hp_ptr->LambdaF * hp_ptr->mu;
     MatrixNNd MM(MatrixNNd::Zero());
     PrecomputedLLT chol;
+
+    SHOW("before computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
 
     //computeMuLambda(idx, other, rr, MM);
     for (Eigen::Map<const SparseMatrixD>::InnerIterator it(M,idx); it; ++it)
@@ -92,6 +105,14 @@ void sample_task(
     
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
+
+    SHOW(M);
+    SHOW(other);
+    SHOW(hp_ptr->mu.transpose());
+    SHOW(hp_ptr->LambdaF);
+    SHOW("after computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
 
     chol.compute(hp_ptr->LambdaF + hp_ptr->alpha * MM);
 
@@ -117,11 +138,12 @@ void Sys::sample(Sys &other)
     MatrixNNd local_prod(MatrixNNd::Zero()); // outer prod
 
     int num_ratings = M().nonZeros();
-    int outer_size = M().outerSize();
+    int outer_size_plus_one = M().outerSize() + 1;
     int num_items = num();
     int other_num_items = other_num();
     const double *other_ptr = other.items_ptr;
 
+    const int this_iter = this->iter;
     const HyperParams *this_hp_ptr = this->hp_ptr;
     const int *this_inner_ptr = this->inner_ptr;
     const int *this_outer_ptr = this->outer_ptr;
@@ -136,10 +158,10 @@ void Sys::sample(Sys &other)
             in(this_hp_ptr[0]) \
             in(this_ratings_ptr[0;num_ratings]) \
             in(this_inner_ptr[0;num_ratings]) \
-            in(this_outer_ptr[0;outer_size]) \
+            in(this_outer_ptr[0;outer_size_plus_one]) \
             in(other_ptr[0;other_num_items*num_latent]) \
             out(this_items_ptr[i*num_latent;num_latent])
-        sample_task(iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+        sample_task(this_iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
     }
 
     Sys::cout() << "Finished scheduling oss tasks - iter " << iter << std::endl;
@@ -151,7 +173,14 @@ void Sys::sample(Sys &other)
     {
         const VectorNd r1 = items().col(i);
         const VectorNd r2 = Sys::sample(i, other);
-        assert((r1-r2).norm() < 0.0001);
+
+        if ((r1-r2).norm() > 0.0001) {
+            Sys::cout() << " Error at " << i << ":"
+                << "\noriginal: " << r2.transpose()
+                << "\noss     : " << r1.transpose()
+                << std::endl;
+        }
+
         local_prod += (r1 * r1.transpose());
         local_sum += r1;
         local_norm += r1.squaredNorm();
