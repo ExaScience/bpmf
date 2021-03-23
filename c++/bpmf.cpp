@@ -53,6 +53,7 @@ std::ostream &Sys::cout()
         gethostname(name, 1024);
         snprintf(output_filename, 256, "bpmf_%s_%d.out", name, getpid());
         Sys::os = new std::ofstream(output_filename);
+        std::cout << "output file: " << output_filename << std::endl;
     }
 
     return *Sys::os;
