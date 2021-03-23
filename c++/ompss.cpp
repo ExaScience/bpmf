@@ -150,7 +150,7 @@ void Sys::sample(Sys &other)
     const double *this_ratings_ptr = this->ratings_ptr;
     double *this_items_ptr = this->items_ptr;
 
-    Sys::cout() << "Start scheduling oss tasks - iter " << iter << std::endl;
+    Sys::cout() << name << " -- Start scheduling oss tasks - iter " << iter << std::endl;
 
     for (int i = from(); i < to(); ++i)
     {
@@ -164,11 +164,11 @@ void Sys::sample(Sys &other)
         sample_task(this_iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
     }
 
-    Sys::cout() << "Finished scheduling oss tasks - iter " << iter << std::endl;
+    Sys::cout() << name << " -- Finished scheduling oss tasks - iter " << iter << std::endl;
     // taskwait copies outputs from sample_task to this task
 #pragma oss taskwait
 
-    Sys::cout() << "Finished taskwait oss tasks - iter " << iter << std::endl;
+    Sys::cout() << name << " -- Finished taskwait oss tasks - iter " << iter << std::endl;
     for (int i = from(); i < to(); ++i)
     {
         const VectorNd r1 = items().col(i);
