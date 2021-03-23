@@ -206,7 +206,7 @@ void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
 //
 VectorNd Sys::sample(long idx, Sys &other)
 {
-    rng.counter = (idx+1) * num_latent * iter;
+    rng.counter = (idx+1) * num_latent * (iter+1);
     Sys::cout() << "-- original start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     auto start = tick();
@@ -218,6 +218,17 @@ VectorNd Sys::sample(long idx, Sys &other)
     //SHOW(hp().mu);
     //SHOW(hp().LambdaF);
 
+    SHOW(hp().other_num);
+    SHOW(hp().num);
+    SHOW(hp().nnz);
+    SHOW(M().outerSize());
+    SHOW(M().innerSize());
+    SHOW(M().nonZeros());
+
+    SHOW("before computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
+
     //computeMuLambda(idx, other, rr, MM);
     for (SparseMapD::InnerIterator it(M(), idx); it; ++it)
     {
@@ -228,6 +239,14 @@ VectorNd Sys::sample(long idx, Sys &other)
     
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
+
+    SHOW(M());
+    SHOW(other.items());
+    SHOW(hp().mu.transpose());
+    SHOW(hp().LambdaF);
+    SHOW("after computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
 
     chol.compute(hp().LambdaF + hp().alpha * MM);
 

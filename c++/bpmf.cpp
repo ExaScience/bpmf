@@ -77,8 +77,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    Sys::os = &std::cout;
-
     if (fname.empty() || probename.empty()) { 
         usage();
         Sys::Abort(1);
