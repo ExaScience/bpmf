@@ -35,6 +35,11 @@ void Sys::Abort(int) { abort();  }
 
 void Sys::alloc_and_init()
 {
+#ifndef _OMPSS
+#define nanos6_lmalloc(size) malloc(size)
+#define nanos6_dmalloc(size, A, B, C) malloc(size)
+#endif
+
     // shouldn't be needed --> on stack
     hp_ptr = (HyperParams *)nanos6_lmalloc(sizeof(HyperParams));
     hp() = HyperParams();
@@ -43,11 +48,11 @@ void Sys::alloc_and_init()
     hp().other_num = _M.rows();
     hp().nnz = _M.nonZeros();
 
+
     ratings_ptr = (double *)nanos6_lmalloc(sizeof(double) * _M.nonZeros());
     inner_ptr   = (int *)nanos6_lmalloc(sizeof(int) * _M.nonZeros());
     outer_ptr   = (int *)nanos6_lmalloc(sizeof(int) * ( _M.outerSize() + 1));
 
-    _M.makeCompressed();
 
     std::memcpy(M().valuePtr(),      _M.valuePtr(),      sizeof(double) * M().nonZeros());
     std::memcpy(M().innerIndexPtr(), _M.innerIndexPtr(), sizeof(int) * M().nonZeros());
@@ -58,10 +63,16 @@ void Sys::alloc_and_init()
 
     items_ptr = (double *)nanos6_dmalloc(sizeof(double) * num_latent * num(), nanos6_equpart_distribution, 0, NULL);
 
+#ifndef _OMPSS
+#undef nanos6_lmalloc
+#undef nanos6_dmalloc
+#endif
+
     init();
 
     hp().mean_rating = mean_rating;
 }     
+
 
 void sample_task(
     long iter,
@@ -127,6 +138,19 @@ void sample_task(
     Sys::cout() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 }
 
+void sample_task_wrapper(
+    long iter,
+    long idx,
+    const HyperParams *hp_ptr, 
+    const double *other_ptr,
+    const double *ratings_ptr,
+    const int *inner_ptr,
+    const int *outer_ptr,
+    double *items_ptr)
+{
+    sample_task(iter, idx, hp_ptr, other_ptr, ratings_ptr, inner_ptr, outer_ptr, items_ptr);
+}
+
 // 
 // update ALL movies / users in parallel
 //
@@ -161,7 +185,7 @@ void Sys::sample(Sys &other)
             in(this_outer_ptr[0;outer_size_plus_one]) \
             in(other_ptr[0;other_num_items*num_latent]) \
             out(this_items_ptr[i*num_latent;num_latent])
-        sample_task(this_iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+        sample_task_wrapper(this_iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
     }
 
     Sys::cout() << name << " -- Finished scheduling oss tasks - iter " << iter << std::endl;
