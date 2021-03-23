@@ -18,6 +18,8 @@
 
 static const bool measure_perf = false;
 
+std::ostream *Sys::os = 0;
+
 int Sys::nsims;
 int Sys::burnin;
 double Sys::alpha = 2.0;
@@ -207,7 +209,7 @@ void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
 VectorNd Sys::sample(long idx, Sys &other)
 {
     rng.counter = (idx+1) * num_latent * (iter+1);
-    Sys::cout() << "-- original start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    Sys::cout() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     auto start = tick();
 
@@ -278,7 +280,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     //SHOW(items().col(idx).norm());
 
     SHOW(rr.transpose());
-    Sys::cout() << "-- original done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    Sys::cout() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     return rr;
 }

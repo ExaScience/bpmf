@@ -43,8 +43,26 @@ void usage()
                 << std::endl;
 }
 
+std::ostream &Sys::cout()
+{
+    if (!Sys::os)
+    {
+        char name[1024];
+        char output_filename[256];
+
+        gethostname(name, 1024);
+        snprintf(output_filename, 256, "bpmf_%s_%d.out", name, getpid());
+        Sys::os = new std::ofstream(output_filename);
+    }
+
+    return *Sys::os;
+}
+
 int main(int argc, char *argv[])
 {
+    char name[1024];
+    gethostname(name, 1024);
+
     Sys::Init();
     int ch;
     std::string fname, probename;
@@ -99,8 +117,6 @@ int main(int argc, char *argv[])
     long double average_items_sec = .0;
     long double average_ratings_sec = .0;
     
-    char name[1024];
-    gethostname(name, 1024);
     Sys::cout() << "hostname: " << name << std::endl;
     Sys::cout() << "pid: " << getpid() << std::endl;
     if (getenv("PBS_JOBID")) Sys::cout() << "jobid: " << getenv("PBS_JOBID") << std::endl;
@@ -161,6 +177,8 @@ int main(int argc, char *argv[])
 
     perf_data_print();
     Sys::Finalize();
+
+    delete Sys::os;
 
     return 0;
 }
