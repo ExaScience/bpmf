@@ -113,7 +113,6 @@ struct Sys {
     static void Abort(int);
     static void sync();
 
-    static std::ostream *os, *db;
     static std::ostream &cout();
     static std::ostream &dbg();
     

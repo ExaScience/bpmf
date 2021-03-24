@@ -19,9 +19,6 @@
 
 static const bool measure_perf = false;
 
-std::ostream *Sys::os = 0;
-std::ostream *Sys::db = 0;
-
 int Sys::nsims;
 int Sys::burnin;
 double Sys::alpha = 2.0;

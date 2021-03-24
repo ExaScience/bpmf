@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <random>
 #include <unistd.h>
+#include <thread>
 
 #include "error.h"
 #include "io.h"
@@ -45,37 +46,41 @@ void usage()
 
 std::ostream &Sys::cout()
 {
+    static std::ostream *os = 0;
+
     if (!Sys::redirect)
         return std::cout;
 
-    if (!Sys::os)
+    if (!os)
     {
         char name[1024];
         char output_filename[256];
 
         gethostname(name, 1024);
         snprintf(output_filename, 256, "bpmf_%s_%d_out.txt", name, getpid());
-        Sys::os = new std::ofstream(output_filename);
+        os = new std::ofstream(output_filename);
         std::cout << "output file: " << output_filename << std::endl;
     }
 
-    return *Sys::os;
+    return *os;
 }
 
 std::ostream &Sys::dbg()
 {
-    if (!Sys::db)
+    static thread_local std::ostream *os = 0;
+    static int count = 0;
+    if (!os)
     {
         char name[1024];
         char output_filename[256];
 
         gethostname(name, 1024);
-        snprintf(output_filename, 256, "bpmf_%s_%d_dbg.txt", name, getpid());
-        Sys::db = new std::ofstream(output_filename);
+        snprintf(output_filename, 256, "bpmf_%s_%d_%d_dbg.txt", name, getpid(), count++);
+        os = new std::ofstream(output_filename);
         Sys::cout() << "dbg file: " << output_filename << std::endl;
     }
 
-    return *Sys::db;
+    return *os;
 }
 
 int main(int argc, char *argv[])
@@ -197,8 +202,6 @@ int main(int argc, char *argv[])
 
     perf_data_print();
     Sys::Finalize();
-
-    delete Sys::os;
 
     return 0;
 }
