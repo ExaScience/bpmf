@@ -15,6 +15,7 @@
 #include "error.h"
 #include "bpmf.h"
 #include "io.h"
+#include "ompss.h"
 
 static const bool measure_perf = false;
 
@@ -348,6 +349,73 @@ void sample_task(
 
     SHOW(rr.transpose());
     Sys::cout() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+}
+
+
+// 
+// update ALL movies / users in parallel
+//
+void Sys::sample(Sys &other) 
+{
+    iter++;
+    VectorNd  local_sum(VectorNd::Zero()); // sum
+    double    local_norm(0.0); // squared norm
+    MatrixNNd local_prod(MatrixNNd::Zero()); // outer prod
+
+    int num_ratings = M().nonZeros();
+    int outer_size_plus_one = M().outerSize() + 1;
+    int num_items = num();
+    int other_num_items = other_num();
+    const double *other_ptr = other.items_ptr;
+
+    const int this_iter = this->iter;
+    const HyperParams *this_hp_ptr = this->hp_ptr;
+    const int *this_inner_ptr = this->inner_ptr;
+    const int *this_outer_ptr = this->outer_ptr;
+    const double *this_ratings_ptr = this->ratings_ptr;
+    double *this_items_ptr = this->items_ptr;
+
+    Sys::cout() << name << " -- Start scheduling oss tasks - iter " << iter << std::endl;
+
+    sample_task_scheduler(
+        from(),
+        to(),
+        num_ratings,
+        outer_size_plus_one,
+        num_items,
+        other_num_items,
+        other_ptr,
+
+        this_iter,
+        this_hp_ptr,
+        this_inner_ptr,
+        this_outer_ptr,
+        this_ratings_ptr,
+        this_items_ptr);
+
+    Sys::cout() << name << " -- Finished taskwait oss tasks - iter " << iter << std::endl;
+
+    for (int i = from(); i < to(); ++i)
+    {
+        const VectorNd r1 = items().col(i);
+        const VectorNd r2 = Sys::sample(i, other);
+
+        if ((r1-r2).norm() > 0.0001) {
+            Sys::cout() << " Error at " << i << ":"
+                << "\noriginal: " << r2.transpose()
+                << "\noss     : " << r1.transpose()
+                << std::endl;
+        }
+
+        local_prod += (r1 * r1.transpose());
+        local_sum += r1;
+        local_norm += r1.squaredNorm();
+    }
+
+    const int N = num();
+    sum = local_sum;
+    cov = (local_prod - (sum * sum.transpose() / N)) / (N-1);
+    norm = local_norm;
 }
 
 void Sys::register_time(int i, double t)
