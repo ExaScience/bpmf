@@ -45,18 +45,37 @@ void usage()
 
 std::ostream &Sys::cout()
 {
+    if (!Sys::redirect)
+        return std::cout;
+
     if (!Sys::os)
     {
         char name[1024];
         char output_filename[256];
 
         gethostname(name, 1024);
-        snprintf(output_filename, 256, "bpmf_%s_%d.out", name, getpid());
+        snprintf(output_filename, 256, "bpmf_%s_%d_out.txt", name, getpid());
         Sys::os = new std::ofstream(output_filename);
         std::cout << "output file: " << output_filename << std::endl;
     }
 
     return *Sys::os;
+}
+
+std::ostream &Sys::dbg()
+{
+    if (!Sys::db)
+    {
+        char name[1024];
+        char output_filename[256];
+
+        gethostname(name, 1024);
+        snprintf(output_filename, 256, "bpmf_%s_%d_dbg.txt", name, getpid());
+        Sys::db = new std::ofstream(output_filename);
+        Sys::cout() << "dbg file: " << output_filename << std::endl;
+    }
+
+    return *Sys::db;
 }
 
 int main(int argc, char *argv[])

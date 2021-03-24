@@ -103,6 +103,7 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 struct Sys {
     //-- static info
     static bool verbose;
+    static bool redirect;
     static int burnin, nsims;
     static double alpha;
     static std::string odirname;
@@ -112,8 +113,9 @@ struct Sys {
     static void Abort(int);
     static void sync();
 
-    static std::ostream *os;
+    static std::ostream *os, *db;
     static std::ostream &cout();
+    static std::ostream &dbg();
     
     //-- c'tor
     std::string name;

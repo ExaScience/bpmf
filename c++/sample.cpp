@@ -20,6 +20,7 @@
 static const bool measure_perf = false;
 
 std::ostream *Sys::os = 0;
+std::ostream *Sys::db = 0;
 
 int Sys::nsims;
 int Sys::burnin;
@@ -28,6 +29,7 @@ double Sys::alpha = 2.0;
 std::string Sys::odirname = "";
 
 bool Sys::verbose = false;
+bool Sys::redirect = false;
 
 // verifies that A has the same non-zero structure as B
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B)
@@ -249,7 +251,7 @@ void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
 VectorNd Sys::sample(long idx, Sys &other)
 {
     rng.counter = (idx+1) * num_latent * (iter+1);
-    Sys::cout() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    Sys::dbg() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     auto start = tick();
 
@@ -320,7 +322,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     //SHOW(items().col(idx).norm());
 
     SHOW(rr.transpose());
-    Sys::cout() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    Sys::dbg() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     return rr;
 }
@@ -338,7 +340,7 @@ void sample_task(
 {
     const HyperParams *hp_ptr = (const HyperParams *)hp_void_ptr;
     rng.counter = (idx+1) * num_latent * (iter+1);
-    Sys::cout() << "-- oss start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    Sys::dbg() << "-- oss start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     const Eigen::Map<const SparseMatrixD> M( hp_ptr->other_num, hp_ptr->num, hp_ptr->nnz, outer_ptr, inner_ptr, ratings_ptr);
     const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
@@ -388,7 +390,7 @@ void sample_task(
     items.col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
     SHOW(rr.transpose());
-    Sys::cout() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    Sys::dbg() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 }
 
 
@@ -415,7 +417,7 @@ void Sys::sample(Sys &other)
     const double *this_ratings_ptr = this->ratings_ptr;
     double *this_items_ptr = this->items_ptr;
 
-    Sys::cout() << name << " -- Start scheduling oss tasks - iter " << iter << std::endl;
+    Sys::dbg() << name << " -- Start scheduling oss tasks - iter " << iter << std::endl;
 
     sample_task_scheduler(
         from(),
@@ -435,7 +437,7 @@ void Sys::sample(Sys &other)
         this_ratings_ptr,
         this_items_ptr);
 
-    Sys::cout() << name << " -- Finished taskwait oss tasks - iter " << iter << std::endl;
+    Sys::dbg() << name << " -- Finished taskwait oss tasks - iter " << iter << std::endl;
 
     for (int i = from(); i < to(); ++i)
     {
@@ -443,7 +445,7 @@ void Sys::sample(Sys &other)
         const VectorNd r2 = Sys::sample(i, other);
 
         if ((r1-r2).norm() > 0.0001) {
-            Sys::cout() << " Error at " << i << ":"
+            Sys::dbg() << " Error at " << i << ":"
                 << "\noriginal: " << r2.transpose()
                 << "\noss     : " << r1.transpose()
                 << std::endl;
