@@ -3,13 +3,16 @@
  * All rights reserved.
  */
 
-#include <cstdlib>
-
 #include "ompss.h"
 
+#ifndef OMPSS
+#include <cstdlib>
+#error Whoops
+#endif
+ 
 void *lmalloc(unsigned long size)
 {
-#ifdef _OMPSS
+#ifdef OMPSS
     return nanos6_lmalloc(size);
 #else
     return malloc(size);
@@ -18,7 +21,7 @@ void *lmalloc(unsigned long size)
 
 void *dmalloc(unsigned long size)
 {
-#ifdef _OMPSS
+#ifdef OMPSS
     return nanos6_dmalloc(size, nanos6_equpart_distribution, 0, NULL);
 #else
     return malloc(size);
