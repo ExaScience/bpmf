@@ -152,6 +152,45 @@ Sys::~Sys()
     }
 }
 
+
+void Sys::alloc_and_init()
+{
+    // shouldn't be needed --> on stack
+    hp_ptr = (HyperParams *)lmalloc(sizeof(HyperParams));
+    hp() = HyperParams();
+    hp().alpha = alpha;
+    hp().num = _M.cols();
+    hp().other_num = _M.rows();
+    hp().nnz = _M.nonZeros();
+
+
+    ratings_ptr = (double *)lmalloc(sizeof(double) * _M.nonZeros());
+    inner_ptr   = (int *)lmalloc(sizeof(int) * _M.nonZeros());
+    outer_ptr   = (int *)lmalloc(sizeof(int) * ( _M.outerSize() + 1));
+
+    std::memcpy(M().valuePtr(),      _M.valuePtr(),      sizeof(double) * M().nonZeros());
+    std::memcpy(M().innerIndexPtr(), _M.innerIndexPtr(), sizeof(int) * M().nonZeros());
+    std::memcpy(M().outerIndexPtr(), _M.outerIndexPtr(), sizeof(int) * ( M().outerSize() + 1));
+
+    for(int k = 0; k<M().cols(); k++) 
+        assert(M().col(k).nonZeros() == _M.col(k).nonZeros());
+
+    items_ptr = (double *)dmalloc(sizeof(double) * num_latent * num());
+
+    init();
+
+    hp().mean_rating = mean_rating;
+}     
+
+
+void Sys::Init() { }
+
+void Sys::Finalize() { } 
+
+void Sys::sync() {}
+
+void Sys::Abort(int) { abort();  }
+
 //
 // Intializes internal Matrices and Vectors
 //
@@ -290,13 +329,14 @@ VectorNd Sys::sample(long idx, Sys &other)
 void sample_task(
     long iter,
     long idx,
-    const HyperParams *hp_ptr, 
+    const void *hp_void_ptr, 
     const double *other_ptr,
     const double *ratings_ptr,
     const int *inner_ptr,
     const int *outer_ptr,
     double *items_ptr)
 {
+    const HyperParams *hp_ptr = (const HyperParams *)hp_void_ptr;
     rng.counter = (idx+1) * num_latent * (iter+1);
     Sys::cout() << "-- oss start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
@@ -369,7 +409,7 @@ void Sys::sample(Sys &other)
     const double *other_ptr = other.items_ptr;
 
     const int this_iter = this->iter;
-    const HyperParams *this_hp_ptr = this->hp_ptr;
+    const void *this_hp_ptr = (void *)this->hp_ptr;
     const int *this_inner_ptr = this->inner_ptr;
     const int *this_outer_ptr = this->outer_ptr;
     const double *this_ratings_ptr = this->ratings_ptr;
@@ -380,6 +420,7 @@ void Sys::sample(Sys &other)
     sample_task_scheduler(
         from(),
         to(),
+        num_latent,
         num_ratings,
         outer_size_plus_one,
         num_items,
@@ -388,6 +429,7 @@ void Sys::sample(Sys &other)
 
         this_iter,
         this_hp_ptr,
+        sizeof(HyperParams),
         this_inner_ptr,
         this_outer_ptr,
         this_ratings_ptr,
