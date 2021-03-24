@@ -33,10 +33,6 @@ RNG::RNG(unsigned long long c)
   Sys::cout() << std::endl;
 }
 
-RNG::~RNG() {
-  Sys::cout() << "Generated " << counter << " normal random numbers" << std::endl;
-}
-
 double &RNG::operator()()
 {
   counter++;

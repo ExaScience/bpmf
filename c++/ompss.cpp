@@ -16,6 +16,7 @@
 #include "error.h"
 #include "bpmf.h"
 #include "io.h"
+#include "ompss.h"
 
 
 #pragma oss declare reduction (+: VectorNd: omp_out=omp_out+omp_in) \
@@ -73,84 +74,6 @@ void Sys::alloc_and_init()
     hp().mean_rating = mean_rating;
 }     
 
-
-void sample_task(
-    long iter,
-    long idx,
-    const HyperParams *hp_ptr, 
-    const double *other_ptr,
-    const double *ratings_ptr,
-    const int *inner_ptr,
-    const int *outer_ptr,
-    double *items_ptr)
-{
-    rng.counter = (idx+1) * num_latent * (iter+1);
-    Sys::cout() << "-- oss start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
-
-    const Eigen::Map<const SparseMatrixD> M( hp_ptr->other_num, hp_ptr->num, hp_ptr->nnz, outer_ptr, inner_ptr, ratings_ptr);
-    const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
-    Eigen::Map<MatrixNXd> items(items_ptr, num_latent, hp_ptr->num);
-
-    SHOW(hp_ptr->other_num);
-    SHOW(hp_ptr->num);
-    SHOW(hp_ptr->nnz);
-    SHOW(M.outerSize());
-    SHOW(M.innerSize());
-    SHOW(M.nonZeros());
-
-    VectorNd rr = hp_ptr->LambdaF * hp_ptr->mu;
-    MatrixNNd MM(MatrixNNd::Zero());
-    PrecomputedLLT chol;
-
-    SHOW("before computeMuLambda");
-    SHOW(MM);
-    SHOW(rr.transpose());
-
-    //computeMuLambda(idx, other, rr, MM);
-    for (Eigen::Map<const SparseMatrixD>::InnerIterator it(M,idx); it; ++it)
-    {
-        auto col = other.col(it.row());
-        MM.triangularView<Eigen::Upper>() += col * col.transpose();
-        rr.noalias() += col * ((it.value() - hp_ptr->mean_rating) * hp_ptr->alpha);
-    }
-    
-    // copy upper -> lower part, matrix is symmetric.
-    MM.triangularView<Eigen::Lower>() = MM.transpose();
-
-    SHOW(M);
-    SHOW(other);
-    SHOW(hp_ptr->mu.transpose());
-    SHOW(hp_ptr->LambdaF);
-    SHOW("after computeMuLambda");
-    SHOW(MM);
-    SHOW(rr.transpose());
-
-    chol.compute(hp_ptr->LambdaF + hp_ptr->alpha * MM);
-
-    if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
-
-    chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
-    rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
-    chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
-    items.col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
-
-    SHOW(rr.transpose());
-    Sys::cout() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
-}
-
-void sample_task_wrapper(
-    long iter,
-    long idx,
-    const HyperParams *hp_ptr, 
-    const double *other_ptr,
-    const double *ratings_ptr,
-    const int *inner_ptr,
-    const int *outer_ptr,
-    double *items_ptr)
-{
-    sample_task(iter, idx, hp_ptr, other_ptr, ratings_ptr, inner_ptr, outer_ptr, items_ptr);
-}
-
 // 
 // update ALL movies / users in parallel
 //
@@ -185,7 +108,7 @@ void Sys::sample(Sys &other)
             in(this_outer_ptr[0;outer_size_plus_one]) \
             in(other_ptr[0;other_num_items*num_latent]) \
             out(this_items_ptr[i*num_latent;num_latent])
-        sample_task_wrapper(this_iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+        sample_task(this_iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
     }
 
     Sys::cout() << name << " -- Finished scheduling oss tasks - iter " << iter << std::endl;
@@ -214,4 +137,37 @@ void Sys::sample(Sys &other)
     sum = local_sum;
     cov = (local_prod - (sum * sum.transpose() / N)) / (N-1);
     norm = local_norm;
+}
+
+
+void sample_task_scheduler(
+    int from,
+    int to,
+    int num_ratings,
+    int outer_size_plus_one,
+    int num_items,
+    int other_num_items,
+    const double *other_ptr,
+
+    const int this_iter,
+    const HyperParams *this_hp_ptr,
+    const int *this_inner_ptr,
+    const int *this_outer_ptr,
+    const double *this_ratings_ptr,
+    double *this_items_ptr
+)
+{
+    for (int i = from; i < to; ++i)
+    {
+        #pragma oss task \
+            in(this_hp_ptr[0]) \
+            in(this_ratings_ptr[0;num_ratings]) \
+            in(this_inner_ptr[0;num_ratings]) \
+            in(this_outer_ptr[0;outer_size_plus_one]) \
+            in(other_ptr[0;other_num_items*num_latent]) \
+            out(this_items_ptr[i*num_latent;num_latent])
+        sample_task(this_iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+    }
+
+#pragma oss taskwait
 }

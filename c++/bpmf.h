@@ -47,7 +47,6 @@ struct RNG
   std::vector<double> stash;
 
   RNG(unsigned long long c = 100000);
-  ~RNG();
   double &operator()();
 };
 

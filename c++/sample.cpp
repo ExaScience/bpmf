@@ -285,6 +285,71 @@ VectorNd Sys::sample(long idx, Sys &other)
     return rr;
 }
 
+
+void sample_task(
+    long iter,
+    long idx,
+    const HyperParams *hp_ptr, 
+    const double *other_ptr,
+    const double *ratings_ptr,
+    const int *inner_ptr,
+    const int *outer_ptr,
+    double *items_ptr)
+{
+    rng.counter = (idx+1) * num_latent * (iter+1);
+    Sys::cout() << "-- oss start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+
+    const Eigen::Map<const SparseMatrixD> M( hp_ptr->other_num, hp_ptr->num, hp_ptr->nnz, outer_ptr, inner_ptr, ratings_ptr);
+    const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
+    Eigen::Map<MatrixNXd> items(items_ptr, num_latent, hp_ptr->num);
+
+    SHOW(hp_ptr->other_num);
+    SHOW(hp_ptr->num);
+    SHOW(hp_ptr->nnz);
+    SHOW(M.outerSize());
+    SHOW(M.innerSize());
+    SHOW(M.nonZeros());
+
+    VectorNd rr = hp_ptr->LambdaF * hp_ptr->mu;
+    MatrixNNd MM(MatrixNNd::Zero());
+    PrecomputedLLT chol;
+
+    SHOW("before computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
+
+    //computeMuLambda(idx, other, rr, MM);
+    for (Eigen::Map<const SparseMatrixD>::InnerIterator it(M,idx); it; ++it)
+    {
+        auto col = other.col(it.row());
+        MM.triangularView<Eigen::Upper>() += col * col.transpose();
+        rr.noalias() += col * ((it.value() - hp_ptr->mean_rating) * hp_ptr->alpha);
+    }
+    
+    // copy upper -> lower part, matrix is symmetric.
+    MM.triangularView<Eigen::Lower>() = MM.transpose();
+
+    SHOW(M);
+    SHOW(other);
+    SHOW(hp_ptr->mu.transpose());
+    SHOW(hp_ptr->LambdaF);
+    SHOW("after computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
+
+    chol.compute(hp_ptr->LambdaF + hp_ptr->alpha * MM);
+
+    if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
+
+    chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
+    rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
+    chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
+    items.col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
+
+    SHOW(rr.transpose());
+    Sys::cout() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+}
+
 void Sys::register_time(int i, double t)
 {
     if (measure_perf) sample_time.at(i) += t;
