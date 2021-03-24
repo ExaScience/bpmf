@@ -18,7 +18,7 @@
 using namespace std;
 using namespace Eigen;
 
-struct RNG rng;
+thread_local struct RNG rng;
 
 RNG::RNG(unsigned long long c)
   : generator(42), capacity(c), counter(0)

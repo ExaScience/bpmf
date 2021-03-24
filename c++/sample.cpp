@@ -305,8 +305,11 @@ VectorNd Sys::sample(long idx, Sys &other)
     // Expression u_i = U \ (s + (L \ rr)) in Matlab looks for Eigen library like: 
 
     chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
+    SHOW(rr.transpose());
     rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
+    SHOW(rr.transpose());
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
+    SHOW(rr.transpose());
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
     auto stop = tick();
@@ -382,8 +385,11 @@ void sample_task(
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 
     chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
+    SHOW(rr.transpose());
     rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
+    SHOW(rr.transpose());
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
+    SHOW(rr.transpose());
     items.col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
     SHOW(rr.transpose());

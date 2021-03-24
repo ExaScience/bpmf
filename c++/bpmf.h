@@ -50,7 +50,7 @@ struct RNG
   double &operator()();
 };
 
-extern struct RNG rng;
+extern thread_local struct RNG rng;
 
 double randn();
 void rng_set_pos(unsigned long long p);
