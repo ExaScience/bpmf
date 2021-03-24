@@ -7,7 +7,6 @@
 
 #ifndef OMPSS
 #include <cstdlib>
-#error Whoops
 #endif
  
 void *lmalloc(unsigned long size)
