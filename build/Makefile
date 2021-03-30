@@ -4,7 +4,7 @@ ROOT=$(TOPDIR)/c++
 
 include $(TOPDIR)/Makefile.common
 
-MCXXFLAGS=--ompss-2 -k -Wno-deprecated-declarations
+MCXXFLAGS=-K --ompss-2 -Wno-deprecated-declarations -DOMPSS
 
 OBJS = mvnormal.o bpmf.o sample.o counters.o io.o gzstream.o 
 HRDS = $(ROOT)/bpmf.h $(ROOT)/counters.h $(ROOT)/error.h $(ROOT)/gzstream.h $(ROOT)/io.h

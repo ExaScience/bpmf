@@ -36,7 +36,24 @@ void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
 
+struct RNG
+{
+  std::normal_distribution<> normal_d;
+  std::mt19937 generator;
+
+  unsigned long long capacity;
+  unsigned long long counter;
+
+  std::vector<double> stash;
+
+  RNG(unsigned long long c = 100000);
+  double &operator()();
+};
+
+extern struct RNG rng;
+
 double randn();
+void rng_set_pos(unsigned long long p);
  
 #define nrandn(n) (Eigen::VectorXd::NullaryExpr((n), [](double) { return randn(); }))
 
@@ -86,6 +103,7 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
 struct Sys {
     //-- static info
     static bool verbose;
+    static bool redirect;
     static int burnin, nsims;
     static double alpha;
     static std::string odirname;
@@ -95,8 +113,9 @@ struct Sys {
     static void Abort(int);
     static void sync();
 
-    static std::ostream *os;
-    static std::ostream &cout() { os->flush(); return *os; }
+    static std::ostream *os, *db;
+    static std::ostream &cout();
+    static std::ostream &dbg();
     
     //-- c'tor
     std::string name;
@@ -128,6 +147,7 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
 
     void sample(Sys &in);
+    VectorNd sample(long idx, Sys &other);
 
     //-- colwise sum of U
     VectorNd sum;

@@ -18,27 +18,40 @@
 using namespace std;
 using namespace Eigen;
 
-/*
-  We need a functor that can pretend it's const,
-  but to be a good random number generator 
-  it needs mutable state.
-*/
+struct RNG rng;
 
-std::mt19937 r(std::mt19937(42));
-
-std::mt19937 &rng()
+RNG::RNG(unsigned long long c)
+  : generator(42), capacity(c), counter(0)
 {
-    return r;
+  Sys::cout() << " RNG: ";
+  for (unsigned long long i = 0; i < c; ++i)
+  {
+      double d = normal_d(generator);
+      if (i<10) Sys::cout() << d << " ";
+      stash.push_back(d);
+  }
+  Sys::cout() << std::endl;
+}
+
+double &RNG::operator()()
+{
+  counter++;
+  return stash[counter % capacity];
 }
 
 double randn() {
-    normal_distribution<> nd;
-    return nd(rng());
+    return rng();
 }
+
+void rng_set_pos(unsigned long long p)
+{
+  rng.counter = p;
+}
+
 
 /*
   Draw nn samples from a size-dimensional normal distribution
-  with a specified mean and covariance
+  with a specified mean and precision matrix
 */
 VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const VectorNd & mean)
 {
@@ -47,14 +60,12 @@ VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const Vecto
   return (r / sqrt(kappa)) + mean;
 }
 
-
 void WishartUnitChol(int df, MatrixNNd & c) {
     c.setZero();
 
     for ( int i = 0; i < num_latent; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
-        c(i,i) = sqrt(2.0 * gam(rng()));
-        VectorXd r = nrandn(num_latent-i-1);
+        c(i,i) = sqrt(2.0 * gam(rng.generator));
         for(int j=i+1;j<num_latent;j++) c.coeffRef(i,j) = randn();
     }
 }

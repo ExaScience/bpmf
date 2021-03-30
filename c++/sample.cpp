@@ -15,10 +15,12 @@
 #include "error.h"
 #include "bpmf.h"
 #include "io.h"
+#include "ompss.h"
 
 static const bool measure_perf = false;
 
-std::ostream *Sys::os;
+std::ostream *Sys::os = 0;
+std::ostream *Sys::db = 0;
 
 int Sys::nsims;
 int Sys::burnin;
@@ -27,6 +29,7 @@ double Sys::alpha = 2.0;
 std::string Sys::odirname = "";
 
 bool Sys::verbose = false;
+bool Sys::redirect = false;
 
 // verifies that A has the same non-zero structure as B
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B)
@@ -151,6 +154,45 @@ Sys::~Sys()
     }
 }
 
+
+void Sys::alloc_and_init()
+{
+    // shouldn't be needed --> on stack
+    hp_ptr = (HyperParams *)lmalloc(sizeof(HyperParams));
+    hp() = HyperParams();
+    hp().alpha = alpha;
+    hp().num = _M.cols();
+    hp().other_num = _M.rows();
+    hp().nnz = _M.nonZeros();
+
+
+    ratings_ptr = (double *)lmalloc(sizeof(double) * _M.nonZeros());
+    inner_ptr   = (int *)lmalloc(sizeof(int) * _M.nonZeros());
+    outer_ptr   = (int *)lmalloc(sizeof(int) * ( _M.outerSize() + 1));
+
+    std::memcpy(M().valuePtr(),      _M.valuePtr(),      sizeof(double) * M().nonZeros());
+    std::memcpy(M().innerIndexPtr(), _M.innerIndexPtr(), sizeof(int) * M().nonZeros());
+    std::memcpy(M().outerIndexPtr(), _M.outerIndexPtr(), sizeof(int) * ( M().outerSize() + 1));
+
+    for(int k = 0; k<M().cols(); k++) 
+        assert(M().col(k).nonZeros() == _M.col(k).nonZeros());
+
+    items_ptr = (double *)dmalloc(sizeof(double) * num_latent * num());
+
+    init();
+
+    hp().mean_rating = mean_rating;
+}     
+
+
+void Sys::Init() { }
+
+void Sys::Finalize() { } 
+
+void Sys::sync() {}
+
+void Sys::Abort(int) { abort();  }
+
 //
 // Intializes internal Matrices and Vectors
 //
@@ -202,6 +244,222 @@ void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
     LambdaL = LambdaU.transpose();
 
     //SHOW(LambdaF);
+}
+//
+// Update ONE movie or one user
+//
+VectorNd Sys::sample(long idx, Sys &other)
+{
+    rng.counter = (idx+1) * num_latent * (iter+1);
+    Sys::dbg() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+
+    auto start = tick();
+
+    VectorNd rr = hp().LambdaF * hp().mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
+    MatrixNNd MM(MatrixNNd::Zero());
+    PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
+
+    //SHOW(hp().mu);
+    //SHOW(hp().LambdaF);
+
+    SHOW(hp().other_num);
+    SHOW(hp().num);
+    SHOW(hp().nnz);
+    SHOW(M().outerSize());
+    SHOW(M().innerSize());
+    SHOW(M().nonZeros());
+
+    SHOW("before computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
+
+    //computeMuLambda(idx, other, rr, MM);
+    for (SparseMapD::InnerIterator it(M(), idx); it; ++it)
+    {
+        auto col = other.items().col(it.row());
+        MM.triangularView<Eigen::Upper>() += col * col.transpose();
+        rr.noalias() += col * ((it.value() - hp().mean_rating) * hp().alpha);
+    }
+    
+    // copy upper -> lower part, matrix is symmetric.
+    MM.triangularView<Eigen::Lower>() = MM.transpose();
+
+    SHOW(M());
+    SHOW(other.items());
+    SHOW(hp().mu.transpose());
+    SHOW(hp().LambdaF);
+    SHOW("after computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
+
+    chol.compute(hp().LambdaF + hp().alpha * MM);
+
+    if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
+
+    // now we should calculate formula (14) from the paper
+    // u_i for k-th iteration = Gaussian distribution N(u_i | mu_i with *, [lambda_i with *]^-1) =
+    //                        = mu_i with * + s * [U]^-1, 
+    //                        where 
+    //                              s is a random vector with N(0, I),
+    //                              mu_i with * is a vector num_latent x 1, 
+    //                              mu_i with * = [lambda_i with *]^-1 * rr,
+    //                              lambda_i with * = L * U       
+
+    // Expression u_i = U \ (s + (L \ rr)) in Matlab looks for Eigen library like: 
+
+    chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
+    rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
+    chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
+    items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
+
+    auto stop = tick();
+    register_time(idx, 1e6 * (stop - start));
+    //Sys::cout() << "  " << count << ": " << 1e6*(stop - start) << std::endl;
+
+    assert(rr.norm() > .0);
+
+    //SHOW(rr.norm());
+    //SHOW(items().col(idx).norm());
+
+    SHOW(rr.transpose());
+    Sys::dbg() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+
+    return rr;
+}
+
+
+void sample_task(
+    long iter,
+    long idx,
+    const void *hp_void_ptr, 
+    const double *other_ptr,
+    const double *ratings_ptr,
+    const int *inner_ptr,
+    const int *outer_ptr,
+    double *items_ptr)
+{
+    const HyperParams *hp_ptr = (const HyperParams *)hp_void_ptr;
+    rng.counter = (idx+1) * num_latent * (iter+1);
+    Sys::dbg() << "-- oss start iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+
+    const Eigen::Map<const SparseMatrixD> M( hp_ptr->other_num, hp_ptr->num, hp_ptr->nnz, outer_ptr, inner_ptr, ratings_ptr);
+    const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
+    Eigen::Map<MatrixNXd> items(items_ptr, num_latent, hp_ptr->num);
+
+    SHOW(hp_ptr->other_num);
+    SHOW(hp_ptr->num);
+    SHOW(hp_ptr->nnz);
+    SHOW(M.outerSize());
+    SHOW(M.innerSize());
+    SHOW(M.nonZeros());
+
+    VectorNd rr = hp_ptr->LambdaF * hp_ptr->mu;
+    MatrixNNd MM(MatrixNNd::Zero());
+    PrecomputedLLT chol;
+
+    SHOW("before computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
+
+    //computeMuLambda(idx, other, rr, MM);
+    for (Eigen::Map<const SparseMatrixD>::InnerIterator it(M,idx); it; ++it)
+    {
+        auto col = other.col(it.row());
+        MM.triangularView<Eigen::Upper>() += col * col.transpose();
+        rr.noalias() += col * ((it.value() - hp_ptr->mean_rating) * hp_ptr->alpha);
+    }
+    
+    // copy upper -> lower part, matrix is symmetric.
+    MM.triangularView<Eigen::Lower>() = MM.transpose();
+
+    SHOW(M);
+    SHOW(other);
+    SHOW(hp_ptr->mu.transpose());
+    SHOW(hp_ptr->LambdaF);
+    SHOW("after computeMuLambda");
+    SHOW(MM);
+    SHOW(rr.transpose());
+
+    chol.compute(hp_ptr->LambdaF + hp_ptr->alpha * MM);
+
+    if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
+
+    chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
+    rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
+    chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
+    items.col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
+
+    SHOW(rr.transpose());
+    Sys::dbg() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+}
+
+
+// 
+// update ALL movies / users in parallel
+//
+void Sys::sample(Sys &other) 
+{
+    iter++;
+    VectorNd  local_sum(VectorNd::Zero()); // sum
+    double    local_norm(0.0); // squared norm
+    MatrixNNd local_prod(MatrixNNd::Zero()); // outer prod
+
+    int num_ratings = M().nonZeros();
+    int outer_size_plus_one = M().outerSize() + 1;
+    int num_items = num();
+    int other_num_items = other_num();
+    const double *other_ptr = other.items_ptr;
+
+    const int this_iter = this->iter;
+    const void *this_hp_ptr = (void *)this->hp_ptr;
+    const int *this_inner_ptr = this->inner_ptr;
+    const int *this_outer_ptr = this->outer_ptr;
+    const double *this_ratings_ptr = this->ratings_ptr;
+    double *this_items_ptr = this->items_ptr;
+
+    Sys::dbg() << name << " -- Start scheduling oss tasks - iter " << iter << std::endl;
+
+    sample_task_scheduler(
+        from(),
+        to(),
+        num_latent,
+        num_ratings,
+        outer_size_plus_one,
+        num_items,
+        other_num_items,
+        other_ptr,
+
+        this_iter,
+        this_hp_ptr,
+        sizeof(HyperParams),
+        this_inner_ptr,
+        this_outer_ptr,
+        this_ratings_ptr,
+        this_items_ptr);
+
+    Sys::dbg() << name << " -- Finished taskwait oss tasks - iter " << iter << std::endl;
+
+    for (int i = from(); i < to(); ++i)
+    {
+        const VectorNd r1 = items().col(i);
+        const VectorNd r2 = Sys::sample(i, other);
+
+        if ((r1-r2).norm() > 0.0001) {
+            Sys::dbg() << " Error at " << i << ":"
+                << "\noriginal: " << r2.transpose()
+                << "\noss     : " << r1.transpose()
+                << std::endl;
+        }
+
+        local_prod += (r1 * r1.transpose());
+        local_sum += r1;
+        local_norm += r1.squaredNorm();
+    }
+
+    const int N = num();
+    sum = local_sum;
+    cov = (local_prod - (sum * sum.transpose() / N)) / (N-1);
+    norm = local_norm;
 }
 
 void Sys::register_time(int i, double t)

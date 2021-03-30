@@ -43,8 +43,46 @@ void usage()
                 << std::endl;
 }
 
+std::ostream &Sys::cout()
+{
+    if (!Sys::redirect)
+        return std::cout;
+
+    if (!Sys::os)
+    {
+        char name[1024];
+        char output_filename[256];
+
+        gethostname(name, 1024);
+        snprintf(output_filename, 256, "bpmf_%s_%d_out.txt", name, getpid());
+        Sys::os = new std::ofstream(output_filename);
+        std::cout << "output file: " << output_filename << std::endl;
+    }
+
+    return *Sys::os;
+}
+
+std::ostream &Sys::dbg()
+{
+    if (!Sys::db)
+    {
+        char name[1024];
+        char output_filename[256];
+
+        gethostname(name, 1024);
+        snprintf(output_filename, 256, "bpmf_%s_%d_dbg.txt", name, getpid());
+        Sys::db = new std::ofstream(output_filename);
+        Sys::cout() << "dbg file: " << output_filename << std::endl;
+    }
+
+    return *Sys::db;
+}
+
 int main(int argc, char *argv[])
 {
+    char name[1024];
+    gethostname(name, 1024);
+
     Sys::Init();
     int ch;
     std::string fname, probename;
@@ -77,8 +115,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    Sys::os = &std::cout;
-
     if (fname.empty() || probename.empty()) { 
         usage();
         Sys::Abort(1);
@@ -101,8 +137,6 @@ int main(int argc, char *argv[])
     long double average_items_sec = .0;
     long double average_ratings_sec = .0;
     
-    char name[1024];
-    gethostname(name, 1024);
     Sys::cout() << "hostname: " << name << std::endl;
     Sys::cout() << "pid: " << getpid() << std::endl;
     if (getenv("PBS_JOBID")) Sys::cout() << "jobid: " << getenv("PBS_JOBID") << std::endl;
@@ -163,6 +197,8 @@ int main(int argc, char *argv[])
 
     perf_data_print();
     Sys::Finalize();
+
+    delete Sys::os;
 
     return 0;
 }
