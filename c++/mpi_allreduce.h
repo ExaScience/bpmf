@@ -6,23 +6,6 @@
 #include <mpi.h>
 #include "error.h"
 
-struct MPI_Sys : public Sys 
-{
-    //-- c'tor
-    MPI_Sys(std::string name, std::string fname, std::string probename) : Sys(name, fname, probename) {}
-    MPI_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
-
-    virtual void sample(Sys &in);
-    virtual void send_item(int) {}
-    virtual void alloc_and_init();
-
-    void reduce_sum_cov_norm();
-
-};
-
-
-
-
 struct AllReduceBlock
 {
     std::vector<double> all_data;
@@ -79,7 +62,24 @@ struct AllReduceBlock
         precLambda_map() = precLambda;
 
     }
-}; 
+};
+
+struct MPI_Sys : public Sys 
+{
+    //-- c'tor
+    MPI_Sys(std::string name, std::string fname, std::string probename) : Sys(name, fname, probename) {}
+    MPI_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
+
+    virtual void sample(Sys &in);
+    virtual void send_item(int) {}
+    virtual void alloc_and_init();
+
+    void reduce_sum_cov_norm();
+
+    std::vector<AllReduceBlock> blocks;
+};
+
+ 
 
 void MPI_Sys::sample(Sys &in)
 {
@@ -91,7 +91,8 @@ void MPI_Sys::sample(Sys &in)
         MPI_Allreduce(MPI_IN_PLACE, precMu.data(), precMu.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(MPI_IN_PLACE, precLambda.data(), precLambda.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     } else {
-        AllReduceBlock block(sum, cov, norm, precMu, precLambda);
+        blocks.push_back(AllReduceBlock(sum, cov, norm, precMu, precLambda));
+        auto &block = blocks.back();
 
         MPI_Allreduce(MPI_IN_PLACE, block.all_data.data(), block.all_data.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
