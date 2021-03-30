@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include <random>
 #include <mpi.h>
 #include "error.h"
 
@@ -91,8 +92,17 @@ void MPI_Sys::sample(Sys &in)
         MPI_Allreduce(MPI_IN_PLACE, precMu.data(), precMu.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(MPI_IN_PLACE, precLambda.data(), precLambda.nonZeros(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     } else {
+        BPMF_COUNTER("allreduce");
         blocks.push_back(AllReduceBlock(sum, cov, norm, precMu, precLambda));
-        auto &block = blocks.back();
+        const unsigned num_blocks = blocks.size();
+        const unsigned slack = 4;
+
+        std::default_random_engine generator;
+        std::uniform_int_distribution<int> distribution(0,slack);
+        const unsigned random_slack = distribution(generator);
+
+        auto &block = (num_blocks > slack) ? blocks.at(num_blocks-1-random_slack) : blocks.back();
+        Sys::cout() << "Using slack " << random_slack << std::endl;
 
         MPI_Allreduce(MPI_IN_PLACE, block.all_data.data(), block.all_data.size(), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
