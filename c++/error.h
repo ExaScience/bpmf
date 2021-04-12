@@ -11,7 +11,7 @@ inline bool file_exists(const std::string& filepath)
    return infile.good();
 }
 
-#define SHOW(x) Sys::cout() << #x << ":\n" << x << std::endl
+#define SHOW(x) Sys::cout() << #x << ": " << x << std::endl
 
 #define CONCAT_VAR(n1, n2) n1 ## n2
 
