@@ -133,8 +133,9 @@ struct Sys {
     static void Abort(int);
     static void sync();
 
-    static std::ostream *os;
+    static std::ostream *os, *dbgs;
     static std::ostream &cout() { os->flush(); return *os; }
+    static std::ostream &dbg() { dbgs->flush(); return *dbgs; }
     
     //-- c'tor
     std::string name;

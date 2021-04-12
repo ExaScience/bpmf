@@ -19,6 +19,8 @@
 static const bool measure_perf = false;
 
 std::ostream *Sys::os;
+std::ostream *Sys::dbgs;
+
 int Sys::procid = -1;
 int Sys::nprocs = -1;
 
@@ -264,7 +266,7 @@ VectorNd Sys::sample(long idx, Sys &other)
 {
     auto start = tick();
     rng.set_pos((idx+1) * num_latent * (iter+1));
-    Sys::cout() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    Sys::dbg() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     VectorNd hp_mu;
     MatrixNNd hp_LambdaF; 
@@ -323,7 +325,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     assert(rr.norm() > .0);
 
     SHOW(rr.transpose());
-    Sys::cout() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    Sys::dbg() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     return rr;
 }

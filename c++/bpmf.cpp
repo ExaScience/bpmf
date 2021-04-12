@@ -111,6 +111,12 @@ int main(int argc, char *argv[])
         Sys::os = &std::cout;
     }
 
+#ifndef NDEBUG
+    Sys::dbgs = Sys::os;
+#else
+    Sys::dbgs = new std::ofstream("/dev/null");
+#endif
+
     if (fname.empty() || probename.empty()) { 
         usage();
         Sys::Abort(1);
@@ -243,8 +249,6 @@ int main(int argc, char *argv[])
   }
   perf_data_print();
   Sys::Finalize();
-  if (Sys::nprocs >1) delete Sys::os;
-
 
    return 0;
 }
