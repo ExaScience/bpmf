@@ -294,9 +294,15 @@ VectorNd Sys::sample(long idx, Sys &other)
 #else
     computeMuLambda(idx, other, rr, MM, false);
 #endif
-    
+
+#ifdef BPMF_NO_COVARIANCE
+    // only keep diagonal -- 
+    MM = MM.diagonal().asDiagonal();
+#else
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
+#endif
+
 
     chol.compute(hp_LambdaF + alpha * MM);
 
