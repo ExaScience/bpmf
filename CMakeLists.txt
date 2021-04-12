@@ -64,7 +64,7 @@ if (ENABLE_REDUCE)
 endif()
 
 find_package(Eigen3 REQUIRED)
-find_library(z REQUIRED)
+find_package(ZLIB REQUIRED)
 
 if(${ENABLE_PROFILING})
     add_definitions(-DBPMF_PROFILING)
@@ -75,7 +75,7 @@ include_directories(c++)
 FILE (GLOB SOURCE_FILES "c++/*.cpp" "c++/*.h")
 
 add_executable (bpmf ${SOURCE_FILES})
-target_link_libraries (bpmf Eigen3::Eigen z)
+target_link_libraries (bpmf Eigen3::Eigen ZLIB::ZLIB)
 
 if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
