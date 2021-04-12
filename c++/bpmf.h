@@ -8,6 +8,7 @@
 
 #include <bitset>
 #include <functional>
+#include <random>
 
 #define EIGEN_RUNTIME_NO_MALLOC 1
 #define EIGEN_DONT_PARALLELIZE 1
@@ -55,6 +56,24 @@ void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
+
+struct RNG
+{
+    std::normal_distribution<> normal_d;
+    std::mt19937 generator;
+
+    unsigned long long capacity;
+    unsigned long long counter;
+
+    std::vector<double> stash;
+
+    RNG(unsigned long long c = 100000);
+    double &operator()();
+
+    void set_pos(unsigned long long p);
+};
+
+extern thread_local struct RNG rng;
 
 double randn();
  
