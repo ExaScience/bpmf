@@ -71,6 +71,7 @@ struct RNG
     double &operator()();
 
     void set_pos(unsigned long long p);
+    unsigned long long get_pos() const;
 };
 
 extern thread_local struct RNG rng;

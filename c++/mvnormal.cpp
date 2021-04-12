@@ -55,6 +55,11 @@ void RNG::set_pos(unsigned long long p)
   rng.counter = p;
 }
 
+unsigned long long RNG::get_pos() const
+{
+  return rng.counter;
+}
+
 /* -------------------------------------------------------------------------------- */
 
 /*
