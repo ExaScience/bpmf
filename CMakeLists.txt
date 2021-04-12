@@ -12,6 +12,7 @@ OPTION(ENABLE_OPENMP "Enable OpenMP Support" ON)
 OPTION(ENABLE_REDUCE "Reduce Mu/Lambda version" OFF)
 
 SET(BPMF_NUMLATENT 32 CACHE INT "Number of latent dimensions") 
+OPTION(ONLY_VARIANCE "Only compute variance, not covariance" OFF)
 
 SET(BPMF_COMM "NO_COMM" CACHE STRING "Communication library used")
 SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS 
@@ -55,6 +56,10 @@ endif()
 message(STATUS "Version from git: ${BPMF_VERSION}")
 message(STATUS "num-latent: ${BPMF_NUMLATENT}")
 message(STATUS "comm: ${BPMF_COMM}")
+
+if (ONLY_VARIANCE)
+  add_definitions(-DBPMF_NO_COVARIANCE)
+endif()
 
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
