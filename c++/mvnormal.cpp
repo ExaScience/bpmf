@@ -30,14 +30,14 @@ thread_local struct RNG rng;
 RNG::RNG(unsigned long long c)
   : generator(42), capacity(c), counter(0)
 {
-  Sys::cout() << " RNG: ";
+  //Sys::cout() << " RNG: ";
   for (unsigned long long i = 0; i < c; ++i)
   {
       double d = normal_d(generator);
-      if (i<10) Sys::cout() << d << " ";
+      //if (i<10) Sys::cout() << d << " ";
       stash.push_back(d);
   }
-  Sys::cout() << std::endl;
+  //Sys::cout() << std::endl;
 }
 
 double &RNG::operator()()
