@@ -60,6 +60,8 @@ message(STATUS "comm: ${BPMF_COMM}")
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 add_definitions(-DBPMF_${BPMF_COMM})
+add_definitions(-DEIGEN_DONT_PARALLELIZE)
+
 if (ENABLE_REDUCE)
   add_definitions(-DBPMF_REDUCE)
 endif()
@@ -116,12 +118,12 @@ endif()
 
 enable_testing()
 
-add_test(bpmf_uncompressed ${MPIRUN} bpmf -i 4 
+add_test(bpmf_uncompressed ${MPIRUN} ./bpmf -i 4 
   -n ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-train.mtx
   -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx
 )
 
-add_test(bpmf_compressed ${MPIRUN} bpmf -i 4 
+add_test(bpmf_compressed ${MPIRUN} ./bpmf -i 4 
   -n ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-train.mtx.gz
   -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx.gz
 )
