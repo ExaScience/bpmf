@@ -64,6 +64,8 @@ if (ENABLE_REDUCE)
 endif()
 
 find_package(Eigen3 REQUIRED)
+add_definitions(-DEIGEN_DONT_PARALLELIZE)
+
 find_package(ZLIB REQUIRED)
 
 if(${ENABLE_PROFILING})
