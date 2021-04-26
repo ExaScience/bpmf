@@ -74,9 +74,6 @@ void Sys::predict(Sys& other, bool all)
             auto m = items().col(it.col());
             auto u = other.items().col(it.row());
 
-            assert(m.norm() > 0.0);
-            assert(u.norm() > 0.0);
-
             const double pred = m.dot(u) + mean_rating;
             se += sqr(it.value() - pred);
 
