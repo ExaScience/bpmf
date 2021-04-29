@@ -57,25 +57,7 @@ void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
 
-struct RNG
-{
-    std::normal_distribution<> normal_d;
-    std::mt19937 generator;
-
-    unsigned long long capacity;
-    unsigned long long counter;
-
-    std::vector<double> stash;
-
-    RNG(unsigned long long c = 100000);
-    double &operator()();
-
-    void set_pos(unsigned long long p);
-    unsigned long long get_pos() const;
-};
-
-extern thread_local struct RNG rng;
-
+void rng_set_pos(uint64_t p);
 double randn();
  
 #define nrandn(n) (Eigen::VectorXd::NullaryExpr((n), [](double) { return randn(); }))

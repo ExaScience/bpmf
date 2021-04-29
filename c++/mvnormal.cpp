@@ -24,8 +24,24 @@ using namespace Eigen;
   it needs mutable state.
 */
 
+struct RNG
+{
+    std::normal_distribution<> normal_d;
+    std::mt19937 generator;
 
-thread_local struct RNG rng;
+    unsigned long long capacity;
+    unsigned long long counter;
+
+    std::vector<double> stash;
+
+    RNG(unsigned long long c = 100000);
+    double &operator()();
+
+    void set_pos(unsigned long long p);
+    unsigned long long get_pos() const;
+};
+
+static thread_local struct RNG rng;
 
 RNG::RNG(unsigned long long c)
   : generator(42), capacity(c), counter(0), stash(c)
@@ -55,6 +71,11 @@ void RNG::set_pos(unsigned long long p)
   rng.counter = p;
 }
 
+void rng_set_pos(uint64_t p)
+{
+  rng.set_pos(p);
+}
+
 unsigned long long RNG::get_pos() const
 {
   return rng.counter;
@@ -64,7 +85,7 @@ unsigned long long RNG::get_pos() const
 
 /*
   Draw nn samples from a size-dimensional normal distribution
-  with a specified mean and covariance
+  with a specified mean vector and precision matrix
 */
 VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const VectorNd & mean)
 {
