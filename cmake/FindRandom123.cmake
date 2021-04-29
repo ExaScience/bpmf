@@ -30,16 +30,16 @@ if(RANDOM123_INCLUDE_DIRS)
 endif()
 
 find_path(RANDOM123_INCLUDE_PHILOX NAMES Random123/philox.h
-                                   HINTS ${RANDOM123_ROOT}
-                                         $ENV{RANDOM123_ROOT})
+                                   HINTS ${RANDOM123_ROOT}/include
+                                         $ENV{RANDOM123_ROOT}/include)
 
 find_path(RANDOM123_INCLUDE_THREEFRY NAMES Random123/threefry.h
-                                     HINTS ${RANDOM123_ROOT}
-                                           $ENV{RANDOM123_ROOT})
+                                     HINTS ${RANDOM123_ROOT}/include
+                                           $ENV{RANDOM123_ROOT}/include)
 
 find_path(RANDOM123_INCLUDE_UNIFORM NAMES Random123/uniform.hpp
-                                    HINTS ${RANDOM123_ROOT}
-                                          $ENV{RANDOM123_ROOT})
+                                    HINTS ${RANDOM123_ROOT}/include
+                                          $ENV{RANDOM123_ROOT}/include)
 
 set(RANDOM123_INCLUDE_DIRS ${RANDOM123_INCLUDE_PHILOX}
                            ${RANDOM123_INCLUDE_THREEFRY}
