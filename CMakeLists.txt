@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 3.5.0)
 
 project (bpmf)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 # OPTIONS
 
 OPTION(ENABLE_PROFILING "Enable performance counters" OFF)
@@ -67,6 +69,13 @@ add_definitions(-DBPMF_${BPMF_COMM})
 if (ENABLE_REDUCE)
   add_definitions(-DBPMF_REDUCE)
 endif()
+
+find_package(Random123)
+if (Random123_FOUND)
+  add_definitions(-DBPMF_RANDOM123)
+endif()
+
+add_definitions(-DEIGEN_DONT_PARALLELIZE)
 
 find_package(Eigen3 REQUIRED)
 add_definitions(-DEIGEN_DONT_PARALLELIZE)
