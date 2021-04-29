@@ -3,7 +3,6 @@
  * All rights reserved.
  */
 
-#include <random>
 #include <mpi.h>
 #include "error.h"
 
