@@ -28,14 +28,14 @@ using namespace Eigen;
 thread_local struct RNG rng;
 
 RNG::RNG(unsigned long long c)
-  : generator(42), capacity(c), counter(0)
+  : generator(42), capacity(c), counter(0), stash(c)
 {
   //Sys::cout() << " RNG: ";
   for (unsigned long long i = 0; i < c; ++i)
   {
       double d = normal_d(generator);
       //if (i<10) Sys::cout() << d << " ";
-      stash.push_back(d);
+      stash[i] = d;
   }
   //Sys::cout() << std::endl;
 }
