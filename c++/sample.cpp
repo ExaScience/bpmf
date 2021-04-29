@@ -266,7 +266,7 @@ VectorNd Sys::sample(long idx, Sys &other)
 {
     auto start = tick();
     rng.set_pos((idx+1) * num_latent * (iter+1));
-    Sys::dbg() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    //Sys::dbg() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     VectorNd hp_mu;
     MatrixNNd hp_LambdaF; 
@@ -331,8 +331,8 @@ VectorNd Sys::sample(long idx, Sys &other)
 
     assert(rr.norm() > .0);
 
-    SHOW(rr.transpose());
-    Sys::dbg() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+    //SHOW(rr.transpose());
+    //Sys::dbg() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     return rr;
 }
@@ -349,7 +349,7 @@ void Sys::sample(Sys &other)
 
     rng.set_pos(iter); // make this consistent
     sample_hp();
-    SHOW(hp.mu.transpose());
+    //SHOW(hp.mu.transpose());
 
 #ifdef BPMF_REDUCE
     other.precMu.setZero();
