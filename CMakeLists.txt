@@ -73,6 +73,7 @@ endif()
 find_package(Random123)
 if (Random123_FOUND)
   add_definitions(-DBPMF_RANDOM123)
+  include_directories(${RANDOM123_INCLUDE_DIRS})
 endif()
 
 add_definitions(-DEIGEN_DONT_PARALLELIZE)

@@ -15,71 +15,31 @@
 
 #include "bpmf.h"
 
-using namespace std;
+#ifdef BPMF_RANDOM123
+#include <Random123/philox.h>
+#include <Random123/MicroURNG.hpp>
+
+typedef r123::MicroURNG<r123::Philox4x32> RNG;
+#else
+
+typedef std::mt19937 RNG;
+#endif
+
 using namespace Eigen;
 
-/*
-  We need a functor that can pretend it's const,
-  but to be a good random number generator 
-  it needs mutable state.
-*/
+static thread_local RNG rng({{0}}, {{42}});
 
-struct RNG
+void rng_set_pos(uint32_t c)
 {
-    std::normal_distribution<> normal_d;
-    std::mt19937 generator;
-
-    unsigned long long capacity;
-    unsigned long long counter;
-
-    std::vector<double> stash;
-
-    RNG(unsigned long long c = 100000);
-    double &operator()();
-
-    void set_pos(unsigned long long p);
-    unsigned long long get_pos() const;
-};
-
-static thread_local struct RNG rng;
-
-RNG::RNG(unsigned long long c)
-  : generator(42), capacity(c), counter(0), stash(c)
-{
-  //Sys::cout() << " RNG: ";
-  for (unsigned long long i = 0; i < c; ++i)
-  {
-      double d = normal_d(generator);
-      //if (i<10) Sys::cout() << d << " ";
-      stash[i] = d;
-  }
-  //Sys::cout() << std::endl;
-}
-
-double &RNG::operator()()
-{
-  counter++;
-  return stash[counter % capacity];
+#ifdef BPMF_RANDOM123
+    rng.reset({{c}}, {{42}});
+#endif
 }
 
 double randn() {
-    return rng();
+    return std::normal_distribution<>()(rng);
 }
 
-void RNG::set_pos(unsigned long long p)
-{
-  rng.counter = p;
-}
-
-void rng_set_pos(uint64_t p)
-{
-  rng.set_pos(p);
-}
-
-unsigned long long RNG::get_pos() const
-{
-  return rng.counter;
-}
 
 /* -------------------------------------------------------------------------------- */
 
@@ -100,7 +60,7 @@ void WishartUnitChol(int df, MatrixNNd & c) {
 
     for ( int i = 0; i < num_latent; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
-        c(i,i) = sqrt(2.0 * gam(rng.generator));
+        c(i,i) = sqrt(2.0 * gam(rng));
         VectorXd r = nrandn(num_latent-i-1);
         for(int j=i+1;j<num_latent;j++) c.coeffRef(i,j) = randn();
     }
