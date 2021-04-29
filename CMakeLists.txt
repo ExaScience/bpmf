@@ -76,8 +76,6 @@ if (Random123_FOUND)
   include_directories(${RANDOM123_INCLUDE_DIRS})
 endif()
 
-add_definitions(-DEIGEN_DONT_PARALLELIZE)
-
 find_package(Eigen3 REQUIRED)
 add_definitions(-DEIGEN_DONT_PARALLELIZE)
 
