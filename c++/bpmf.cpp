@@ -22,6 +22,8 @@ using namespace Eigen;
 #include "mpi_put.h"
 #elif defined(BPMF_MPI_BCAST_COMM)
 #include "mpi_bcast.h"
+#elif defined(BPMF_MPI_REDUCE_COMM)
+#include "mpi_reduce.h"
 #elif defined(BPMF_MPI_ALLREDUCE_COMM)
 #include "mpi_allreduce.h"
 #elif defined(BPMF_MPI_ISEND_COMM)
