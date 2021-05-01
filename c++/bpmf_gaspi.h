@@ -146,15 +146,6 @@ void GASPI_Sys::send_item(int i)
     }
 }
 
-void GASPI_Sys::gaspi_bcast(int seg, int offset, int size) {
-    offset *= sizeof(double);
-    size *= sizeof(double);
-    for(int k = 0; k < Sys::nprocs; k++) {
-        if (!do_send(k)) continue;
-        SUCCESS_OR_RETRY(gaspi_write(seg, offset, k, seg, offset, size, 0, GASPI_BLOCK));
-    }
-}
-
 void GASPI_Sys::sample(Sys &in)
 {
     {
