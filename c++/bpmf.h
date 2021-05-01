@@ -30,6 +30,11 @@
 #define BPMF_MPI_COMM
 #elif defined(BPMF_MPI_BCAST_COMM)
 #define BPMF_MPI_COMM
+#elif defined(BPMF_MPI_REDUCE_COMM)
+#ifndef BPMF_REDUCE
+#define BPMF_REDUCE
+#endif
+#define BPMF_MPI_COMM
 #elif defined(BPMF_MPI_ALLREDUCE_COMM)
 #ifndef BPMF_REDUCE
 #define BPMF_REDUCE
