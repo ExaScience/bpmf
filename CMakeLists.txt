@@ -6,6 +6,10 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # OPTIONS
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(FATAL "No CMAKE_BUILD_TYPE was specified.")
+endif()
+
 OPTION(ENABLE_PROFILING "Enable performance counters" OFF)
 OPTION(ENABLE_ASAN "Enable address sanitizer" OFF)
 OPTION(ENABLE_TSAN "Enable thread sanitizer" OFF)
@@ -76,8 +80,6 @@ if (Random123_FOUND)
   add_definitions(-DBPMF_RANDOM123)
   include_directories(${RANDOM123_INCLUDE_DIRS})
 endif()
-
-add_definitions(-DEIGEN_DONT_PARALLELIZE)
 
 find_package(Eigen3 REQUIRED)
 add_definitions(-DEIGEN_DONT_PARALLELIZE)
