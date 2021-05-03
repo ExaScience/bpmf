@@ -245,7 +245,7 @@ void Sys::preComputeMuLambda(const Sys &other)
     }
 }
 
-#if 1
+#if 0
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
 {
     BPMF_COUNTER("computeMuLambda");
@@ -255,6 +255,7 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
                                                      // (how many movies watched idx-th user?).
     if (count < breakpoint2)
     {
+        BPMF_COUNTER("no_extra_task");
         for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
         {
             auto col = other.items().col(it.row());
@@ -264,6 +265,7 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
     }
     else
     {
+        BPMF_COUNTER("extra_task");
         const int task_size = int(count / 100) + 1;
 
         unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
@@ -272,7 +274,7 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
         thread_vector<VectorNd> rrs(VectorNd::Zero());
         thread_vector<MatrixNNd> MMs(MatrixNNd::Zero());
 
-#pragma omp taskloop shared(rrs, MMs, other) grainsize(task_size)
+#pragma omp taskloop shared(rrs, MMs, other) 
         for (unsigned j = from; j < to; j++)
         {
             // for each nonzeros elemen in the i-th row of M matrix
@@ -379,9 +381,7 @@ void Sys::sample(Sys &other)
     thread_vector<double>    norms(0.0); // squared norm
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
-#pragma omp parallel
-#pragma omp single
-#pragma omp taskloop
+#pragma omp parallel for
     for (int i = from(); i < to(); ++i)
     {
         auto r = sample(i, other);

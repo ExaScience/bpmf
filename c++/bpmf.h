@@ -244,6 +244,6 @@ struct Sys {
 
 
 const int breakpoint1 = 24; 
-const int breakpoint2 = 10500;
+const int breakpoint2 = 1000;
 
 #endif
