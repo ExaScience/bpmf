@@ -8,12 +8,13 @@
 
 #define SYS ARGO_Sys
 
-struct ARGO_Sys : public Sys 
+struct ARGO_Sys : public Sys
 {
 	//-- c'tor
 	ARGO_Sys(std::string name, std::string fname, std::string probename) : Sys(name, fname, probename) {}
 	ARGO_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
 	~ARGO_Sys();
+
 	virtual void alloc_and_init();
 
 	virtual void send_item(int);
@@ -24,17 +25,11 @@ struct ARGO_Sys : public Sys
 ARGO_Sys::~ARGO_Sys()
 {
 	argo::codelete_array(items_ptr);
-	argo::codelete_array(sum_ptr);
-	argo::codelete_array(cov_ptr);
-	argo::codelete_array(norm_ptr);
 }
 
 void ARGO_Sys::alloc_and_init()
 {
 	items_ptr = argo::conew_array<double>(num_latent * num());
-	sum_ptr = argo::conew_array<double>(num_latent * Sys::nprocs);
-	cov_ptr = argo::conew_array<double>(num_latent * num_latent * Sys::nprocs);
-	norm_ptr = argo::conew_array<double>(Sys::nprocs);
 
 	init();
 }
@@ -97,4 +92,12 @@ void Sys::sync()
 void Sys::Abort(int err)
 {
 	MPI_Abort(MPI_COMM_WORLD, err);
+}
+
+void Sys::reduce_sum_cov_norm()
+{
+    BPMF_COUNTER("reduce_sum_cov_norm");
+    MPI_Allreduce(MPI_IN_PLACE, sum.data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, cov.data(), num_latent * num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 }
