@@ -333,29 +333,26 @@ void Sys::sample(Sys &other)
     thread_vector<double>    norms(0.0); // squared norm
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
-
-#pragma omp parallel for schedule(guided)
+#pragma omp parallel
+#pragma omp single
+#pragma omp taskloop
     for (int i = from(); i < to(); ++i)
     {
-#pragma omp task
+        auto r = sample(i, other);
+
+        MatrixNNd cov = (r * r.transpose());
+        prods.local() += cov;
+        sums.local() += r;
+        norms.local() += r.squaredNorm();
+
+        if (iter >= burnin && Sys::odirname.size())
         {
-            auto r = sample(i, other);
-
-            MatrixNNd cov = (r * r.transpose());
-            prods.local() += cov;
-            sums.local() += r;
-            norms.local() += r.squaredNorm();
-
-            if (iter >= burnin && Sys::odirname.size())
-            {
-                aggrMu.col(i) += r;
-                aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
-            }
-
-            send_item(i);
+            aggrMu.col(i) += r;
+            aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
         }
+
+        send_item(i);
     }
-#pragma omp taskwait
 
 #ifdef BPMF_REDUCE
     other.preComputeMuLambda(*this);
