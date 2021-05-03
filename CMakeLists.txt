@@ -17,7 +17,7 @@ OPTION(ENABLE_TSAN "Enable thread sanitizer" OFF)
 OPTION(ENABLE_OPENMP "Enable OpenMP Support" ON)
 OPTION(ENABLE_REDUCE "Reduce Mu/Lambda version" OFF)
 
-SET(BPMF_NUMLATENT 32 CACHE INT "Number of latent dimensions") 
+SET(BPMF_NUMLATENT 32 CACHE STRING "Number of latent dimensions") 
 OPTION(ONLY_VARIANCE "Only compute variance, not covariance" OFF)
 
 SET(BPMF_COMM "NO_COMM" CACHE STRING "Communication library used")
