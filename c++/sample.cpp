@@ -245,6 +245,51 @@ void Sys::preComputeMuLambda(const Sys &other)
     }
 }
 
+#if 1
+void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
+{
+    BPMF_COUNTER("computeMuLambda");
+    assert(!local_only);
+
+    const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
+                                                     // (how many movies watched idx-th user?).
+    if (count < breakpoint2)
+    {
+        for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
+        {
+            auto col = other.items().col(it.row());
+            MM.triangularView<Eigen::Upper>() += col * col.transpose();
+            rr.noalias() += col * ((it.value() - mean_rating) * alpha);
+        }
+    }
+    else
+    {
+        const int task_size = int(count / 100) + 1;
+
+        unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
+        unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
+
+        thread_vector<VectorNd> rrs(VectorNd::Zero());
+        thread_vector<MatrixNNd> MMs(MatrixNNd::Zero());
+
+#pragma omp taskloop shared(rrs, MMs, other) grainsize(task_size)
+        for (unsigned j = from; j < to; j++)
+        {
+            // for each nonzeros elemen in the i-th row of M matrix
+            auto val = M.valuePtr()[j];        // value of the j-th nonzeros element from idx-th row of M matrix
+            auto idx = M.innerIndexPtr()[j];   // index "j" of the element [i,j] from M matrix in compressed M matrix
+            auto col = other.items().col(idx); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
+
+            MMs.local().triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
+            rrs.local().noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
+        }
+
+        // accumulate
+        MM += MMs.combine();
+        rr += rrs.combine();
+    }
+}
+#else
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
 {
     BPMF_COUNTER("computeMuLambda");
@@ -256,6 +301,7 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
 }
+#endif
 
 //
 // Update ONE movie or one user
