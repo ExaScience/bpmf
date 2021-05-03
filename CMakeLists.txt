@@ -28,6 +28,7 @@ SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS
   MPI_REDUCE_COMM 
   MPI_ALLREDUCE_COMM 
   MPI_BCAST_COMM 
+  ARGO_COMM 
   NO_COMM)
 
 
@@ -71,6 +72,8 @@ endif()
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 add_definitions(-DBPMF_${BPMF_COMM})
+add_definitions(-DEIGEN_DONT_PARALLELIZE)
+
 if (ENABLE_REDUCE)
   add_definitions(-DBPMF_REDUCE)
 endif()
@@ -117,14 +120,30 @@ if(BPMF_COMM MATCHES ^.PI)
   endif()
 endif()
 
+if(BPMF_COMM MATCHES ^ARGO)
+  find_package(MPI REQUIRED COMPONENTS CXX)
+  set(MPIRUN mpirun -np 4)
+  target_link_libraries (bpmf MPI::MPI_CXX)
+  # IN ORDER TO BYPASS EIGEN ALIGNMENT ISSUES
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_DONT_VECTORIZE")
+  # NEED TO ADD ARGODSM FOLDER TO ENV $PATH
+  find_path(ARGO_INCLUDE_DIR argo.hpp PATH_SUFFIXES "src" REQUIRED)
+  include_directories(${ARGO_INCLUDE_DIR})
+  find_library(ARGO_LIBRARY argo PATH_SUFFIXES "build/lib" REQUIRED)
+  find_library(ARGO_BACKEND_MPI_LIBRARY argobackend-mpi PATH_SUFFIXES "build/lib" REQUIRED)
+  find_library(NUMA_LIBRARY numa REQUIRED)
+  find_library(RT_LIBRARY rt REQUIRED)
+  target_link_libraries (bpmf optimized ${ARGO_LIBRARY} ${ARGO_BACKEND_MPI_LIBRARY} ${NUMA_LIBRARY} ${RT_LIBRARY})
+endif()
+
 enable_testing()
 
-add_test(bpmf_uncompressed ${MPIRUN} bpmf -i 4 
+add_test(bpmf_uncompressed ${MPIRUN} ./bpmf -i 4 
   -n ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-train.mtx
   -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx
 )
 
-add_test(bpmf_compressed ${MPIRUN} bpmf -i 4 
+add_test(bpmf_compressed ${MPIRUN} ./bpmf -i 4 
   -n ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-train.mtx.gz
   -p ${CMAKE_CURRENT_SOURCE_DIR}/data/movielens/ml-test.mtx.gz
 )

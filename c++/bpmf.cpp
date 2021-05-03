@@ -28,6 +28,8 @@ using namespace Eigen;
 #include "mpi_allreduce.h"
 #elif defined(BPMF_MPI_ISEND_COMM)
 #include "mpi_isendirecv.h"
+#elif defined(BPMF_ARGO_COMM)
+#include "bpmf_argo.h"
 #elif defined(BPMF_NO_COMM)
 #include "nocomm.h"
 #else
@@ -259,7 +261,9 @@ void Sys::bcast()
 {
     for(int i = 0; i < num(); i++) {
 #ifdef BPMF_MPI_COMM
+#ifndef BPMF_ARGO_COMM
         MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+#endif
         if (aggrMu.nonZeros())
             MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
         if (aggrLambda.nonZeros())

@@ -75,9 +75,6 @@ void Sys::predict(Sys& other, bool all)
             auto m = items().col(it.col());
             auto u = other.items().col(it.row());
 
-            assert(m.norm() > 0.0);
-            assert(u.norm() > 0.0);
-
             const double pred = m.dot(u) + mean_rating;
             se += sqr(it.value() - pred);
 
@@ -184,7 +181,9 @@ void Sys::init()
     //-- M
     assert(M.rows() > 0 && M.cols() > 0);
     mean_rating = M.sum() / M.nonZeros();
+#ifndef BPMF_ARGO_COMM
     items().setZero();
+#endif
     sum.setZero();
     cov.setZero();
     norm = 0.;
