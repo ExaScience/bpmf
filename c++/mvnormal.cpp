@@ -15,36 +15,37 @@
 
 #include "bpmf.h"
 
-using namespace std;
+#ifdef BPMF_RANDOM123
+#include <Random123/philox.h>
+#include <Random123/MicroURNG.hpp>
+
+typedef r123::MicroURNG<r123::Philox4x32> RNG;
+#else
+
+typedef std::mt19937 RNG;
+#endif
+
 using namespace Eigen;
 
-/*
-  We need a functor that can pretend it's const,
-  but to be a good random number generator 
-  it needs mutable state.
-*/
+static thread_local RNG rng({{0}}, {{42}});
 
-thread_vector<std::mt19937> r(std::mt19937(42));
-
-std::mt19937 &rng()
+void rng_set_pos(uint32_t c)
 {
-    static bool isinit = false;
-    if (! isinit) {
-        r.init();
-        isinit=true;
-    }
-    return r.local();
-
+#ifdef BPMF_RANDOM123
+    rng.reset({{c}}, {{42}});
+#endif
 }
 
 double randn() {
-    normal_distribution<> nd;
-    return nd(rng());
+    return std::normal_distribution<>()(rng);
 }
+
+
+/* -------------------------------------------------------------------------------- */
 
 /*
   Draw nn samples from a size-dimensional normal distribution
-  with a specified mean and covariance
+  with a specified mean vector and precision matrix
 */
 VectorNd MvNormalChol_prec(double kappa, const MatrixNNd & Lambda_U, const VectorNd & mean)
 {
@@ -59,7 +60,7 @@ void WishartUnitChol(int df, MatrixNNd & c) {
 
     for ( int i = 0; i < num_latent; i++ ) {
         std::gamma_distribution<> gam(0.5*(df - i));
-        c(i,i) = sqrt(2.0 * gam(rng()));
+        c(i,i) = sqrt(2.0 * gam(rng));
         VectorXd r = nrandn(num_latent-i-1);
         for(int j=i+1;j<num_latent;j++) c.coeffRef(i,j) = randn();
     }

@@ -83,12 +83,7 @@ struct GASPI_Sys : public Sys
     virtual void sample(Sys &in);
     virtual void sample_hp();
 
-    void gaspi_bcast(int seg, int offset, int size);
-
     gaspi_segment_id_t items_seg = (gaspi_segment_id_t)-1;
-    gaspi_segment_id_t   sum_seg = (gaspi_segment_id_t)-1;
-    gaspi_segment_id_t   cov_seg = (gaspi_segment_id_t)-1;
-    gaspi_segment_id_t  norm_seg = (gaspi_segment_id_t)-1;
 
     std::vector<double> sync_time;
 
@@ -132,12 +127,6 @@ void GASPI_Sys::alloc_and_init()
     static gaspi_segment_id_t seg_id_cnt = 0;
     items_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * num());
     items_seg = seg_id_cnt++;
-    sum_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * Sys::nprocs);
-    sum_seg = seg_id_cnt++;
-    cov_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * num_latent * num_latent * Sys::nprocs);
-    cov_seg = seg_id_cnt++;
-    norm_ptr = gaspi_malloc(seg_id_cnt, sizeof(double) * Sys::nprocs);
-    norm_seg = seg_id_cnt++;
 
     sync();
 
@@ -157,15 +146,6 @@ void GASPI_Sys::send_item(int i)
     }
 }
 
-void GASPI_Sys::gaspi_bcast(int seg, int offset, int size) {
-    offset *= sizeof(double);
-    size *= sizeof(double);
-    for(int k = 0; k < Sys::nprocs; k++) {
-        if (!do_send(k)) continue;
-        SUCCESS_OR_RETRY(gaspi_write(seg, offset, k, seg, offset, size, 0, GASPI_BLOCK));
-    }
-}
-
 void GASPI_Sys::sample(Sys &in)
 {
     {
@@ -174,16 +154,12 @@ void GASPI_Sys::sample(Sys &in)
     }
 
     {
-        BPMF_COUNTER("bcast");
-        auto base = Sys::procid;
-        gaspi_bcast(sum_seg, base * num_latent, num_latent);
-        gaspi_bcast(cov_seg, base * num_latent * num_latent, num_latent * num_latent);
-        gaspi_bcast(norm_seg, base, 1);
+        BPMF_COUNTER("notify");
 
         for (int k = 0; k < Sys::nprocs; k++)
         {
             if (!do_send(k)) continue;
-            SUCCESS_OR_RETRY(gaspi_notify(norm_seg, k, Sys::procid, iter+1, 0, GASPI_BLOCK));
+            SUCCESS_OR_RETRY(gaspi_notify(items_seg, k, Sys::procid, iter+1, 0, GASPI_BLOCK));
         }
 
     }
@@ -197,8 +173,8 @@ void GASPI_Sys::sample(Sys &in)
             if (!do_recv(k)) continue;
             gaspi_notification_id_t id;
             gaspi_notification_t val = 0;
-            SUCCESS_OR_DIE(gaspi_notify_waitsome(norm_seg, 0, Sys::nprocs, &id, GASPI_BLOCK));
-            SUCCESS_OR_DIE(gaspi_notify_reset(norm_seg, id, &val));
+            SUCCESS_OR_DIE(gaspi_notify_waitsome(items_seg, 0, Sys::nprocs, &id, GASPI_BLOCK));
+            SUCCESS_OR_DIE(gaspi_notify_reset(items_seg, id, &val));
             auto stop = tick();
             sync_time[id] += stop - start;
         }
@@ -226,23 +202,23 @@ void Sys::Init()
     gaspi_proc_rank(&rank);
     if (Sys::procid >= 0)
     {
-	    assert(rank == Sys::procid);
+        assert(rank == Sys::procid);
     }
     else
     {
-	    Sys::procid = rank;
+        Sys::procid = rank;
     }
 
     gaspi_number_t size;
-    gaspi_group_size(GASPI_GROUP_ALL,&size);
+    gaspi_group_size(GASPI_GROUP_ALL, &size);
     if (Sys::nprocs > 0)
     {
-	    assert(Sys::nprocs == (int)size);
+        assert(Sys::nprocs == (int)size);
     }
     else
     {
-            assert(size > 0);
-	    Sys::nprocs = size;
+        assert(size > 0);
+        Sys::nprocs = size;
     }
 }
 

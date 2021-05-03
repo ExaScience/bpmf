@@ -6,7 +6,6 @@
 #include "error.h"
 #include "bpmf.h"
 
-#include <random>
 #include <memory>
 #include <cstdio>
 #include <iostream>

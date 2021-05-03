@@ -8,7 +8,6 @@
 #include <fstream>
 #include <string>
 #include <algorithm>
-#include <random>
 #include <unistd.h>
 
 #include "io.h"
@@ -23,6 +22,8 @@ using namespace Eigen;
 #include "mpi_put.h"
 #elif defined(BPMF_MPI_BCAST_COMM)
 #include "mpi_bcast.h"
+#elif defined(BPMF_MPI_REDUCE_COMM)
+#include "mpi_reduce.h"
 #elif defined(BPMF_MPI_ALLREDUCE_COMM)
 #include "mpi_allreduce.h"
 #elif defined(BPMF_MPI_ISEND_COMM)
@@ -113,6 +114,12 @@ int main(int argc, char *argv[])
         Sys::os = &std::cout;
     }
 
+#ifndef NDEBUG
+    Sys::dbgs = Sys::os;
+#else
+    Sys::dbgs = new std::ofstream("/dev/null");
+#endif
+
     if (fname.empty() || probename.empty()) { 
         usage();
         Sys::Abort(1);
@@ -171,16 +178,8 @@ int main(int argc, char *argv[])
         BPMF_COUNTER("main");
         auto start = tick();
 
-        {
-            BPMF_COUNTER("movies");
-            movies.sample_hp();
-            movies.sample(users);
-        }
-        {
-            BPMF_COUNTER("users");
-            users.sample_hp();
-            users.sample(movies);
-        }
+        { BPMF_COUNTER("movies"); movies.sample(users); }
+        { BPMF_COUNTER("users"); users.sample(movies); }
 
         { 
             BPMF_COUNTER("eval");
@@ -191,7 +190,7 @@ int main(int argc, char *argv[])
         auto stop = tick();
         double items_per_sec = (users.num() + movies.num()) / (stop - start);
         double ratings_per_sec = (users.nnz()) / (stop - start);
-        movies.print(items_per_sec, ratings_per_sec, sqrt(users.aggr_norm()), sqrt(movies.aggr_norm()));
+        movies.print(items_per_sec, ratings_per_sec, sqrt(users.norm), sqrt(movies.norm));
         average_items_sec += items_per_sec;
         average_ratings_sec += ratings_per_sec;
 
@@ -253,8 +252,6 @@ int main(int argc, char *argv[])
   }
   perf_data_print();
   Sys::Finalize();
-  if (Sys::nprocs >1) delete Sys::os;
-
 
    return 0;
 }

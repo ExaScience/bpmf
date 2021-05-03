@@ -4,3 +4,8 @@
                     compute rr from ratings for this r and cols in U for which there are ratings
                     compute MM from cols in U for which there are ratings in R
                   
+
+
+   for(i=1; i<iter; i++)
+        compute U, Ucov, Usum, VMu, VLambda from Ucov, Usum, Umu, ULambda
+        compute V, Vcov, Vsum, UMu, ULambda from Vcov, Vsum, Vmu, VLambda

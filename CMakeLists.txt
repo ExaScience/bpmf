@@ -2,7 +2,13 @@ cmake_minimum_required (VERSION 3.5.0)
 
 project (bpmf)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 # OPTIONS
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(FATAL "No CMAKE_BUILD_TYPE was specified.")
+endif()
 
 OPTION(ENABLE_PROFILING "Enable performance counters" OFF)
 OPTION(ENABLE_ASAN "Enable address sanitizer" OFF)
@@ -12,12 +18,14 @@ OPTION(ENABLE_OPENMP "Enable OpenMP Support" ON)
 OPTION(ENABLE_REDUCE "Reduce Mu/Lambda version" OFF)
 
 SET(BPMF_NUMLATENT 32 CACHE INT "Number of latent dimensions") 
+OPTION(ONLY_VARIANCE "Only compute variance, not covariance" OFF)
 
 SET(BPMF_COMM "NO_COMM" CACHE STRING "Communication library used")
 SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS 
   GPI_COMM 
   MPI_ISEND_COMM 
   MPI_PUT_COMM 
+  MPI_REDUCE_COMM 
   MPI_ALLREDUCE_COMM 
   MPI_BCAST_COMM 
   ARGO_COMM 
@@ -57,6 +65,10 @@ message(STATUS "Version from git: ${BPMF_VERSION}")
 message(STATUS "num-latent: ${BPMF_NUMLATENT}")
 message(STATUS "comm: ${BPMF_COMM}")
 
+if (ONLY_VARIANCE)
+  add_definitions(-DBPMF_NO_COVARIANCE)
+endif()
+
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 add_definitions(-DBPMF_${BPMF_COMM})
@@ -66,7 +78,15 @@ if (ENABLE_REDUCE)
   add_definitions(-DBPMF_REDUCE)
 endif()
 
+find_package(Random123)
+if (Random123_FOUND)
+  add_definitions(-DBPMF_RANDOM123)
+  include_directories(${RANDOM123_INCLUDE_DIRS})
+endif()
+
 find_package(Eigen3 REQUIRED)
+add_definitions(-DEIGEN_DONT_PARALLELIZE)
+
 find_package(ZLIB REQUIRED)
 
 if(${ENABLE_PROFILING})

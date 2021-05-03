@@ -35,23 +35,16 @@ void Sys::Abort(int err)
 void MPI_Sys::alloc_and_init()
 {
     items_ptr = (double *)malloc(sizeof(double) * num_latent * num());
-    sum_ptr = (double *)malloc(sizeof(double) * num_latent * MPI_Sys::nprocs);
-    cov_ptr = (double *)malloc(sizeof(double) * num_latent * num_latent * MPI_Sys::nprocs);
-    norm_ptr = (double *)malloc(sizeof(double) * MPI_Sys::nprocs);
 
     init();
 }
 #endif
 
 
-void MPI_Sys::bcast_sum_cov_norm()
+void MPI_Sys::reduce_sum_cov_norm()
 {
-    BPMF_COUNTER("bcast");
-    for (int k = 0; k < Sys::nprocs; k++)
-    {
-        //sum, cov, norm
-        MPI_Bcast(sum(k).data(), sum(k).size(), MPI_DOUBLE, k, MPI_COMM_WORLD);
-        MPI_Bcast(cov(k).data(), cov(k).size(), MPI_DOUBLE, k, MPI_COMM_WORLD);
-        MPI_Bcast(&norm(k), 1, MPI_DOUBLE, k, MPI_COMM_WORLD);
-    }
+    BPMF_COUNTER("reduce_sum_cov_norm");
+    MPI_Allreduce(MPI_IN_PLACE, sum.data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, cov.data(), num_latent * num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 }

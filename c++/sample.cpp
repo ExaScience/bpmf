@@ -4,7 +4,6 @@
  */
 
 
-#include <random>
 #include <memory>
 #include <cstdio>
 #include <iostream>
@@ -19,6 +18,8 @@
 static const bool measure_perf = false;
 
 std::ostream *Sys::os;
+std::ostream *Sys::dbgs;
+
 int Sys::procid = -1;
 int Sys::nprocs = -1;
 
@@ -182,10 +183,10 @@ void Sys::init()
     mean_rating = M.sum() / M.nonZeros();
 #ifndef BPMF_ARGO_COMM
     items().setZero();
-    sum_map().setZero();
-    cov_map().setZero();
-    norm_map().setZero();
 #endif
+    sum.setZero();
+    cov.setZero();
+    norm = 0.;
     col_permutation.setIdentity(num());
 
 #ifdef BPMF_REDUCE
@@ -262,6 +263,8 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
 VectorNd Sys::sample(long idx, Sys &other)
 {
     auto start = tick();
+    rng_set_pos((idx+1) * num_latent * (iter+1));
+    //Sys::dbg() << "-- original start name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     VectorNd hp_mu;
     MatrixNNd hp_LambdaF; 
@@ -289,11 +292,18 @@ VectorNd Sys::sample(long idx, Sys &other)
 #else
     computeMuLambda(idx, other, rr, MM, false);
 #endif
-    
+
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
+    MM = hp_LambdaF + alpha * MM;
 
-    chol.compute(hp_LambdaF + alpha * MM);
+#ifdef BPMF_NO_COVARIANCE
+    // only keep diagonal -- 
+    MatrixNNd MM1 = MM.diagonal().asDiagonal();
+    MM = MM1;
+#endif
+
+    chol.compute(MM);
 
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 
@@ -319,6 +329,9 @@ VectorNd Sys::sample(long idx, Sys &other)
 
     assert(rr.norm() > .0);
 
+    //SHOW(rr.transpose());
+    //Sys::dbg() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
+
     return rr;
 }
 
@@ -332,6 +345,14 @@ void Sys::sample(Sys &other)
     thread_vector<double>    norms(0.0); // squared norm
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
+    rng_set_pos(iter); // make this consistent
+    sample_hp();
+    //SHOW(hp.mu.transpose());
+
+#ifdef BPMF_REDUCE
+    other.precMu.setZero();
+    other.precLambda.setZero();
+#endif
 
 #pragma omp parallel for schedule(guided)
     for (int i = from(); i < to(); ++i)
@@ -362,12 +383,10 @@ void Sys::sample(Sys &other)
 
     VectorNd sum = sums.combine();
     MatrixNNd prod = prods.combine();   
-    double norm = norms.combine();
+    norm = norms.combine();
 
     const int N = num();
-    local_sum() = sum;
-    local_cov() = (prod - (sum * sum.transpose() / N)) / (N-1);
-    local_norm() = norm;
+    cov = (prod - (sum * sum.transpose() / N)) / (N-1);
 }
 
 void Sys::register_time(int i, double t)

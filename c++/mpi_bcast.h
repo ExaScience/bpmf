@@ -15,7 +15,7 @@ struct MPI_Sys : public Sys
     virtual void send_item(int) {}
     virtual void alloc_and_init();
 
-    void bcast_sum_cov_norm();
+    void reduce_sum_cov_norm();
 };
 
 void MPI_Sys::sample(Sys &in)
@@ -25,7 +25,7 @@ void MPI_Sys::sample(Sys &in)
     { 
         BPMF_COUNTER("communicate"); 
         bcast();
-        bcast_sum_cov_norm();
+        reduce_sum_cov_norm();
     }
 }
 

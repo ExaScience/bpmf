@@ -8,6 +8,7 @@
 
 #include <bitset>
 #include <functional>
+#include <random>
 
 #define EIGEN_RUNTIME_NO_MALLOC 1
 #define EIGEN_DONT_PARALLELIZE 1
@@ -28,6 +29,11 @@
 #elif defined(BPMF_MPI_PUT_COMM)
 #define BPMF_MPI_COMM
 #elif defined(BPMF_MPI_BCAST_COMM)
+#define BPMF_MPI_COMM
+#elif defined(BPMF_MPI_REDUCE_COMM)
+#ifndef BPMF_REDUCE
+#define BPMF_REDUCE
+#endif
 #define BPMF_MPI_COMM
 #elif defined(BPMF_MPI_ALLREDUCE_COMM)
 #ifndef BPMF_REDUCE
@@ -58,6 +64,7 @@ void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 std::pair< VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
 
+void rng_set_pos(uint32_t p);
 double randn();
  
 #define nrandn(n) (Eigen::VectorXd::NullaryExpr((n), [](double) { return randn(); }))
@@ -115,8 +122,9 @@ struct Sys {
     static void Abort(int);
     static void sync();
 
-    static std::ostream *os;
+    static std::ostream *os, *dbgs;
     static std::ostream &cout() { os->flush(); return *os; }
+    static std::ostream &dbg() { dbgs->flush(); return *dbgs; }
     
     //-- c'tor
     std::string name;
@@ -128,7 +136,7 @@ struct Sys {
     virtual void alloc_and_init() = 0;
 
     //-- sparse matrix
-    SparseMatrixD M; // known ratings
+    SparseMatrixD M;        // known ratings
     double mean_rating;
     int num() const { return M.cols(); }
     int nnz() const { return M.nonZeros(); }
@@ -199,36 +207,16 @@ struct Sys {
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_item(int i) = 0;
     void bcast();
-    void bcast_sum_cov_norm();
+    void reduce_sum_cov_norm();
     virtual void sample(Sys &in);
 
-    //-- covariance
-    double *sum_ptr;
-    MapNXd sum_map() const { return MapNXd(sum_ptr, num_latent, Sys::nprocs); }
-    MapNXd::ColXpr sum(int i)  const { return sum_map().col(i); }
-    MapNXd::ColXpr local_sum() const { return sum(Sys::procid); }
-    VectorNd aggr_sum() const { return sum_map().rowwise().sum(); }
-
-    double *cov_ptr;
-    MapNXd cov_map() const { return MapNXd(cov_ptr, num_latent, Sys::nprocs * num_latent); }
-    MapNXd cov(int i) const { return MapNXd(cov_ptr + i*num_latent*num_latent, num_latent, num_latent); }
-    MapNXd local_cov() { return cov(Sys::procid); }
-    MatrixNNd aggr_cov() const { 
-        MatrixNNd ret(MatrixNNd::Zero());
-        for(int i=0; i<Sys::nprocs; ++i) ret += cov(i);
-        return ret;
-    }
-
-    // norm
-    double *norm_ptr;
-    MapXd norm_map() const { return MapXd(norm_ptr, Sys::nprocs); }
-    double &norm(int i) const { return norm_ptr[i]; }
-    double &local_norm() const { return norm(Sys::procid); }
-    double aggr_norm() const { return norm_map().sum(); }
+    VectorNd sum;  //-- sum of all U-vectors
+    MatrixNNd cov; //-- covariance
+    double norm; 
 
     //-- hyper params
     HyperParams hp;
-    virtual void sample_hp() { hp.sample(num(), aggr_sum(), aggr_cov()); }
+    virtual void sample_hp() { hp.sample(num(), sum, cov); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)
