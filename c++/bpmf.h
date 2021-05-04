@@ -16,7 +16,6 @@
 #include "Eigen/Sparse"
 
 #include "counters.h"
-#include "thread_vector.h"
 
 #ifndef BPMF_NUMLATENT
 #error Define BPMF_NUMLATENT
@@ -41,7 +40,6 @@
 #error no comm include
 #endif
 
-
 const int num_latent = BPMF_NUMLATENT;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
@@ -50,6 +48,12 @@ typedef Eigen::Matrix<double, num_latent, Eigen::Dynamic> MatrixNXd;
 typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
 typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
+
+#if defined(_OPENMP)
+#include <omp.h>
+#pragma omp declare reduction (VectorPlus : VectorNd : omp_out += omp_in) initializer(omp_priv = VectorNd::Zero())
+#pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out += omp_in) initializer(omp_priv = MatrixNNd::Zero())
+#endif
 
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 
@@ -104,6 +108,7 @@ struct Sys {
     static bool permute;
     static bool verbose;
     static int nprocs, procid;
+    static int nlvls;
     static int burnin, nsims, update_freq;
     static double alpha;
     static std::string odirname;
@@ -176,7 +181,10 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
     void preComputeMuLambda(const Sys &other);
-    void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
+    void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const;
+    void computeMuLambda_1lvl(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
+    void computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
+    void computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
 
     //-- to pre-compute Lambda/Mu from other side
     Eigen::MatrixXd precMu, precLambda;

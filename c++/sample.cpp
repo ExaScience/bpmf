@@ -21,6 +21,7 @@ static const bool measure_perf = false;
 std::ostream *Sys::os;
 int Sys::procid = -1;
 int Sys::nprocs = -1;
+int Sys::nlvls = -1;
 
 int Sys::nsims;
 int Sys::burnin;
@@ -239,18 +240,46 @@ void Sys::preComputeMuLambda(const Sys &other)
     {
         VectorNd mu = VectorNd::Zero();
         MatrixNNd Lambda = MatrixNNd::Zero();
-        computeMuLambda(i, other, mu, Lambda, true);
+        computeMuLambda(i, other, mu, Lambda, true, 1);
         precLambdaMatrix(i) = Lambda;
         precMu.col(i) = mu;
     }
 }
 
-#if 0
-void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
+void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const
 {
     BPMF_COUNTER("computeMuLambda");
+
+         if (levels == 1) computeMuLambda_1lvl(idx, other, rr, MM, local_only);
+    else if (levels == 2) computeMuLambda_2lvls(idx, other, rr, MM);
+    else if (levels == 3) computeMuLambda_3lvls(idx, other, rr, MM);
+    else THROWERROR_NOTIMPL();
+}
+
+void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
+{
     assert(!local_only);
 
+    unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
+    unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
+
+#pragma omp taskloop shared(other) reduction(VectorPlus:rr) reduction(MatrixPlus:MM) 
+    for (unsigned j = from; j < to; j++)
+    {
+        // for each nonzeros elemen in the i-th row of M matrix
+        auto val = M.valuePtr()[j];        // value of the j-th nonzeros element from idx-th row of M matrix
+        auto idx = M.innerIndexPtr()[j];   // index "j" of the element [i,j] from M matrix in compressed M matrix
+        auto col = other.items().col(idx); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
+
+        MM.triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
+        rr.noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
+    }
+}
+
+
+void Sys::computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
+{
+    assert(!local_only);
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).
     if (count < breakpoint2)
@@ -291,10 +320,9 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
         rr += rrs.combine();
     }
 }
-#else
-void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
+
+void Sys::computeMuLambda_1lvl(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
 {
-    BPMF_COUNTER("computeMuLambda");
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         if (local_only && (it.row() < other.from() || it.row() >= other.to())) continue;
@@ -303,7 +331,6 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
 }
-#endif
 
 //
 // Update ONE movie or one user
@@ -336,7 +363,7 @@ VectorNd Sys::sample(long idx, Sys &other)
     rr += precMu.col(idx);
     MM += precLambdaMatrix(idx);
 #else
-    computeMuLambda(idx, other, rr, MM, false);
+    computeMuLambda(idx, other, rr, MM, false, nlvls);
 #endif
     
     // copy upper -> lower part, matrix is symmetric.

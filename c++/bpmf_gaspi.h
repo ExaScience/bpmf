@@ -9,8 +9,6 @@
 #include <GASPI.h>
 #include <GASPI_Ext.h>
 
-#include "thread_vector.h"
-
 #define SYS GASPI_Sys
 
 static int gaspi_free(int k = 0) {
