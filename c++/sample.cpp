@@ -207,7 +207,6 @@ void Sys::init()
     for(int k = 0; k<M.cols(); k++) {
         int count = M.col(k).nonZeros();
         count_sum += count;
-        if (count > breakpoint1) count_larger_bp1++;
         if (count > breakpoint2) count_larger_bp2++;
     }
 
@@ -215,8 +214,7 @@ void Sys::init()
     Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
     Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
     Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M.cols() << std::endl;
-    Sys::cout() << "rows > break_point1: " << 100. * (double)count_larger_bp1 / (double)M.cols() << std::endl;
-    Sys::cout() << "rows > break_point2: " << 100. * (double)count_larger_bp2 / (double)M.cols() << std::endl;
+    Sys::cout() << "rows > break_point2: " << (int)(100. * (double)count_larger_bp2 / (double)M.cols()) << "%" << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
     if (has_prop_posterior())
     {
@@ -258,12 +256,13 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
 
 void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
 {
-    assert(!local_only);
+    const unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
+    const unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
 
-    unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
-    unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
+    const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
+    const int task_size = int(count / 100) + 1;
 
-#pragma omp taskloop shared(other) reduction(VectorPlus:rr) reduction(MatrixPlus:MM) 
+#pragma omp taskloop shared(other) reduction(VectorPlus:rr) reduction(MatrixPlus:MM) grainsize(task_size)
     for (unsigned j = from; j < to; j++)
     {
         // for each nonzeros elemen in the i-th row of M matrix
@@ -279,7 +278,6 @@ void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, Matrix
 
 void Sys::computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
 {
-    assert(!local_only);
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).
     if (count < breakpoint2)
@@ -303,7 +301,7 @@ void Sys::computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, Matrix
         thread_vector<VectorNd> rrs(VectorNd::Zero());
         thread_vector<MatrixNNd> MMs(MatrixNNd::Zero());
 
-#pragma omp taskloop shared(rrs, MMs, other) 
+#pragma omp taskloop shared(rrs, MMs, other) grainsize(task_size)
         for (unsigned j = from; j < to; j++)
         {
             // for each nonzeros elemen in the i-th row of M matrix
@@ -404,19 +402,19 @@ VectorNd Sys::sample(long idx, Sys &other)
 void Sys::sample(Sys &other) 
 {
     iter++;
-    thread_vector<VectorNd>  sums(VectorNd::Zero()); // sum
-    thread_vector<double>    norms(0.0); // squared norm
-    thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
+    VectorNd sum = VectorNd::Zero();
+    MatrixNNd prod = MatrixNNd::Zero();
+    double norm = .0;
 
-#pragma omp parallel for
+#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) 
     for (int i = from(); i < to(); ++i)
     {
         auto r = sample(i, other);
 
         MatrixNNd cov = (r * r.transpose());
-        prods.local() += cov;
-        sums.local() += r;
-        norms.local() += r.squaredNorm();
+        prod += cov;
+        sum += r;
+        norm += r.squaredNorm();
 
         if (iter >= burnin && Sys::odirname.size())
         {
@@ -430,10 +428,6 @@ void Sys::sample(Sys &other)
 #ifdef BPMF_REDUCE
     other.preComputeMuLambda(*this);
 #endif
-
-    VectorNd sum = sums.combine();
-    MatrixNNd prod = prods.combine();   
-    double norm = norms.combine();
 
     const int N = num();
     local_sum() = sum;
