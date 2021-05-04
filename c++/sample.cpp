@@ -396,25 +396,25 @@ VectorNd Sys::sample(long idx, Sys &other)
     return rr;
 }
 
-// 
+//
 // update ALL movies / users in parallel
 //
-void Sys::sample(Sys &other) 
+void Sys::sample(Sys &other)
 {
     iter++;
-    VectorNd sum = VectorNd::Zero();
-    MatrixNNd prod = MatrixNNd::Zero();
-    double norm = .0;
+    thread_vector<VectorNd>  sums(VectorNd::Zero()); // sum
+    thread_vector<double>    norms(0.0); // squared norm
+    thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
-#pragma omp parallel for reduction(VectorPlus:sum) reduction(MatrixPlus:prod) reduction(+:norm) 
+#pragma omp parallel for
     for (int i = from(); i < to(); ++i)
     {
         auto r = sample(i, other);
 
         MatrixNNd cov = (r * r.transpose());
-        prod += cov;
-        sum += r;
-        norm += r.squaredNorm();
+        prods.local() += cov;
+        sums.local() += r;
+        norms.local() += r.squaredNorm();
 
         if (iter >= burnin && Sys::odirname.size())
         {
@@ -428,6 +428,10 @@ void Sys::sample(Sys &other)
 #ifdef BPMF_REDUCE
     other.preComputeMuLambda(*this);
 #endif
+
+    VectorNd sum = sums.combine();
+    MatrixNNd prod = prods.combine();
+    double norm = norms.combine();
 
     const int N = num();
     local_sum() = sum;
