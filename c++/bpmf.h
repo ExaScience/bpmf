@@ -49,11 +49,6 @@ typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
 typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
 
-#if defined(_OPENMP)
-#include <omp.h>
-#pragma omp declare reduction (VectorPlus : VectorNd : omp_out += omp_in) initializer(omp_priv = VectorNd::Zero())
-#pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out += omp_in) initializer(omp_priv = MatrixNNd::Zero())
-#endif
 
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 
@@ -181,10 +176,11 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
     void preComputeMuLambda(const Sys &other);
-    void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const;
-    void computeMuLambda_1lvl(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
-    void computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
-    void computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
+
+    std::pair<VectorNd, MatrixNNd>  computeMuLambda(long idx, const Sys &other, bool local_only, int levels) const;
+    std::pair<VectorNd, MatrixNNd>  computeMuLambda_1lvl(long idx, const Sys &other, bool local_only) const;
+    std::pair<VectorNd, MatrixNNd>  computeMuLambda_2lvls(long idx, const Sys &other) const;
+    std::pair<VectorNd, MatrixNNd>  computeMuLambda_3lvls(long idx, const Sys &other) const;
 
     //-- to pre-compute Lambda/Mu from other side
     Eigen::MatrixXd precMu, precLambda;

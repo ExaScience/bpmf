@@ -236,33 +236,35 @@ void Sys::preComputeMuLambda(const Sys &other)
 #pragma omp parallel for schedule(guided)
     for (int i = 0; i < num(); ++i)
     {
-        VectorNd mu = VectorNd::Zero();
-        MatrixNNd Lambda = MatrixNNd::Zero();
-        computeMuLambda(i, other, mu, Lambda, true, 1);
+        VectorNd mu;
+        MatrixNNd Lambda;
+        std::tie(mu, Lambda) = computeMuLambda(i, other, true, 1);
         precLambdaMatrix(i) = Lambda;
         precMu.col(i) = mu;
     }
 }
 
-void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const
+std::pair<VectorNd, MatrixNNd> Sys::computeMuLambda(long idx, const Sys &other, bool local_only, int levels) const
 {
     BPMF_COUNTER("computeMuLambda");
 
-         if (levels == 1) computeMuLambda_1lvl(idx, other, rr, MM, local_only);
-    else if (levels == 2) computeMuLambda_2lvls(idx, other, rr, MM);
-    else if (levels == 3) computeMuLambda_3lvls(idx, other, rr, MM);
-    else THROWERROR_NOTIMPL();
+         if (levels == 1) return computeMuLambda_1lvl(idx, other, local_only);
+    else if (levels == 2) return computeMuLambda_2lvls(idx, other);
+    else if (levels != 3) THROWERROR_NOTIMPL();
+
+    return computeMuLambda_3lvls(idx, other);
+
 }
 
-void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
+std::pair<VectorNd, MatrixNNd> Sys::computeMuLambda_2lvls(long idx, const Sys &other) const
 {
+    VectorNd rr = VectorNd::Zero();
+    MatrixNNd MM = MatrixNNd::Zero();
+
     const unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
     const unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
 
-    const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
-    const int task_size = int(count / 100) + 1;
-
-#pragma omp taskloop shared(other) reduction(VectorPlus:rr) reduction(MatrixPlus:MM) grainsize(task_size)
+#pragma omp taskloop shared(other) reduction(VectorPlus:rr) reduction(MatrixPlus:MM) grainsize(100)
     for (unsigned j = from; j < to; j++)
     {
         // for each nonzeros elemen in the i-th row of M matrix
@@ -273,22 +275,31 @@ void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, Matrix
         MM.triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
         rr.noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
     }
+
+    return std::make_pair(rr, MM);
 }
 
 
-void Sys::computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
+std::pair<VectorNd, MatrixNNd> Sys::computeMuLambda_3lvls(long idx, const Sys &other) const
 {
+
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
                                                      // (how many movies watched idx-th user?).
     if (count < breakpoint2)
     {
         BPMF_COUNTER("no_extra_task");
+
+        VectorNd rr = VectorNd::Zero();
+        MatrixNNd MM = MatrixNNd::Zero();
+
         for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
         {
             auto col = other.items().col(it.row());
             MM.triangularView<Eigen::Upper>() += col * col.transpose();
             rr.noalias() += col * ((it.value() - mean_rating) * alpha);
         }
+
+        return std::make_pair(rr, MM);
     }
     else
     {
@@ -313,14 +324,17 @@ void Sys::computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, Matrix
             rrs.local().noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
         }
 
-        // accumulate
-        MM += MMs.combine();
-        rr += rrs.combine();
+        // accumulate and return
+        return std::make_pair(rrs.combine(), MMs.combine());
     }
 }
 
-void Sys::computeMuLambda_1lvl(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const
+std::pair<VectorNd, MatrixNNd> Sys::computeMuLambda_1lvl(long idx, const Sys &other, bool local_only) const
 {
+
+    VectorNd rr = VectorNd::Zero();
+    MatrixNNd MM = MatrixNNd::Zero();
+
     for (SparseMatrixD::InnerIterator it(M, idx); it; ++it)
     {
         if (local_only && (it.row() < other.from() || it.row() >= other.to())) continue;
@@ -328,6 +342,8 @@ void Sys::computeMuLambda_1lvl(long idx, const Sys &other, VectorNd &rr, MatrixN
         MM.triangularView<Eigen::Upper>() += col * col.transpose();
         rr.noalias() += col * ((it.value() - mean_rating) * alpha);
     }
+
+    return std::make_pair(rr, MM);
 }
 
 //
@@ -361,7 +377,9 @@ VectorNd Sys::sample(long idx, Sys &other)
     rr += precMu.col(idx);
     MM += precLambdaMatrix(idx);
 #else
-    computeMuLambda(idx, other, rr, MM, false, nlvls);
+    auto mu_lambda = computeMuLambda(idx, other, false, nlvls);
+    rr += mu_lambda.first;
+    MM += mu_lambda.second;
 #endif
     
     // copy upper -> lower part, matrix is symmetric.
