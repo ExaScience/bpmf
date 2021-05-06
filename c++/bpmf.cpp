@@ -179,16 +179,6 @@ int main(int argc, char *argv[])
         average_items_sec += items_per_sec;
         average_ratings_sec += ratings_per_sec;
 
-        if (Sys::verbose)
-        {
-            users.bcast();
-            movies.bcast();
-            if (Sys::procid == 0)
-            {
-            write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
-            write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
-        }
-    }
     }
 
     Sys::sync();
@@ -213,37 +203,4 @@ int main(int argc, char *argv[])
 
 
    return 0;
-}
-
-
-void Sys::bcast()
-{
-    for(int i = 0; i < num(); i++) {
-#ifdef BPMF_MPI_COMM
-        MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        if (aggrMu.nonZeros())
-            MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-        if (aggrLambda.nonZeros())
-            MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
-#else
-        assert(Sys::nprocs == 1);
-#endif
-    }
-}
-
-
-void Sys::finalize_mu_lambda()
-{
-    assert(aggrLambda.nonZeros());
-    assert(aggrMu.nonZeros());
-    // calculate real mu and Lambda
-    for(int i = 0; i < num(); i++) {
-        int nsamples = Sys::nsims - Sys::burnin;
-        auto sum = aggrMu.col(i);
-        auto prod = Eigen::Map<MatrixNNd>(aggrLambda.col(i).data());
-        MatrixNNd cov = (prod - (sum * sum.transpose() / nsamples)) / (nsamples - 1);
-        MatrixNNd prec = cov.inverse(); // precision = covariance^-1
-        aggrLambda.col(i) = Eigen::Map<Eigen::VectorXd>(prec.data(), num_latent * num_latent);
-        aggrMu.col(i) = sum / nsamples;
-    }
 }
