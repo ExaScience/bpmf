@@ -262,9 +262,12 @@ void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, Matrix
     const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
     const int task_size = int(count / 100) + 1;
 
+    VectorNd rr_local(VectorNd::Zero());
+    MatrixNNd MM_local(MatrixNNd::Zero());
+
 #pragma omp taskloop default(none) \
             shared(other, M, from, to) \
-            reduction(VectorPlus:rr) reduction(MatrixPlus:MM) \
+            reduction(VectorPlus:rr_local) reduction(MatrixPlus:MM_local) \
             num_tasks(100) if(count > 1000)
     for (unsigned j = from; j < to; j++)
     {
@@ -273,9 +276,12 @@ void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, Matrix
         auto idx = M.innerIndexPtr()[j];   // index "j" of the element [i,j] from M matrix in compressed M matrix
         auto col = other.items().col(idx); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
 
-        MM.triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
-        rr.noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
+        MM_local.triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
+        rr_local.noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
     }
+
+    rr.noalias() += rr_local;
+    MM.noalias() += MM_local;
 }
 
 
