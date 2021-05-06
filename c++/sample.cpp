@@ -127,7 +127,6 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
     Pm2 = Pavg = Torig = T; // reference ratings and predicted ratings
     assert(M.rows() == Pavg.rows());
     assert(M.cols() == Pavg.cols());
-    assert(Sys::nprocs <= (int)Sys::max_procs);
 }
 
 //
@@ -204,19 +203,16 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
 
 void Sys::computeMuLambda_2lvls(long idx, const Sys &) const
 {
-    unsigned from  = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
-    unsigned to    = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
-    unsigned count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
+    const unsigned count = idx; 
 
     VectorNd rr_local(VectorNd::Zero());
     MatrixNNd MM_local(MatrixNNd::Zero());
 
 #pragma omp parallel
 #pragma omp taskloop default(none) \
-            shared(M, from, to) \
-            reduction(VectorPlus:rr_local) reduction(MatrixPlus:MM_local) \
-            num_tasks(100) if(count > 1000)
-    for (unsigned j = from; j < to; j++)
+            shared(count) \
+            reduction(VectorPlus:rr_local) reduction(MatrixPlus:MM_local)
+    for (unsigned j = 0; j < count; j++)
     {
         // for each nonzeros elemen in the i-th row of M matrix
         auto col = VectorNd::Zero(); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
