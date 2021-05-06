@@ -11,6 +11,7 @@
 #include <random>
 #include <unistd.h>
 
+#include "thread_vector.h"
 #include "io.h"
 #include "bpmf.h"
 

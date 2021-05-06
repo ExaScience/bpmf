@@ -13,6 +13,7 @@
 #include <cmath>
 
 #include "error.h"
+#include "thread_vector.h"
 #include "bpmf.h"
 #include "io.h"
 
