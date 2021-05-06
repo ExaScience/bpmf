@@ -97,6 +97,8 @@ struct HyperParams {
     }
 };
 
+void computeMuLambda_2lvls_standalone(long idx);
+
 struct Sys;
 
 // 

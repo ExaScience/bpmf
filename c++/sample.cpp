@@ -191,17 +191,8 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
     void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
 };
 
-void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const
-{
-    BPMF_COUNTER("computeMuLambda");
 
-         if (levels == 1) computeMuLambda_1lvl(idx, other, rr, MM, local_only);
-    else if (levels == 2) computeMuLambda_2lvls(idx, other);
-    else if (levels == 3) computeMuLambda_3lvls(idx, other, rr, MM);
-    else THROWERROR_NOTIMPL();
-}
-
-void Sys::computeMuLambda_2lvls(long idx, const Sys &) const
+void computeMuLambda_2lvls_standalone(long idx) 
 {
     const unsigned count = idx; 
 
@@ -223,6 +214,21 @@ void Sys::computeMuLambda_2lvls(long idx, const Sys &) const
 
 }
 
+void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const
+{
+    BPMF_COUNTER("computeMuLambda");
+
+         if (levels == 1) computeMuLambda_1lvl(idx, other, rr, MM, local_only);
+    else if (levels == 2) computeMuLambda_2lvls(idx, other);
+    else if (levels == 3) computeMuLambda_3lvls(idx, other, rr, MM);
+    else THROWERROR_NOTIMPL();
+}
+
+
+void Sys::computeMuLambda_2lvls(long idx, const Sys &) const
+{
+   computeMuLambda_2lvls_standalone(idx);
+}
 
 void Sys::computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
 {
