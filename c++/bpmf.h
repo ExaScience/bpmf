@@ -51,8 +51,8 @@ typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
 
 #if defined(_OPENMP)
 #include <omp.h>
-#pragma omp declare reduction (VectorPlus : VectorNd : omp_out += omp_in) initializer(omp_priv = VectorNd::Zero())
-#pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out += omp_in) initializer(omp_priv = MatrixNNd::Zero())
+#pragma omp declare reduction (VectorPlus : VectorNd : omp_out.noalias() += omp_in) initializer(omp_priv = VectorNd::Zero())
+#pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out.noalias() += omp_in) initializer(omp_priv = MatrixNNd::Zero())
 #endif
 
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
