@@ -1,6 +1,0 @@
-   for(i=1; i<iter; i++)
-          for U, V:
-                for(all rows r in V) // or all cols of U
-                    compute rr from ratings for this r and cols in U for which there are ratings
-                    compute MM from cols in U for which there are ratings in R
-                  
