@@ -14,14 +14,13 @@ typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 #pragma omp declare reduction (VectorPlus : VectorNd : omp_out.noalias() += omp_in) initializer(omp_priv = VectorNd::Zero())
 #pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out.noalias() += omp_in) initializer(omp_priv = MatrixNNd::Zero())
 
-void computeMuLambda_2lvls_standalone(long idx) 
+void computeMuLambda_2lvls_standalone(long c) 
 {
-    const unsigned count = idx; 
+    const unsigned count = c; 
 
     VectorNd rr_local(VectorNd::Zero());
     MatrixNNd MM_local(MatrixNNd::Zero());
 
-#pragma omp parallel
 #pragma omp taskloop default(none) \
             shared(count) \
             reduction(VectorPlus:rr_local) reduction(MatrixPlus:MM_local)
