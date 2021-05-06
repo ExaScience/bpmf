@@ -1,3 +1,7 @@
+g++-10 -fopenmp -std=c++11 -I/usr/local/include/eigen3 -o bpmf bpmf.cpp
+
+
+
 16:02 $ make VERBOSE=1
 /usr/local/Cellar/cmake/3.19.6/bin/cmake -S/Users/vanderaa/epeec/bpmf -B/Users/vanderaa/epeec/bpmf/build --check-build-system CMakeFiles/Makefile.cmake 0
 /usr/local/Cellar/cmake/3.19.6/bin/cmake -E cmake_progress_start /Users/vanderaa/epeec/bpmf/build/CMakeFiles /Users/vanderaa/epeec/bpmf/build//CMakeFiles/progress.marks
