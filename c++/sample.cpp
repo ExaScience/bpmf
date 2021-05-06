@@ -114,7 +114,7 @@ void Sys::print(double items_per_sec, double ratings_per_sec, double norm_u, dou
 // Constructor with that reads MTX files
 // 
 Sys::Sys(std::string name, std::string fname, std::string probename)
-    : name(name), iter(-1), assigned(false), dom(nprocs+1)
+    : name(name), iter(-1)
 {
 
     read_matrix(fname, M);
@@ -133,7 +133,9 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
 //
 // Constructs Sys as transpose of existing Sys
 //
-Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt) : name(name), iter(-1), assigned(false), dom(nprocs+1) {
+Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt)
+    : name(name), iter(-1)
+{
     M = Mt.transpose();
     Pm2 = Pavg = T = Torig = Pt.transpose(); // reference ratings and predicted ratings
     assert(M.rows() == Pavg.rows());
@@ -164,7 +166,6 @@ void Sys::init()
     sum_map().setZero();
     cov_map().setZero();
     norm_map().setZero();
-    col_permutation.setIdentity(num());
 
     int count_larger_bp1 = 0;
     int count_larger_bp2 = 0;

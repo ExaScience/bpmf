@@ -137,44 +137,10 @@ struct Sys {
     int nnz() const { return M.nonZeros(); }
     int nnz(int i) const { return M.col(i).nonZeros(); }
 
-    // assignment and connectivity
-    typedef Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> PermMatrix;
-    void permuteCols(const PermMatrix &, Sys &other); 
-    void unpermuteCols(Sys &other); 
-    PermMatrix col_permutation;
-    void assign(Sys &);
-    bool assigned;
-
-    std::vector<int> dom;
-    int proc(int pos) const {
-        int proc = 0;
-        while (dom[proc+1] <= pos) proc++;
-        return proc;
-    }
-
     // assignment domain of users/movies to nodes
     // assignment is continues: node i is assigned items from(i) until to(i)
-    int num(int i) const { return to(i) - from(i); } // number of items on node i
-    int from(int i = procid) const { return dom.at(i); } 
-    int to(int i = procid) const { return dom.at(i+1); }
-    void print_dom(std::ostream &os) {
-        for (int i = 0; i < nprocs; ++i)
-            os << i << ": [" << from(i) << ":" << to(i) << "[" << std::endl;
-    }
-
-    // connectivity matrix tells what what items need to be sent to what nodes
-    void opt_conn(Sys& to);
-    void update_conn(Sys& to);
-    void build_conn(Sys& to);
-    static const unsigned max_procs = 1024;
-    typedef std::bitset<max_procs> bm;
-    const bm &conn(unsigned idx) const { assert(nprocs>1); return conn_map.at(idx); }
-    bool conn(unsigned from, int to) { return (nprocs>1) && conn_map.at(from).test(to); }
-    std::vector<bm> conn_map;
-    std::map<std::pair<unsigned, unsigned>, unsigned> conn_count_map;
-    unsigned conn_count(int from, int to) { assert(nprocs>1);  return conn_count_map[std::make_pair(from, to)]; }
-    unsigned send_count(int to) { return conn_count(Sys::procid, to); }
-    unsigned recv_count(int from) { return conn_count(from, Sys::procid); }
+    int from() const { return 0; } 
+    int to() const { return num(); }
 
     //-- factors of the MF
     double* items_ptr;
@@ -185,13 +151,6 @@ struct Sys {
     void computeMuLambda_1lvl(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
     void computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
     void computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
-
-    //-- to pre-compute Lambda/Mu from other side
-    Eigen::MatrixXd precMu, precLambda;
-    Eigen::Map<MatrixNNd> precLambdaMatrix(int idx) 
-    {
-        return Eigen::Map<MatrixNNd>(precLambda.col(idx).data());
-    }
 
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void sample(Sys &in);
