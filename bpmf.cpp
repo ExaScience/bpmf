@@ -5,11 +5,9 @@
 
 
 #include "Eigen/Dense"
-#include "Eigen/Sparse"
 
 const int num_latent = 32;
 
-typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
 typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 
@@ -31,9 +29,6 @@ void computeMuLambda_2lvls_standalone(long idx)
     {
         // for each nonzeros elemen in the i-th row of M matrix
         auto col = VectorNd::Zero(); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
-
-        MM_local.triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
-        rr_local.noalias() += col;        // vector num_latent x 1
     }
 
 }
