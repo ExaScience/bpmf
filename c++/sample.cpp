@@ -166,17 +166,6 @@ void Sys::init()
     norm_map().setZero();
     col_permutation.setIdentity(num());
 
-#ifdef BPMF_REDUCE
-    precMu = MatrixNXd::Zero(num_latent, num());
-    precLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
-#endif
-
-    if (Sys::odirname.size())
-    {
-        aggrMu = Eigen::MatrixXd::Zero(num_latent, num());
-        aggrLambda = Eigen::MatrixXd::Zero(num_latent * num_latent, num());
-    }
-
     int count_larger_bp1 = 0;
     int count_larger_bp2 = 0;
     int count_sum = 0;
@@ -201,20 +190,6 @@ class PrecomputedLLT : public Eigen::LLT<MatrixNNd>
   public:
     void operator=(const MatrixNNd &m) { m_matrix = m; m_isInitialized = true; m_info = Eigen::Success; }
 };
-
-void Sys::preComputeMuLambda(const Sys &other)
-{
-    BPMF_COUNTER("preComputeMuLambda");
-#pragma omp parallel for schedule(guided)
-    for (int i = 0; i < num(); ++i)
-    {
-        VectorNd mu = VectorNd::Zero();
-        MatrixNNd Lambda = MatrixNNd::Zero();
-        computeMuLambda(i, other, mu, Lambda, true, 1);
-        precLambdaMatrix(i) = Lambda;
-        precMu.col(i) = mu;
-    }
-}
 
 void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const
 {
@@ -320,21 +295,16 @@ VectorNd Sys::sample(long idx, Sys &other)
 
     VectorNd hp_mu;
     MatrixNNd hp_LambdaF; 
-    MatrixNNd hp_LambdaL; 
-        hp_mu = hp.mu;
-        hp_LambdaF = hp.LambdaF; 
-        hp_LambdaL = hp.LambdaL; 
+    MatrixNNd hp_LambdaL;
+    hp_mu = hp.mu;
+    hp_LambdaF = hp.LambdaF;
+    hp_LambdaL = hp.LambdaL;
 
     VectorNd rr = hp_LambdaF * hp.mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
     MatrixNNd MM(MatrixNNd::Zero());
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
-#ifdef BPMF_REDUCE
-    rr += precMu.col(idx);
-    MM += precLambdaMatrix(idx);
-#else
     computeMuLambda(idx, other, rr, MM, false, nlvls);
-#endif
     
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
@@ -387,14 +357,7 @@ void Sys::sample(Sys &other)
         prods.local() += cov;
         sums.local() += r;
         norms.local() += r.squaredNorm();
-        }
-
-        send_item(i);
     }
-
-#ifdef BPMF_REDUCE
-    other.preComputeMuLambda(*this);
-#endif
 
     VectorNd sum = sums.combine();
     MatrixNNd prod = prods.combine();
