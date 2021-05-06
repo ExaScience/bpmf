@@ -197,12 +197,12 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
     BPMF_COUNTER("computeMuLambda");
 
          if (levels == 1) computeMuLambda_1lvl(idx, other, rr, MM, local_only);
-    else if (levels == 2) computeMuLambda_2lvls(idx, other, rr, MM);
+    else if (levels == 2) computeMuLambda_2lvls(idx, other);
     else if (levels == 3) computeMuLambda_3lvls(idx, other, rr, MM);
     else THROWERROR_NOTIMPL();
 }
 
-void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const
+void Sys::computeMuLambda_2lvls(long idx, const Sys &other) const
 {
     const unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
     const unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
@@ -213,6 +213,7 @@ void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, Matrix
     VectorNd rr_local(VectorNd::Zero());
     MatrixNNd MM_local(MatrixNNd::Zero());
 
+#pragma omp parallel
 #pragma omp taskloop default(none) \
             shared(other, M, from, to) \
             reduction(VectorPlus:rr_local) reduction(MatrixPlus:MM_local) \
@@ -228,8 +229,6 @@ void Sys::computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, Matrix
         rr_local.noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
     }
 
-    rr.noalias() += rr_local;
-    MM.noalias() += MM_local;
 }
 
 
@@ -349,7 +348,6 @@ void Sys::sample(Sys &other)
     thread_vector<double>    norms(0.0); // squared norm
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
-#pragma omp parallel for
     for (int i = from(); i < to(); ++i)
     {
         auto r = sample(i, other);
