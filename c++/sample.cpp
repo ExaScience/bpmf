@@ -204,9 +204,9 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
 
 void Sys::computeMuLambda_2lvls(long idx, const Sys &) const
 {
-    const unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
-    const unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
-    const unsigned count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
+    unsigned from  = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
+    unsigned to    = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
+    unsigned count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
 
     VectorNd rr_local(VectorNd::Zero());
     MatrixNNd MM_local(MatrixNNd::Zero());
