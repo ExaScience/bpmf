@@ -202,31 +202,27 @@ void Sys::computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &M
     else THROWERROR_NOTIMPL();
 }
 
-void Sys::computeMuLambda_2lvls(long idx, const Sys &other) const
+void Sys::computeMuLambda_2lvls(long idx, const Sys &) const
 {
     const unsigned from = M.outerIndexPtr()[idx];   // "from" belongs to [1..m], m - number of movies in M matrix
     const unsigned to = M.outerIndexPtr()[idx + 1]; // "to"   belongs to [1..m], m - number of movies in M matrix
-
-    const int count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
-    const int task_size = int(count / 100) + 1;
+    const unsigned count = M.innerVector(idx).nonZeros(); // count of nonzeros elements in idx-th row of M matrix 
 
     VectorNd rr_local(VectorNd::Zero());
     MatrixNNd MM_local(MatrixNNd::Zero());
 
 #pragma omp parallel
 #pragma omp taskloop default(none) \
-            shared(other, M, from, to) \
+            shared(M, from, to) \
             reduction(VectorPlus:rr_local) reduction(MatrixPlus:MM_local) \
             num_tasks(100) if(count > 1000)
     for (unsigned j = from; j < to; j++)
     {
         // for each nonzeros elemen in the i-th row of M matrix
-        auto val = M.valuePtr()[j];        // value of the j-th nonzeros element from idx-th row of M matrix
-        auto idx = M.innerIndexPtr()[j];   // index "j" of the element [i,j] from M matrix in compressed M matrix
-        auto col = other.items().col(idx); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
+        auto col = VectorNd::Zero(); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
 
         MM_local.triangularView<Eigen::Upper>() += col * col.transpose(); // outer product
-        rr_local.noalias() += col * ((val - mean_rating) * alpha);        // vector num_latent x 1
+        rr_local.noalias() += col;        // vector num_latent x 1
     }
 
 }

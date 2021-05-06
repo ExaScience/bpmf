@@ -149,7 +149,7 @@ struct Sys {
     void preComputeMuLambda(const Sys &other);
     void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const;
     void computeMuLambda_1lvl(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
-    void computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
+    void computeMuLambda_2lvls(long idx, const Sys &other) const;
     void computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
 
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
