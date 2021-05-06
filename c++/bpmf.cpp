@@ -4,7 +4,6 @@
  */
 
 
-#include "thread_vector.h"
 #include "bpmf.h"
 
 void computeMuLambda_2lvls_standalone(long idx) 
