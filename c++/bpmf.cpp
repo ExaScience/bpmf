@@ -130,18 +130,6 @@ int main(int argc, char *argv[])
     movies.alloc_and_init();
     users.alloc_and_init();
 
-    // assign users and movies to the computation nodes
-    movies.assign(users);
-    users.assign(movies);
-    movies.assign(users);
-    users.assign(movies);
-
-    // build connectivity matrix
-    // contains what items needs to go to what nodes
-    users.build_conn(movies);
-    movies.build_conn(users);
-    assert(movies.nnz() == users.nnz());
-
     threads::init(nthrds);
     perf_data_init();
 
