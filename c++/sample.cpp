@@ -153,31 +153,6 @@ Sys::~Sys()
     }
 }
 
-bool Sys::has_prop_posterior() const
-{
-    return propMu.nonZeros() > 0;
-}
-
-void Sys::add_prop_posterior(std::string fnames)
-{
-    if (fnames.empty()) return;
-
-    std::size_t pos = fnames.find_first_of(",");
-    std::string mu_name = fnames.substr(0, pos);
-    std::string lambda_name = fnames.substr(pos+1);
-
-    read_matrix(mu_name, propMu);
-    read_matrix(lambda_name, propLambda);
-
-    assert(propMu.cols() == num());
-    assert(propLambda.cols() == num());
-
-    assert(propMu.rows() == num_latent);
-    assert(propLambda.rows() == num_latent * num_latent);
-
-}
-
-//
 // Intializes internal Matrices and Vectors
 //
 void Sys::init()
@@ -217,10 +192,6 @@ void Sys::init()
     Sys::cout() << "average ratings per row: " << (double)count_sum / (double)M.cols() << std::endl;
     Sys::cout() << "rows > break_point2: " << (int)(100. * (double)count_larger_bp2 / (double)M.cols()) << "%" << std::endl;
     Sys::cout() << "num " << name << ": " << num() << std::endl;
-    if (has_prop_posterior())
-    {
-        Sys::cout() << "with propagated posterior" << std::endl;
-    }
 
     if (measure_perf) sample_time.resize(num(), .0);
 }
@@ -350,18 +321,9 @@ VectorNd Sys::sample(long idx, Sys &other)
     VectorNd hp_mu;
     MatrixNNd hp_LambdaF; 
     MatrixNNd hp_LambdaL; 
-    if (has_prop_posterior())
-    {
-        hp_mu = propMu.col(idx);
-        hp_LambdaF = Eigen::Map<MatrixNNd>(propLambda.col(idx).data()); 
-        hp_LambdaL =  hp_LambdaF.llt().matrixL();
-    }
-    else
-    {
         hp_mu = hp.mu;
         hp_LambdaF = hp.LambdaF; 
         hp_LambdaL = hp.LambdaL; 
-    }
 
     VectorNd rr = hp_LambdaF * hp.mu;                // vector num_latent x 1, we will use it in formula (14) from the paper
     MatrixNNd MM(MatrixNNd::Zero());
@@ -425,11 +387,6 @@ void Sys::sample(Sys &other)
         prods.local() += cov;
         sums.local() += r;
         norms.local() += r.squaredNorm();
-
-        if (iter >= burnin && Sys::odirname.size())
-        {
-            aggrMu.col(i) += r;
-            aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
         }
 
         send_item(i);

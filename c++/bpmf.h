@@ -193,19 +193,7 @@ struct Sys {
         return Eigen::Map<MatrixNNd>(precLambda.col(idx).data());
     }
 
-    //-- for propagated posterior
-    Eigen::MatrixXd propMu, propLambda;
-    void add_prop_posterior(std::string);
-    bool has_prop_posterior() const;
-
-    //-- for aggregated posterior
-    Eigen::MatrixXd aggrMu, aggrLambda;
-    void finalize_mu_lambda();
-    
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
-    virtual void send_item(int i) = 0;
-    void bcast();
-    void bcast_sum_cov_norm();
     virtual void sample(Sys &in);
 
     //-- covariance

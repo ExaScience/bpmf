@@ -53,9 +53,6 @@ void usage()
                 << "  [-t N]: Number of OpenMP threads to use.\n"
                 << "  [-u N]: Number of OpenMP levels to use (1, 2 or 3).\n"
                 << "\n"
-                << "  [-l MTX,MTX]: propagated posterior mu and Lambda matrices for U\n"
-                << "  [-m MTX,MTX]: propagated posterior mu and Lambda matrices for V\n"
-                << "\n"
                 << "Matrix Formats:\n"
                 << "  *.mtx: Sparse or dense Matrix Market format\n"
                 << "  *.sdm: Sparse binary double format\n"
@@ -123,9 +120,6 @@ int main(int argc, char *argv[])
 
     SYS movies("movs", fname, probename);
     SYS users("users", movies.M, movies.Pavg);
-
-    movies.add_prop_posterior(mname);
-    users.add_prop_posterior(lname);
 
     movies.alloc_and_init();
     users.alloc_and_init();
@@ -201,34 +195,6 @@ int main(int argc, char *argv[])
 
     auto end = tick();
     auto elapsed = end - begin;
-
-    users.bcast();
-    movies.bcast();
-
-    //-- if we need to generate output files, collect all data on proc 0
-    if (Sys::odirname.size()) {
-        // restore original order
-        users.unpermuteCols(movies);
-        movies.unpermuteCols(users);
-        movies.predict(users, true);
-
-        if (Sys::procid == 0) {
-            // sparse
-            write_matrix(Sys::odirname + "/Pavg.sdm", movies.Pavg);
-            write_matrix(Sys::odirname + "/Pm2.sdm", movies.Pm2);
-
-            // dense
-            users.finalize_mu_lambda();
-            write_matrix(Sys::odirname + "/U-mu.ddm", users.aggrMu);
-            write_matrix(Sys::odirname + "/U-Lambda.ddm", users.aggrLambda);
-
-            movies.finalize_mu_lambda();
-            write_matrix(Sys::odirname + "/V-mu.ddm", movies.aggrMu);
-            write_matrix(Sys::odirname + "/V-Lambda.ddm", movies.aggrLambda);
-        }
-    } else {
-        movies.predict(users, true);
-    }
 
     if (Sys::procid == 0) {
         Sys::cout() << "Total time: " << elapsed <<endl <<flush;
