@@ -11,10 +11,7 @@ const int num_latent = 32;
 
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
-typedef Eigen::Matrix<double, num_latent, Eigen::Dynamic> MatrixNXd;
 typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
-typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
-typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
 
 #pragma omp declare reduction (VectorPlus : VectorNd : omp_out.noalias() += omp_in) initializer(omp_priv = VectorNd::Zero())
 #pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out.noalias() += omp_in) initializer(omp_priv = MatrixNNd::Zero())
