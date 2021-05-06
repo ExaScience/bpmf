@@ -1,0 +1,14 @@
+16:02 $ make VERBOSE=1
+/usr/local/Cellar/cmake/3.19.6/bin/cmake -S/Users/vanderaa/epeec/bpmf -B/Users/vanderaa/epeec/bpmf/build --check-build-system CMakeFiles/Makefile.cmake 0
+/usr/local/Cellar/cmake/3.19.6/bin/cmake -E cmake_progress_start /Users/vanderaa/epeec/bpmf/build/CMakeFiles /Users/vanderaa/epeec/bpmf/build//CMakeFiles/progress.marks
+/Applications/Xcode.app/Contents/Developer/usr/bin/make  -f CMakeFiles/Makefile2 all
+/Applications/Xcode.app/Contents/Developer/usr/bin/make  -f CMakeFiles/bpmf.dir/build.make CMakeFiles/bpmf.dir/depend
+cd /Users/vanderaa/epeec/bpmf/build && /usr/local/Cellar/cmake/3.19.6/bin/cmake -E cmake_depends "Unix Makefiles" /Users/vanderaa/epeec/bpmf /Users/vanderaa/epeec/bpmf /Users/vanderaa/epeec/bpmf/build /Users/vanderaa/epeec/bpmf/build /Users/vanderaa/epeec/bpmf/build/CMakeFiles/bpmf.dir/DependInfo.cmake --color=
+/Applications/Xcode.app/Contents/Developer/usr/bin/make  -f CMakeFiles/bpmf.dir/build.make CMakeFiles/bpmf.dir/build
+[ 50%] Building CXX object CMakeFiles/bpmf.dir/c++/bpmf.cpp.o
+/usr/local/bin/g++-10 -DBPMF_NO_COMM -DBPMF_NUMLATENT=32 -DBPMF_VERSION=\"v0.2-199-g4800783\" -DEIGEN_DONT_PARALLELIZE -I/Users/vanderaa/epeec/bpmf/c++ -isystem /usr/local/include/eigen3 -Wno-int-in-bool-context -g -O0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.3.sdk -fopenmp -std=gnu++14 -o CMakeFiles/bpmf.dir/c++/bpmf.cpp.o -c /Users/vanderaa/epeec/bpmf/c++/bpmf.cpp
+[100%] Linking CXX executable bpmf
+/usr/local/Cellar/cmake/3.19.6/bin/cmake -E cmake_link_script CMakeFiles/bpmf.dir/link.txt --verbose=1
+/usr/local/bin/g++-10  -Wno-int-in-bool-context -g -O0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.3.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/bpmf.dir/c++/bpmf.cpp.o -o bpmf  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.3.sdk/usr/lib/libz.tbd /usr/local/Cellar/gcc/10.2.0_4/lib/gcc/10/libgomp.dylib
+[100%] Built target bpmf
+/usr/local/Cellar/cmake/3.19.6/bin/cmake -E cmake_progress_start /Users/vanderaa/epeec/bpmf/build/CMakeFiles 0
