@@ -10,13 +10,13 @@
 	# Choose whether the runtime runs with debug symbols and internal asserts. Enabling this option
 	# may produce significant overheads, so production or performance executions should disable this
 	# option. Default is false
-	debug = true
+	debug = false
 	# Choose the dependency system implementation. Default is "discrete"
 	# Possible values: "discrete", "regions"
 	dependencies = "regions"
 	# Choose the instrumentation variant to run. Default is "none"
 	# Possible values: "none", "ctf", "extrae", "graph", "lint", "stats", "verbose"
-	instrument = "verbose"
+	instrument = "none"
 
 [turbo]
 	# Choose whether enabling floating-point unit optimizations in all Nanos6 threads. Enabling this
@@ -142,8 +142,6 @@
 		as_threads = false
 		# Choose the detail level of the information generated in extrae traces. Default is 1
 		detail_level = 1
-		# Generate internal cluster communication events in the extrae traces.  Default is true.
-		instrument_cluster = true
 	[instrument.graph]
 		# Indicate whether the resulting PDF should be opened automatically with the display
 		# command. Default is false

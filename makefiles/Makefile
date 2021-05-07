@@ -9,6 +9,8 @@ MCXXFLAGS=-K --ompss-2 -Wno-deprecated-declarations -DOMPSS
 OBJS = mvnormal.o bpmf.o sample.o counters.o io.o gzstream.o 
 HRDS = $(ROOT)/bpmf.h $(ROOT)/counters.h $(ROOT)/error.h $(ROOT)/gzstream.h $(ROOT)/io.h
 
+all: mcc_bpmf bpmf
+
 mcc_ompss.o: $(ROOT)/ompss.cpp $(TOPDIR)/Makefile.common Makefile $(HRDS)
 	mcxx -c $(MCXXFLAGS) $(CXXFLAGS) $< -o $@
 
