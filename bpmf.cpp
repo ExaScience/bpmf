@@ -8,26 +8,18 @@
 
 const int num_latent = 32;
 
-typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
 typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 
 #pragma omp declare reduction (VectorPlus : VectorNd : omp_out.noalias() += omp_in) initializer(omp_priv = VectorNd::Zero())
-#pragma omp declare reduction (MatrixPlus : MatrixNNd : omp_out.noalias() += omp_in) initializer(omp_priv = MatrixNNd::Zero())
 
 void computeMuLambda_2lvls_standalone(long c) 
 {
-    const unsigned count = c; 
-
     VectorNd rr_local(VectorNd::Zero());
-    MatrixNNd MM_local(MatrixNNd::Zero());
 
-#pragma omp taskloop default(none) \
-            shared(count) \
-            reduction(VectorPlus:rr_local) reduction(MatrixPlus:MM_local)
-    for (unsigned j = 0; j < count; j++)
+#pragma omp taskloop default(none) shared(c) reduction(VectorPlus:rr_local)
+    for (unsigned j = 0; j < c; j++)
     {
-        // for each nonzeros elemen in the i-th row of M matrix
-        auto col = VectorNd::Zero(); // vector num_latent x 1 from V matrix: M[i,j] = U[i,:] x V[idx,:]
+        auto col = VectorNd::Zero();
     }
 
 }
