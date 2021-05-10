@@ -1,7 +1,3 @@
-ifndef BPMF_NUMLATENT
-	BPMF_NUMLATENT=4
-endif
-
 #CXXFLAGS=$(CFLAGS) -std=c++0x #-cxxlib=/opt/gcc/6.3.0/snos/lib64 # Intel Compiler
 CXXFLAGS=$(CFLAGS) -std=c++11   # original line
 
