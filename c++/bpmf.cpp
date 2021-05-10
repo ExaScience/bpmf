@@ -71,6 +71,9 @@ std::ostream &Sys::dbg()
     static int count = 0;
     if (!os)
     {
+#ifdef NDEBUG
+        os = new std::ofstream("/dev/null");
+#else
         char name[1024];
         char output_filename[256];
 
@@ -78,6 +81,7 @@ std::ostream &Sys::dbg()
         snprintf(output_filename, 256, "bpmf_%s_%d_%d_dbg.txt", name, getpid(), count++);
         os = new std::ofstream(output_filename);
         Sys::cout() << "dbg file: " << output_filename << std::endl;
+#endif
     }
 
     return *os;
