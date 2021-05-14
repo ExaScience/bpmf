@@ -41,7 +41,7 @@
 	# The underlying policy of the CPU manager for the handling of CPUs. Default is "default", which
 	# corresponds to "idle"
 	# Possible values: "default", "idle", "busy", "lewi", "greedy"
-	policy = "default"
+	policy = "busy"
 
 [taskfor]
 	# Choose the total number of CPU groups that will execute the worksharing tasks (taskfors). Default
@@ -142,6 +142,8 @@
 		as_threads = false
 		# Choose the detail level of the information generated in extrae traces. Default is 1
 		detail_level = 1
+		# Extrae events concepts to emit. Possible values on README.md
+		areas = ["all", "!DependencySystem"]
 	[instrument.graph]
 		# Indicate whether the resulting PDF should be opened automatically with the display
 		# command. Default is false
@@ -185,25 +187,38 @@
 		dump_only_on_exit = false
 		# Verbose log concepts to display. Possible values on README.md
 		areas = ["all", "!ComputePlaceManagement", "!DependenciesByAccess", "!DependenciesByAccessLinks",
-			"!DependenciesByGroup", "!LeaderThread", "!TaskStatus",	"!ThreadManagement"]
+			"!DependenciesByGroup", "!DependencySystem","!LeaderThread", "!TaskStatus",
+			"!ThreadManagement"]
 
 [cluster]
 	# Choose the communication layer to be used for Cluster communication between processes. The
 	# "disabled" value disables the Cluster mode. Default is "disabled"
 	# Possible values: "disabled", "mpi-2sided"
-	communication = "mpi-2sided"
+	communication = "disabled"
 	# Choose the distributed memory for Cluster mode. Default is 2GB
-	distributed_memory = "2G"
+	distributed_memory = "128G"
 	# Choose the local memory for Cluster mode. Default is none (not set), which means that the
 	# runtime will allocate minimum between 2GB and the 5% of the total physical memory of the
 	# machine
-	# local_memory = "2G"
+	local_memory = "64G"
 	# Indicate the scheduling policy for Cluster mode. Default is "locality"
 	# Possible values: "locality", "random"
-	scheduling_policy = "random"
+	scheduling_policy = "locality"
 	# Indicate the virtual address space start. If set to 0x00000000, the runtime will find a
 	# suitable address. Default is 0x00000000
 	va_start = 0x00000000
+	# Use namespace code. Default true
+	use_namespace = true
+	# Disable propagation of dependencies in the remote namespace. Default is false
+	disable_remote = false
+	# Disable the "autowait" feature, which disables early release for accesses of offloaded
+	# tasks that are not propagated in the remote namespace. Default is false
+	disable_autowait = false
+
+	[cluster.mpi]
+		# Decide if mpi messenger must use a different
+		# communicator for data_raws messages. Default is true
+		comm_data_raw = true
 
 [memory]
 	[memory.pool]
