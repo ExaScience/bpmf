@@ -3,6 +3,7 @@
  * All rights reserved.
  */
 
+#include <algorithm>
 #include "ompss.h"
 
 #ifndef OMPSS
@@ -46,16 +47,23 @@ void sample_task_scheduler(
     double *this_items_ptr
 )
 {
-    for (int i = from; i < to; ++i)
+
+    const int num_tasks = 100;
+    const int num_items_per_task = (to - from) / num_tasks + 1;
+
+    for (int i = from; i < to; i += num_items_per_task)
     {
+        const int num_items_this_task = std::min(num_items_per_task, to-i-1);
+
         #pragma oss task \
             in(this_hp_ptr[0;hp_size]) \
             in(this_ratings_ptr[0;num_ratings]) \
             in(this_inner_ptr[0;num_ratings]) \
             in(this_outer_ptr[0;outer_size_plus_one]) \
             in(other_ptr[0;other_num_items*num_latent]) \
-            out(this_items_ptr[i*num_latent;num_latent])
-        sample_task(this_iter, i, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+            out(this_items_ptr[i*num_latent;num_items_this_task*num_latent])
+        for(int j=i; j < i+num_items_this_task; j++)
+            sample_task(this_iter, j, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
     }
 
 #pragma oss taskwait
