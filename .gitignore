@@ -3,3 +3,4 @@
 *.zip
 .vscode
 *_dbg.txt
+build
