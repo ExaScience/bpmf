@@ -181,10 +181,16 @@ struct Sys {
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
     void preComputeMuLambda(const Sys &other);
-    void computeMuLambda(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only, int levels) const;
-    void computeMuLambda_1lvl(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM, bool local_only) const;
-    void computeMuLambda_2lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
-    void computeMuLambda_3lvls(long idx, const Sys &other, VectorNd &rr, MatrixNNd &MM) const;
+
+    struct MuLambda {
+        VectorNd mu;
+        MatrixNNd Lambda;
+    };
+
+    MuLambda computeMuLambda(long idx, const Sys &other, bool local_only, int levels) const;
+    MuLambda computeMuLambda_1lvl(long idx, const Sys &other, bool local_only) const;
+    MuLambda computeMuLambda_2lvls(long idx, const Sys &other) const;
+    MuLambda computeMuLambda_3lvls(long idx, const Sys &other) const;
 
     //-- to pre-compute Lambda/Mu from other side
     Eigen::MatrixXd precMu, precLambda;
