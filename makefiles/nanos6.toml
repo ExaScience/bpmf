@@ -194,7 +194,7 @@
 	# Choose the communication layer to be used for Cluster communication between processes. The
 	# "disabled" value disables the Cluster mode. Default is "disabled"
 	# Possible values: "disabled", "mpi-2sided"
-	communication = "disabled"
+	communication = "mpi-2sided"
 	# Choose the distributed memory for Cluster mode. Default is 2GB
 	distributed_memory = "128G"
 	# Choose the local memory for Cluster mode. Default is none (not set), which means that the
@@ -203,7 +203,7 @@
 	local_memory = "64G"
 	# Indicate the scheduling policy for Cluster mode. Default is "locality"
 	# Possible values: "locality", "random"
-	scheduling_policy = "locality"
+	scheduling_policy = "random"
 	# Indicate the virtual address space start. If set to 0x00000000, the runtime will find a
 	# suitable address. Default is 0x00000000
 	va_start = 0x00000000
