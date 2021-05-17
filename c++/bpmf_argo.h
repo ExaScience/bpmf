@@ -36,7 +36,8 @@ void ARGO_Sys::alloc_and_init()
 
 void ARGO_Sys::send_item(int i)
 {
-	BPMF_COUNTER("send_items");
+#ifdef BPMF_ARGO_SELECTIVE_RELEASE
+	BPMF_COUNTER("send_item");
 	static std::mutex m;
 
 	m.lock();
@@ -44,6 +45,7 @@ void ARGO_Sys::send_item(int i)
 	auto size = num_latent;
 	argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
 	m.unlock();
+#endif
 }
 
 void ARGO_Sys::sample(Sys &in)
@@ -72,8 +74,8 @@ void ARGO_Sys::sample_hp()
 
 void Sys::Init()
 {
-	// global address space size
-	argo::init(100*1024*1024UL);
+	// global address space size - 50GiB
+	argo::init(50*1024*1024*1024UL);
 
 	Sys::procid = argo::node_id();
 	Sys::nprocs = argo::number_of_nodes();
