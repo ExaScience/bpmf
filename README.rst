@@ -92,11 +92,11 @@ ArgoDSM version
 
 The ArgoDSM version is being developed by Ioannis Anevlavis (Eta Scale AB).
 
-For building, it is necessary to add the argodsm folder to $PATH.
+For building, it is necessary to add the ArgoDSM installation folder to ``$PATH``.
 
 For running, you might need to change the size of the global address space (``argo::init``) based on the size of the globally allocated data structures.
 
-For optimal performance, consider experimenting with a variety of memory allocation policies (see https://etascale.github.io/argodsm/tutorial.html)
+For optimal performance, consider experimenting with a variety of optimizations that can be tuned through environment variables (for more info: https://etascale.github.io/argodsm/advanced.html).
 
 Acknowledgements
 ----------------
