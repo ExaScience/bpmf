@@ -19,7 +19,6 @@ struct ARGO_Sys : public Sys
 
 	virtual void send_item(int);
 	virtual void sample(Sys &in);
-	virtual void sample_hp();
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -56,18 +55,6 @@ void ARGO_Sys::sample(Sys &in)
 	}
 	{
 		BPMF_COUNTER("sync_sample");
-		Sys::sync();
-	}
-}
-
-void ARGO_Sys::sample_hp()
-{
-	{
-		BPMF_COUNTER("compute");
-		Sys::sample_hp();
-	}
-	{
-		BPMF_COUNTER("sync_sample_hp");
 		Sys::sync();
 	}
 }
