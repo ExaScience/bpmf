@@ -55,13 +55,16 @@ const int num_latent = BPMF_NUMLATENT;
 typedef Eigen::SparseMatrix<double> SparseMatrixD;
 typedef Eigen::Matrix<double, num_latent, num_latent> MatrixNNd;
 typedef Eigen::Matrix<double, num_latent, Eigen::Dynamic> MatrixNXd;
+typedef Eigen::Matrix<double, num_latent*num_latent, Eigen::Dynamic> Matrix2NXd;
 typedef Eigen::Matrix<double, num_latent, 1> VectorNd;
 typedef Eigen::Map<MatrixNXd, Eigen::Aligned> MapNXd;
+typedef Eigen::Map<MatrixNNd, Eigen::Aligned> MapNNd;
 typedef Eigen::Map<Eigen::VectorXd, Eigen::Aligned> MapXd;
+typedef Eigen::Map<VectorNd, Eigen::Aligned> MapNd;
 
 void assert_same_struct(SparseMatrixD &A, SparseMatrixD &B);
 
-std::pair< VectorNd, MatrixNNd>
+std::pair<VectorNd, MatrixNNd>
 CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const VectorNd &mu, const double kappa, const MatrixNNd &T, const int nu);
 
 void rng_set_pos(uint32_t p);
@@ -201,8 +204,11 @@ struct Sys {
     bool has_prop_posterior() const;
 
     //-- for aggregated posterior
-    Eigen::MatrixXd aggrMu, aggrLambda;
-    void finalize_mu_lambda();
+    MapNd  aggr_mu(int idx);
+    MapNNd aggr_lambda(int idx);
+    bool has_aggr_mu_lambda() const;
+    Eigen::MatrixXd finalize_aggr_mu();
+    Eigen::MatrixXd finalize_aggr_lambda();
     
     // virtual functions will be overriden based on COMM: NO_COMM, MPI, or GASPI
     virtual void send_item(int i) = 0;
