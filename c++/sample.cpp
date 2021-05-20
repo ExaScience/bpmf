@@ -65,11 +65,6 @@ void Sys::predict(Sys& other, bool all)
             auto m = items().col(it.col());
             auto u = other.items().col(it.row());
 
-            //SHOW(it.col());
-            //SHOW(it.row());
-            //SHOW(m.norm());
-            //SHOW(u.norm());
-
             //assert(m.norm() > 0.0);
             //assert(u.norm() > 0.0);
 
@@ -120,9 +115,6 @@ Sys::Sys(std::string name, std::string fname, std::string probename)
     Pm2 = Pavg = Torig = T; // reference ratings and predicted ratings
     assert(_M.rows() == Pavg.rows());
     assert(_M.cols() == Pavg.cols());
-    //SHOW(sizeof(*this));
-    //SHOW(sizeof(_M));
-    //SHOW(&(_M));
 }
 
 //
@@ -135,7 +127,6 @@ Sys::Sys(std::string name, const SparseMatrixD &Mt, const SparseMatrixD &Pt)
     Pm2 = Pavg = T = Torig = Pt.transpose(); // reference ratings and predicted ratings
     assert(_M.rows() == Pavg.rows());
     assert(_M.cols() == Pavg.cols());
-    SHOW(sizeof(*this));
 }
 
 Sys::~Sys() 
@@ -228,19 +219,10 @@ void Sys::init()
 
 void HyperParams::sample(const int N, const VectorNd &sum, const MatrixNNd &cov)
 {
-    //SHOW(N);
-    //SHOW(sum);
-    //SHOW(cov);
-    //SHOW(mu0);
-    //SHOW(b0);
-    //SHOW(df);
-    //SHOW(WI);
-
     std::tie(mu, LambdaU) = CondNormalWishart(N, cov, sum / N, mu0, b0, WI, df);
     LambdaF = LambdaU.triangularView<Eigen::Upper>().transpose() * LambdaU;
     LambdaL = LambdaU.transpose();
 
-    //SHOW(LambdaF);
 }
 //
 // Update ONE movie or one user
@@ -256,20 +238,6 @@ VectorNd Sys::sample(long idx, Sys &other)
     MatrixNNd MM(MatrixNNd::Zero());
     PrecomputedLLT chol;                             // matrix num_latent x num_latent, chol="lambda_i with *" from formula (14)
 
-    //SHOW(hp().mu);
-    //SHOW(hp().LambdaF);
-
-    SHOW(hp().other_num);
-    SHOW(hp().num);
-    SHOW(hp().nnz);
-    SHOW(M().outerSize());
-    SHOW(M().innerSize());
-    SHOW(M().nonZeros());
-
-    SHOW("before computeMuLambda");
-    SHOW(MM);
-    SHOW(rr.transpose());
-
     //computeMuLambda(idx, other, rr, MM);
     for (SparseMapD::InnerIterator it(M(), idx); it; ++it)
     {
@@ -280,15 +248,6 @@ VectorNd Sys::sample(long idx, Sys &other)
     
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
-
-    SHOW(M());
-    SHOW(other.items());
-    SHOW(hp().mu.transpose());
-    SHOW(hp().LambdaF);
-    SHOW("after computeMuLambda");
-    SHOW(MM);
-    SHOW(rr.transpose());
-
     chol.compute(hp().LambdaF + hp().alpha * MM);
 
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
@@ -305,11 +264,8 @@ VectorNd Sys::sample(long idx, Sys &other)
     // Expression u_i = U \ (s + (L \ rr)) in Matlab looks for Eigen library like: 
 
     chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
-    SHOW(rr.transpose());
     rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
-    SHOW(rr.transpose());
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
-    SHOW(rr.transpose());
     items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
     auto stop = tick();
@@ -318,10 +274,6 @@ VectorNd Sys::sample(long idx, Sys &other)
 
     assert(rr.norm() > .0);
 
-    //SHOW(rr.norm());
-    //SHOW(items().col(idx).norm());
-
-    SHOW(rr.transpose());
     Sys::dbg() << "-- original done name: " << name << " iter: " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 
     return rr;
@@ -346,20 +298,9 @@ void sample_task(
     const Eigen::Map<const MatrixNXd> other(other_ptr, num_latent, hp_ptr->other_num);
     Eigen::Map<MatrixNXd> items(items_ptr, num_latent, hp_ptr->num);
 
-    SHOW(hp_ptr->other_num);
-    SHOW(hp_ptr->num);
-    SHOW(hp_ptr->nnz);
-    SHOW(M.outerSize());
-    SHOW(M.innerSize());
-    SHOW(M.nonZeros());
-
     VectorNd rr = hp_ptr->LambdaF * hp_ptr->mu;
     MatrixNNd MM(MatrixNNd::Zero());
     PrecomputedLLT chol;
-
-    SHOW("before computeMuLambda");
-    SHOW(MM);
-    SHOW(rr.transpose());
 
     //computeMuLambda(idx, other, rr, MM);
     for (Eigen::Map<const SparseMatrixD>::InnerIterator it(M,idx); it; ++it)
@@ -372,27 +313,15 @@ void sample_task(
     // copy upper -> lower part, matrix is symmetric.
     MM.triangularView<Eigen::Lower>() = MM.transpose();
 
-    SHOW(M);
-    SHOW(other);
-    SHOW(hp_ptr->mu.transpose());
-    SHOW(hp_ptr->LambdaF);
-    SHOW("after computeMuLambda");
-    SHOW(MM);
-    SHOW(rr.transpose());
-
     chol.compute(hp_ptr->LambdaF + hp_ptr->alpha * MM);
 
     if(chol.info() != Eigen::Success) THROWERROR("Cholesky failed");
 
     chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
-    SHOW(rr.transpose());
     rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
-    SHOW(rr.transpose());
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
-    SHOW(rr.transpose());
     items.col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
 
-    SHOW(rr.transpose());
     Sys::dbg() << "-- oss done iter " << iter << " idx: " << idx << ": " << rng.counter << std::endl;
 }
 

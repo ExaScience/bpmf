@@ -68,12 +68,10 @@ std::ostream &Sys::cout()
 std::ostream &Sys::dbg()
 {
     static thread_local std::ostream *os = 0;
-    static int count = 0;
     if (!os)
     {
-#ifdef NDEBUG
-        os = new std::ofstream("/dev/null");
-#else
+#ifdef DEBUG_STREAM
+        static int count = 0;
         char name[1024];
         char output_filename[256];
 
@@ -81,6 +79,8 @@ std::ostream &Sys::dbg()
         snprintf(output_filename, 256, "bpmf_%s_%d_%d_dbg.txt", name, getpid(), count++);
         os = new std::ofstream(output_filename);
         Sys::cout() << "dbg file: " << output_filename << std::endl;
+#else
+        os = new std::ofstream("/dev/null");
 #endif
     }
 
@@ -130,13 +130,8 @@ int main(int argc, char *argv[])
     }
 
 
-    //SHOW(sizeof(Sys));
     Sys movies("movs", fname, probename);
-    //SHOW(sizeof(movies._M));
-    //SHOW(&(movies._M));
-    //SHOW(sizeof(Sys));
     Sys users("users", movies._M, movies.Pavg);
-    //SHOW(sizeof(Sys));
 
     movies.alloc_and_init();
     users.alloc_and_init();
