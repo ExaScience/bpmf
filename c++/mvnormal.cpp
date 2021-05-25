@@ -20,14 +20,16 @@
 #include <Random123/MicroURNG.hpp>
 
 typedef r123::MicroURNG<r123::Philox4x32> RNG;
+static thread_local RNG rng({{0}}, {{42}});
 #else
 
 typedef std::mt19937 RNG;
+static thread_local RNG rng;
 #endif
 
-using namespace Eigen;
 
-static thread_local RNG rng({{0}}, {{42}});
+
+using namespace Eigen;
 
 void rng_set_pos(uint32_t c)
 {
