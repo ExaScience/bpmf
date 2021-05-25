@@ -349,10 +349,6 @@ void Sys::sample(Sys &other)
     sample_hp();
     //SHOW(hp.mu.transpose());
 
-#ifdef BPMF_REDUCE
-    other.precMu.setZero();
-    other.precLambda.setZero();
-#endif
 
 #pragma omp parallel for schedule(guided)
     for (int i = from(); i < to(); ++i)
