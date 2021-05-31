@@ -17,6 +17,8 @@
 
 static const bool measure_perf = false;
 
+int Sys::vm_size = 1; 
+
 std::ostream *Sys::os;
 std::ostream *Sys::dbgs;
 

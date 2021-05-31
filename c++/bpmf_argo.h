@@ -62,7 +62,7 @@ void ARGO_Sys::sample(Sys &in)
 void Sys::Init()
 {
 	// global address space size - 50GiB
-	argo::init(50*1024*1024*1024UL);
+	argo::init(vm_size*1024*1024UL);
 
 	Sys::procid = argo::node_id();
 	Sys::nprocs = argo::number_of_nodes();

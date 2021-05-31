@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     Sys::update_freq = 1;
     
  
-    while((ch = getopt(argc, argv, "krvn:t:p:i:b:f:g:w:u:v:o:s:m:l:a:d:")) != -1)
+    while((ch = getopt(argc, argv, "krvn:t:p:i:b:f:g:w:u:v:o:s:m:l:a:d:c:")) != -1)
     {
         switch(ch)
         {
@@ -86,6 +86,7 @@ int main(int argc, char *argv[])
             case 'b': Sys::burnin = atoi(optarg); break;
             case 'f': Sys::update_freq = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
+            case 'c': Sys::vm_size = atoi(optarg); break;
             case 'a': Sys::alpha = atof(optarg); break;
             case 'd': assert(num_latent == atoi(optarg)); break;
             case 'n': fname = optarg; break;

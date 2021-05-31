@@ -114,6 +114,7 @@ struct Sys {
     static bool verbose;
     static int nprocs, procid;
     static int burnin, nsims, update_freq;
+    static int vm_size;
     static double alpha;
     static std::string odirname;
 
