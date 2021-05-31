@@ -366,10 +366,10 @@ void Sys::sample(Sys &other)
             sums.local() += r;
             norms.local() += r.squaredNorm();
 
-            if (iter >= burnin && has_aggr_mu_lambda())
+            if (iter >= burnin && Sys::odirname.size())
             {
-                aggr_mu(i) += r;
-                aggr_lambda(i) += cov;
+                aggrMu.col(i) += r;
+                aggrLambda.col(i) += Eigen::Map<Eigen::VectorXd>(cov.data(), num_latent * num_latent);
             }
 
             send_item(i);

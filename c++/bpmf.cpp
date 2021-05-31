@@ -227,15 +227,13 @@ int main(int argc, char *argv[])
             write_matrix(Sys::odirname + "/Pm2.sdm", movies.Pm2);
 
             // dense
-            auto aggr_mu_users = users.finalize_mu();
-            auto aggr_lambda_users = users.finalize_lambda();
-            write_matrix(Sys::odirname + "/U-mu.ddm", aggr_mu_users);
-            write_matrix(Sys::odirname + "/U-Lambda.ddm", aggr_lambda_users);
+            users.finalize_mu_lambda();
+            write_matrix(Sys::odirname + "/U-mu.ddm", users.aggrMu);
+            write_matrix(Sys::odirname + "/U-Lambda.ddm", users.aggrLambda);
 
-            auto aggr_mu_movies = movies.finalize_mu();
-            auto aggr_lambda_movies = movies.finalize_lambda();
-            write_matrix(Sys::odirname + "/V-mu.ddm", aggr_mu_movies);
-            write_matrix(Sys::odirname + "/V-Lambda.ddm", aggr_lambda_movies);
+            movies.finalize_mu_lambda();
+            write_matrix(Sys::odirname + "/V-mu.ddm", movies.aggrMu);
+            write_matrix(Sys::odirname + "/V-Lambda.ddm", movies.aggrLambda);
         }
     } else {
         movies.predict(users, true);
@@ -263,44 +261,32 @@ void Sys::bcast()
 {
     for(int i = 0; i < num(); i++) {
 #ifdef BPMF_MPI_COMM
+#ifndef BPMF_ARGO_COMM
         MPI_Bcast(items().col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+#endif
+        if (aggrMu.nonZeros())
+            MPI_Bcast(aggrMu.col(i).data(), num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
+        if (aggrLambda.nonZeros())
+            MPI_Bcast(aggrLambda.col(i).data(), num_latent*num_latent, MPI_DOUBLE, proc(i), MPI_COMM_WORLD);
 #else
         assert(Sys::nprocs == 1);
 #endif
     }
 }
 
-bool Sys::has_aggr_mu_lambda() const
-{
-    return Sys::odirname.size();
-}
 
-Eigen::MatrixXd Sys::finalize_mu()
+void Sys::finalize_mu_lambda()
 {
-    const int nsamples = Sys::nsims - Sys::burnin;
-    Eigen::MatrixXd ret(num_latent, num());
-
+    assert(aggrLambda.nonZeros());
+    assert(aggrMu.nonZeros());
     // calculate real mu and Lambda
     for(int i = 0; i < num(); i++) {
-        ret.col(i) = aggr_mu(i) / nsamples;
-    }
-
-    return ret;
-}
-
-Eigen::MatrixXd Sys::finalize_lambda()
-{
-    const int nsamples = Sys::nsims - Sys::burnin;
-    Eigen::MatrixXd ret(num_latent * num_latent, num());
-
-    // calculate real mu and Lambda
-    for(int i = 0; i < num(); i++) {
-        auto sum = aggr_mu(i);
-        auto prod = aggr_lambda(i);
+        int nsamples = Sys::nsims - Sys::burnin;
+        auto sum = aggrMu.col(i);
+        auto prod = Eigen::Map<MatrixNNd>(aggrLambda.col(i).data());
         MatrixNNd cov = (prod - (sum * sum.transpose() / nsamples)) / (nsamples - 1);
         MatrixNNd prec = cov.inverse(); // precision = covariance^-1
-        ret.col(i) = Eigen::Map<Eigen::VectorXd>(prec.data(), num_latent * num_latent);
+        aggrLambda.col(i) = Eigen::Map<Eigen::VectorXd>(prec.data(), num_latent * num_latent);
+        aggrMu.col(i) = sum / nsamples;
     }
-
-    return ret;
 }
