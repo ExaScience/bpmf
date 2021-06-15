@@ -6,8 +6,13 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # OPTIONS
 
+# Set a default build type if none was specified
+set(default_build_type "Release")
+ 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    message(FATAL "No CMAKE_BUILD_TYPE was specified.")
+  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
+      STRING "Choose the type of build." FORCE)
 endif()
 
 OPTION(ENABLE_PROFILING "Enable performance counters" OFF)
@@ -112,8 +117,8 @@ if(BPMF_COMM MATCHES ^.PI)
   if(BPMF_COMM MATCHES ^GPI)
     find_path(GASPI_INCLUDE_DIR GASPI.h REQUIRED)
     include_directories(${GASPI_INCLUDE_DIR})
-    find_library(GASPI_REL_LIBRARY GPI2 REQUIRED)
-    find_library(GASPI_DEBUG_LIBRARY GPI2-dbg REQUIRED)
+    find_library(GASPI_REL_LIBRARY GPI2 REQUIRED PATH_SUFFIXES lib lib64)
+    find_library(GASPI_DEBUG_LIBRARY GPI2-dbg REQUIRED PATH_SUFFIXES lib lib64)
     find_library(IBVERBS_LIBRARY ibverbs REQUIRED)
     target_link_libraries (bpmf debug ${GASPI_DEBUG_LIBRARY} ${IBVERBS_LIBRARY})
     target_link_libraries (bpmf optimized ${GASPI_REL_LIBRARY} ${IBVERBS_LIBRARY})
