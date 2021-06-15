@@ -164,6 +164,8 @@ void GASPI_Sys::sample(Sys &in)
 
     }
 
+    reduce_sum_cov_norm();
+
     {
         BPMF_COUNTER("sync");
         auto start = tick();
@@ -244,4 +246,12 @@ void Sys::Abort(int err)
 {
     gaspi_proc_term(GASPI_BLOCK);
     exit(err);
+}
+
+void Sys::reduce_sum_cov_norm()
+{
+    BPMF_COUNTER("reduce_sum_cov_norm");
+    MPI_Allreduce(MPI_IN_PLACE, sum.data(), num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, cov.data(), num_latent * num_latent, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 }
