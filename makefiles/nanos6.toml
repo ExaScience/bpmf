@@ -143,7 +143,7 @@
 		# Choose the detail level of the information generated in extrae traces. Default is 1
 		detail_level = 1
 		# Extrae events concepts to emit. Possible values on README.md
-		areas = ["all", "!DependencySystem"]
+		areas = ["all"] # , "!DependencySystem"]
 	[instrument.graph]
 		# Indicate whether the resulting PDF should be opened automatically with the display
 		# command. Default is false
