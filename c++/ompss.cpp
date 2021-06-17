@@ -61,10 +61,12 @@ void sample_task_scheduler(
             in(this_inner_ptr[0;num_ratings]) \
             in(this_outer_ptr[0;outer_size_plus_one]) \
             in(other_ptr[0;other_num_items*num_latent]) \
-            out(this_items_ptr[i*num_latent;num_items_this_task*num_latent])
-        for(int j=i; j < i+num_items_this_task; j++)
-            sample_task(this_iter, j, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+            out(this_items_ptr[i*num_latent;num_items_this_task*num_latent]) \
+            label("sample_task")
+        {
+            for (int j = i; j < i + num_items_this_task; j++)
+                sample_task(this_iter, j, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+        }
     }
 
-#pragma oss taskwait
 }
