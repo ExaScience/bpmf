@@ -4,3 +4,13 @@
 .vscode
 *_dbg.txt
 build
+
+# tracing related
+TRACE.*
+set-0
+*.pcf
+*.prv
+*.row
+
+# vtune
+vtune*
