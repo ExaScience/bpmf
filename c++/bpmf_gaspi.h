@@ -87,21 +87,20 @@ struct GASPI_Sys : public Sys
 
     std::vector<double> sync_time;
 
+    // -- related to gaspi_write throttling
+    double send_prob = 1.0; // probability to actually send
+
     bool do_comm(int from, int to)
     {
         if(from == to) return false;
         if(iter == 0) return true;
-        return (std::abs(from - to) - 1) % update_freq == iter % update_freq;
+        if(send_prob >= 0.9999) return true;
+        return randu() < send_prob;
     }
 
     bool do_send(int to)
     {
         return do_comm(Sys::procid, to);
-    }
-
-    bool do_recv(int from)
-    {
-        return do_comm(from, Sys::procid);
     }
 
 };
@@ -158,7 +157,6 @@ void GASPI_Sys::sample(Sys &in)
 
         for (int k = 0; k < Sys::nprocs; k++)
         {
-            if (!do_send(k)) continue;
             SUCCESS_OR_RETRY(gaspi_notify(items_seg, k, Sys::procid, iter+1, 0, GASPI_BLOCK));
         }
 
@@ -172,7 +170,6 @@ void GASPI_Sys::sample(Sys &in)
 
         for (int k = 0; k < Sys::nprocs; k++)
         {
-            if (!do_recv(k)) continue;
             gaspi_notification_id_t id;
             gaspi_notification_t val = 0;
             SUCCESS_OR_DIE(gaspi_notify_waitsome(items_seg, 0, Sys::nprocs, &id, GASPI_BLOCK));
