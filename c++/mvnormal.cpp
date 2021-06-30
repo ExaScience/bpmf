@@ -42,6 +42,10 @@ double randn() {
     return std::normal_distribution<>()(rng);
 }
 
+double randu() {
+    return std::uniform_real_distribution<>(0., 1.0)(rng);
+}
+
 
 /* -------------------------------------------------------------------------------- */
 

@@ -66,6 +66,7 @@ CondNormalWishart(const int N, const MatrixNNd &C, const VectorNd &Um, const Vec
 
 void rng_set_pos(uint32_t p);
 double randn();
+double randu();
  
 #define nrandn(n) (Eigen::VectorXd::NullaryExpr((n), [](double) { return randn(); }))
 
