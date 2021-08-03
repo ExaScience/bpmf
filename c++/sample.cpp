@@ -26,6 +26,7 @@ int Sys::nprocs = -1;
 int Sys::nsims;
 int Sys::burnin;
 int Sys::update_freq;
+double Sys::update_prob;
 double Sys::alpha = 2.0;
 
 std::string Sys::odirname = "";
@@ -321,7 +322,10 @@ VectorNd Sys::sample(long idx, Sys &other)
     chol.matrixL().solveInPlace(rr);                    // L*Y=rr => Y=L\rr, we store Y result again in rr vector  
     rr += nrandn(num_latent);                           // rr=s+(L\rr), we store result again in rr vector
     chol.matrixU().solveInPlace(rr);                    // u_i=U\rr 
-    items().col(idx) = rr;                              // we save rr vector in items matrix (it is user features matrix)
+
+    double r = randu();
+    if (r < update_prob)
+        items().col(idx) = rr;                          // we save rr vector in items matrix (it is user features matrix)
 
     auto stop = tick();
     register_time(idx, 1e6 * (stop - start));

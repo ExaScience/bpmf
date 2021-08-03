@@ -116,6 +116,7 @@ struct Sys {
     static int nprocs, procid;
     static int burnin, nsims, update_freq;
     static double alpha;
+    static double update_prob;
     static std::string odirname;
 
     static void Init();

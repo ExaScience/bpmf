@@ -47,6 +47,7 @@ void usage()
                 << "  [-i N]: Number of total iterations\n"
                 << "  [-b N]: Number of burnin iterations\n"
                 << "  [-f N]: Frequency to send model other nodes (in #iters)\n"
+                << "  [-u F]: Probability to update U\n"
                 << "  [-a F]: Noise precision (alpha)\n"
                 << "\n"
                 << "  [-k]: Do not optimize item to node assignment\n"
@@ -76,6 +77,7 @@ int main(int argc, char *argv[])
     Sys::nsims = 20;
     Sys::burnin = 5;
     Sys::update_freq = 1;
+    Sys::update_prob = 1.;
     
  
     while((ch = getopt(argc, argv, "krvn:t:p:i:b:f:g:w:u:v:o:s:m:l:a:d:")) != -1)
@@ -87,6 +89,7 @@ int main(int argc, char *argv[])
             case 'f': Sys::update_freq = atoi(optarg); break;
             case 't': nthrds = atoi(optarg); break;
             case 'a': Sys::alpha = atof(optarg); break;
+            case 'u': Sys::update_prob = atof(optarg); break;
             case 'd': assert(num_latent == atoi(optarg)); break;
             case 'n': fname = optarg; break;
             case 'p': probename = optarg; break;
@@ -177,7 +180,7 @@ int main(int argc, char *argv[])
     for(int i=0; i<Sys::nsims; ++i) {
         BPMF_COUNTER("main");
         {
-        auto start = tick();
+            auto start = tick();
 
             {
                 BPMF_COUNTER("movies");
@@ -188,29 +191,29 @@ int main(int argc, char *argv[])
                 users.sample(movies);
             }
 
-        { 
-            BPMF_COUNTER("eval");
-            movies.predict(users); 
-            users.predict(movies); 
-        }
-
-        auto stop = tick();
-        double items_per_sec = (users.num() + movies.num()) / (stop - start);
-        double ratings_per_sec = (users.nnz()) / (stop - start);
-        movies.print(items_per_sec, ratings_per_sec, sqrt(users.norm), sqrt(movies.norm));
-        average_items_sec += items_per_sec;
-        average_ratings_sec += ratings_per_sec;
-
-        if (Sys::verbose)
-        {
-            users.bcast();
-            movies.bcast();
-            if (Sys::procid == 0)
             {
-            write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
-            write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
-        }
-    }
+                BPMF_COUNTER("eval");
+                movies.predict(users);
+                users.predict(movies);
+            }
+
+            auto stop = tick();
+            double items_per_sec = (users.num() + movies.num()) / (stop - start);
+            double ratings_per_sec = (users.nnz()) / (stop - start);
+            movies.print(items_per_sec, ratings_per_sec, sqrt(users.norm), sqrt(movies.norm));
+            average_items_sec += items_per_sec;
+            average_ratings_sec += ratings_per_sec;
+
+            if (Sys::verbose)
+            {
+                users.bcast();
+                movies.bcast();
+                if (Sys::procid == 0)
+                {
+                    write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
+                    write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
+                }
+            }
         }
     }
 
