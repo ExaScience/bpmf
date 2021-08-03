@@ -4,6 +4,7 @@
  */
 
 #include <cmath>
+#include <mutex>
 #include <mpi.h>
 
 #include <GASPI.h>
@@ -32,18 +33,29 @@ do  { \
 } while (0);
 
 
+
+static double send_prob = 1.0; // probability to actually send
+
 static void gaspi_checked_wait(int k = 0)
 {
     BPMF_COUNTER("gaspi_wait");
+    send_prob -= 0.05;
+    Sys::cout() << "-- send prob = " << send_prob << " -- " << std::endl;
     SUCCESS_OR_DIE(gaspi_wait(k, GASPI_BLOCK));
 }
 
-static int gaspi_wait_for_queue(int k = 0) {
+static int gaspi_wait_for_queue(int k = 0)
+{
     BPMF_COUNTER("wait4queue");
+    static std::mutex gaspi_wait_mutex;
+    gaspi_wait_mutex.lock();
+
     int free = gaspi_free(k);
     assert(free >= 0);
     while ((free = gaspi_free(k)) == 0) gaspi_checked_wait(k); 
     assert(free > 0);
+
+    gaspi_wait_mutex.unlock();
     return free;
 }
 
@@ -87,15 +99,14 @@ struct GASPI_Sys : public Sys
 
     std::vector<double> sync_time;
 
-    // -- related to gaspi_write throttling
-    double send_prob = 1.0; // probability to actually send
-
     bool do_comm(int from, int to)
     {
         if(from == to) return false;
         if(iter == 0) return true;
         if(send_prob >= 0.9999) return true;
-        return randu() < send_prob;
+        double r = randu();
+        Sys::cout() << " r = " << r << " <? send_prob = " << send_prob << std::endl;
+        return r < send_prob;
     }
 
     bool do_send(int to)
@@ -134,10 +145,11 @@ void GASPI_Sys::alloc_and_init()
 
 void GASPI_Sys::send_item(int i)
 {
+    if (!do_send(-1)) return;
+
     BPMF_COUNTER("send_item");
     for (int k = 0; k < Sys::nprocs; k++)
     {
-        if (!do_send(k)) continue;
         if (!conn(i, k)) continue;
         auto offset = i * num_latent * sizeof(double);
         auto size = num_latent * sizeof(double);
