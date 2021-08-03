@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
         Sys::cout() << "nsims: " << Sys::nsims << endl;
         Sys::cout() << "burnin: " << Sys::burnin << endl;
         Sys::cout() << "alpha: " << Sys::alpha << endl;
+        Sys::cout() << "update_prob: " << Sys::update_prob << endl;
         Sys::cout() << "update_freq: " << Sys::update_freq << endl;
     }
 
