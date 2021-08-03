@@ -176,10 +176,17 @@ int main(int argc, char *argv[])
 
     for(int i=0; i<Sys::nsims; ++i) {
         BPMF_COUNTER("main");
+        {
         auto start = tick();
 
-        { BPMF_COUNTER("movies"); movies.sample(users); }
-        { BPMF_COUNTER("users"); users.sample(movies); }
+            {
+                BPMF_COUNTER("movies");
+                movies.sample(users);
+            }
+            {
+                BPMF_COUNTER("users");
+                users.sample(movies);
+            }
 
         { 
             BPMF_COUNTER("eval");
@@ -204,6 +211,7 @@ int main(int argc, char *argv[])
             write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
         }
     }
+        }
     }
 
     Sys::sync();
