@@ -41,13 +41,16 @@ void ARGO_Sys::alloc_and_init()
 
 void ARGO_Sys::send_item(int i)
 {
+#if defined(ARGO_NODE_WIDE_RELEASE) || \
+    defined(ARGO_SELECTIVE_RELEASE)
     commit_index(i);
     process_queue();
+#endif
 }
 
 void ARGO_Sys::commit_index(int i)
 {
-#ifdef BPMF_ARGO_SELECTIVE_RELEASE
+#ifdef ARGO_SELECTIVE_RELEASE
     m.lock(); queue.push_back(i); m.unlock();
 #endif
 }
@@ -61,9 +64,9 @@ void ARGO_Sys::process_queue()
     {
         BPMF_COUNTER("process_queue");
 
-#if   defined(BPMF_ARGO_RELEASE)
+#if   defined(ARGO_NODE_WIDE_RELEASE)
         argo::backend::release();
-#elif defined(BPMF_ARGO_SELECTIVE_RELEASE)
+#elif defined(ARGO_SELECTIVE_RELEASE)
         int q = queue.size();
         while (q--) {
             m.lock();
