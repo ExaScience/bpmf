@@ -15,6 +15,9 @@ struct ARGO_Sys : public Sys
     ARGO_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
     ~ARGO_Sys();
 
+    //-- helpers
+    bool is_local(void*);
+
     //-- virtuals
     virtual void send_item(int);
     virtual void sample(Sys &in);
@@ -48,9 +51,17 @@ void ARGO_Sys::send_item(int i)
 #endif
 }
 
+bool ARGO_Sys::is_local(void *addr)
+{
+    return (argo::get_homenode(addr) == procid);
+}
+
 void ARGO_Sys::commit_index(int i)
 {
 #ifdef ARGO_SELECTIVE_RELEASE
+    auto offset = i * num_latent;
+    if (is_local(items_ptr+offset)) return;
+
     m.lock(); queue.push_back(i); m.unlock();
 #endif
 }
