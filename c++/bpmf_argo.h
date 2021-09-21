@@ -8,15 +8,16 @@
 
 #define SYS ARGO_Sys
 
+//-- 0: fine-grained   ssd
+//-- 1: coarse-grained ssd
+#define SSD_GRANULARITY 1
+
 struct ARGO_Sys : public Sys
 {
     //-- c'tor
     ARGO_Sys(std::string name, std::string fname, std::string probename) : Sys(name, fname, probename) {}
     ARGO_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
     ~ARGO_Sys();
-
-    //-- helpers
-    bool is_local(void*);
 
     //-- virtuals
     virtual void send_item(int);
@@ -28,6 +29,11 @@ struct ARGO_Sys : public Sys
     std::list<int> queue;
     void process_queue();
     void commit_index(int);
+
+    //-- helpers
+    bool is_item_local(void*);
+    bool are_items_adjacent(int, int);
+    void pop_front(int);
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -51,16 +57,11 @@ void ARGO_Sys::send_item(int i)
 #endif
 }
 
-bool ARGO_Sys::is_local(void *addr)
-{
-    return (argo::get_homenode(addr) == procid);
-}
-
 void ARGO_Sys::commit_index(int i)
 {
-#ifdef ARGO_SELECTIVE_RELEASE
+#if defined(ARGO_SELECTIVE_RELEASE)
     auto offset = i * num_latent;
-    if (is_local(items_ptr+offset)) return;
+    if (is_item_local(items_ptr+offset)) return;
 
     m.lock(); queue.push_back(i); m.unlock();
 #endif
@@ -78,10 +79,12 @@ void ARGO_Sys::process_queue()
 #if   defined(ARGO_NODE_WIDE_RELEASE)
         argo::backend::release();
 #elif defined(ARGO_SELECTIVE_RELEASE)
+
+#if SSD_GRANULARITY == 0
         int q = queue.size();
         while (q--) {
             m.lock();
-            int i = queue.front();
+            auto i = queue.front();
             queue.pop_front();
             m.unlock();
 
@@ -89,6 +92,32 @@ void ARGO_Sys::process_queue()
             auto size = num_latent;
             argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
         }
+#else
+        m.lock();
+        int q = queue.size();
+        queue.sort();
+        m.unlock();
+
+        while (q) {
+            m.lock();
+            auto i = queue.front();
+            auto l = queue.begin();
+            auto r = std::next(l);
+
+            int c;
+            for (c = 1; c < q; ++c, ++l, ++r)
+                if (!are_items_adjacent(*l, *r)) break;
+            pop_front(c);
+            m.unlock();
+
+            auto offset = i * num_latent;
+            auto size = c * num_latent;
+            argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
+
+            q -= c;
+        }
+#endif
+
 #endif
     }
 }
@@ -104,6 +133,23 @@ void ARGO_Sys::sample(Sys &in)
 
     // reduce small structs
     reduce_sum_cov_norm();
+}
+
+bool ARGO_Sys::is_item_local(void *addr)
+{
+    return (argo::get_homenode(addr) == procid);
+}
+
+bool ARGO_Sys::are_items_adjacent(int l, int r)
+{
+    return (l == r-1);
+}
+
+void ARGO_Sys::pop_front(int elems)
+{
+    auto beg = queue.begin();
+    auto end = std::next(beg, elems);
+    queue.erase(beg, end);
 }
 
 void Sys::Init()
