@@ -8,10 +8,6 @@
 
 #define SYS ARGO_Sys
 
-//-- 0: fine-grained   ssd
-//-- 1: coarse-grained ssd
-#define SSD_GRANULARITY 1
-
 struct ARGO_Sys : public Sys
 {
     //-- c'tor
@@ -80,7 +76,7 @@ void ARGO_Sys::process_queue()
         argo::backend::release();
 #elif defined(ARGO_SELECTIVE_RELEASE)
 
-#if SSD_GRANULARITY == 0
+#ifdef FINE_GRAINED_SELECTIVE_RELEASE
         int q = queue.size();
         while (q--) {
             auto i = queue.front();
