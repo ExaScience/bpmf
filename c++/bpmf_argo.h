@@ -83,10 +83,8 @@ void ARGO_Sys::process_queue()
 #if SSD_GRANULARITY == 0
         int q = queue.size();
         while (q--) {
-            m.lock();
             auto i = queue.front();
-            queue.pop_front();
-            m.unlock();
+            m.lock(); queue.pop_front(); m.unlock();
 
             auto offset = i * num_latent;
             auto size = num_latent;
@@ -99,7 +97,6 @@ void ARGO_Sys::process_queue()
         m.unlock();
 
         while (q) {
-            m.lock();
             auto i = queue.front();
             auto l = queue.begin();
             auto r = std::next(l);
@@ -107,8 +104,7 @@ void ARGO_Sys::process_queue()
             int c;
             for (c = 1; c < q; ++c, ++l, ++r)
                 if (!are_items_adjacent(*l, *r)) break;
-            pop_front(c);
-            m.unlock();
+            m.lock(); pop_front(c); m.unlock();
 
             auto offset = i * num_latent;
             auto size = c * num_latent;
