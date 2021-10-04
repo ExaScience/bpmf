@@ -36,6 +36,10 @@ SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS
   ARGO_COMM 
   NO_COMM)
 
+set(ARGO_RELEASE "NO_RELEASE" CACHE STRING "Release implementation used")
+SET_PROPERTY(CACHE ARGO_RELEASE PROPERTY STRINGS
+  NODE_WIDE_RELEASE
+  SELECTIVE_RELEASE)
 
 set(CMAKE_CXX_STANDARD 14)
 
@@ -70,6 +74,10 @@ message(STATUS "Version from git: ${BPMF_VERSION}")
 message(STATUS "num-latent: ${BPMF_NUMLATENT}")
 message(STATUS "comm: ${BPMF_COMM}")
 
+if(BPMF_COMM MATCHES ^ARGO)
+  message(STATUS "release implementation: ${ARGO_RELEASE}")
+endif()
+
 if (ONLY_VARIANCE)
   add_definitions(-DBPMF_NO_COVARIANCE)
 endif()
@@ -77,6 +85,7 @@ endif()
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 add_definitions(-DBPMF_${BPMF_COMM})
+add_definitions(-DARGO_${ARGO_RELEASE})
 add_definitions(-DEIGEN_DONT_PARALLELIZE)
 
 if (ENABLE_REDUCE)
