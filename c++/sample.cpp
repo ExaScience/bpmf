@@ -90,9 +90,9 @@ void Sys::predict(Sys& other, bool all)
         }
     }
 
+    num_predict = nump;
     rmse = sqrt( se / num_predict );
     rmse_avg = sqrt( se_avg / num_predict );
-    num_predict = nump;
 }
 
 //
