@@ -10,77 +10,162 @@
 
 struct ARGO_Sys : public Sys
 {
-	//-- c'tor
-	ARGO_Sys(std::string name, std::string fname, std::string probename) : Sys(name, fname, probename) {}
-	ARGO_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
-	~ARGO_Sys();
+    //-- c'tor
+    ARGO_Sys(std::string name, std::string fname, std::string probename) : Sys(name, fname, probename) {}
+    ARGO_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
+    ~ARGO_Sys();
 
-	virtual void alloc_and_init();
+    //-- virtuals
+    virtual void send_item(int);
+    virtual void sample(Sys &in);
+    virtual void alloc_and_init();
 
-	virtual void send_item(int);
-	virtual void sample(Sys &in);
+    //-- process_queue queue with protecting mutex
+    std::mutex m;
+    std::list<int> queue;
+    void process_queue();
+    void commit_index(int);
+
+    //-- helpers
+    bool is_item_local(void*);
+    bool are_items_adjacent(int, int);
+    void pop_front(int);
 };
 
 ARGO_Sys::~ARGO_Sys()
 {
-	argo::codelete_array(items_ptr);
+    argo::codelete_array(items_ptr);
 }
 
 void ARGO_Sys::alloc_and_init()
 {
-	items_ptr = argo::conew_array<double>(num_latent * num());
+    items_ptr = argo::conew_array<double>(num_latent * num());
 
-	init();
+    init();
 }
 
 void ARGO_Sys::send_item(int i)
 {
-#ifdef BPMF_ARGO_SELECTIVE_RELEASE
-	BPMF_COUNTER("send_item");
-	static std::mutex m;
-
-	m.lock();
-	auto offset = i * num_latent;
-	auto size = num_latent;
-	argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
-	m.unlock();
+#if defined(ARGO_NODE_WIDE_RELEASE) || \
+    defined(ARGO_SELECTIVE_RELEASE)
+    commit_index(i);
+    process_queue();
 #endif
+}
+
+void ARGO_Sys::commit_index(int i)
+{
+#if defined(ARGO_SELECTIVE_RELEASE)
+    auto offset = i * num_latent;
+    if (is_item_local(items_ptr+offset)) return;
+
+    m.lock(); queue.push_back(i); m.unlock();
+#endif
+}
+
+void ARGO_Sys::process_queue()
+{
+    int main_thread;
+    MPI_Is_thread_main(&main_thread);
+    if (!main_thread) return;
+
+    {
+        BPMF_COUNTER("process_queue");
+
+#if   defined(ARGO_NODE_WIDE_RELEASE)
+        argo::backend::release();
+#elif defined(ARGO_SELECTIVE_RELEASE)
+
+#ifdef FINE_GRAINED_SELECTIVE_RELEASE
+        int q = queue.size();
+        while (q--) {
+            auto i = queue.front();
+            m.lock(); queue.pop_front(); m.unlock();
+
+            auto offset = i * num_latent;
+            auto size = num_latent;
+            argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
+        }
+#else
+        m.lock();
+        int q = queue.size();
+        queue.sort();
+        m.unlock();
+
+        while (q) {
+            auto i = queue.front();
+            auto l = queue.begin();
+            auto r = std::next(l);
+
+            int c;
+            for (c = 1; c < q; ++c, ++l, ++r)
+                if (!are_items_adjacent(*l, *r)) break;
+            m.lock(); pop_front(c); m.unlock();
+
+            auto offset = i * num_latent;
+            auto size = c * num_latent;
+            argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
+
+            q -= c;
+        }
+#endif
+
+#endif
+    }
 }
 
 void ARGO_Sys::sample(Sys &in)
 {
-	{
-		BPMF_COUNTER("compute");
-		Sys::sample(in);
-	}
-	{
-		BPMF_COUNTER("sync_sample");
-		Sys::sync();
-	}
+    { BPMF_COUNTER("compute"); Sys::sample(in); }
+
+    // send remaining
+    process_queue();
+
+    { BPMF_COUNTER("sync_sample"); Sys::sync(); }
+
+    // reduce small structs
+    reduce_sum_cov_norm();
+}
+
+bool ARGO_Sys::is_item_local(void *addr)
+{
+    return (argo::get_homenode(addr) == procid);
+}
+
+bool ARGO_Sys::are_items_adjacent(int l, int r)
+{
+    return (l == r-1);
+}
+
+void ARGO_Sys::pop_front(int elems)
+{
+    auto beg = queue.begin();
+    auto end = std::next(beg, elems);
+    queue.erase(beg, end);
 }
 
 void Sys::Init()
 {
-	// global address space size - 50GiB
-	argo::init(50*1024*1024*1024UL);
+    // global address space size - 50GiB
+    argo::init(50*1024*1024*1024UL);
 
-	Sys::procid = argo::node_id();
-	Sys::nprocs = argo::number_of_nodes();
+    Sys::procid = argo::node_id();
+    Sys::nprocs = argo::number_of_nodes();
 }
 
 void Sys::Finalize()
 {
-	argo::finalize();
+    argo::finalize();
 }
 
 void Sys::sync()
 {
-	argo::barrier();
+    argo::barrier();
 }
 
 void Sys::Abort(int err)
 {
-	MPI_Abort(MPI_COMM_WORLD, err);
+    MPI_Abort(MPI_COMM_WORLD, err);
 }
 
 void Sys::reduce_sum_cov_norm()

@@ -29,7 +29,7 @@ do  { \
     Sys::cout() << "Error: " << #f << "[" << __FILE__ << ":" << __LINE__ << "]: " << r << std::endl;  \
     abort(); \
   } \
-} while (0);
+} while (0)
 
 
 static void gaspi_checked_wait(int k = 0)
@@ -60,7 +60,7 @@ do  { \
         abort(); \
       } \
   } while (r == GASPI_QUEUE_FULL); \
-} while (0);
+} while (0)
  
 static double* gaspi_malloc(gaspi_segment_id_t seg, size_t size) {
 	// Sys::cout() << "alloc id " << (int)seg << " with size " << (int)size << std::endl;
