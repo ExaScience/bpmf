@@ -23,7 +23,7 @@
 #error Define BPMF_NUMLATENT
 #endif
 
-#ifdef BPMF_GPI_COMM
+#if defined(BPMF_GPI_COMM) or defined(BPMF_GPICXX_COMM)
 #define BPMF_MPI_COMM
 #define BPMF_HYBRID_COMM
 #elif defined(BPMF_MPI_PUT_COMM)

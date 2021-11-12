@@ -18,6 +18,8 @@ using namespace Eigen;
 
 #ifdef BPMF_GPI_COMM
 #include "bpmf_gaspi.h"
+#elif defined(BPMF_GPICXX_COMM)
+#include "bpmf_gaspicxx.h"
 #elif defined(BPMF_MPI_PUT_COMM)
 #include "mpi_put.h"
 #elif defined(BPMF_MPI_BCAST_COMM)

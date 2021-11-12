@@ -196,11 +196,14 @@ namespace GASPI
     };
 }                
 
-struct GASPI_Sys : public Sys
+struct GASPI_Sys : public Sys, public GASPI::SharedSegment<VectorNd>
 {
     //-- c'tor
-    GASPI_Sys(std::string name, std::string fname, std::string probename) : Sys(name, fname, probename) {}
-    GASPI_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
+    GASPI_Sys(std::string name, std::string fname, std::string probename) 
+       : Sys(name, fname, probename), GASPI::SharedSegment<VectorNd>(num()) {}
+    GASPI_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P)
+       : Sys(name, M, P), GASPI::SharedSegment<VectorNd>(num()) {}
+
     ~GASPI_Sys() = default;
     virtual void alloc_and_init();
 
