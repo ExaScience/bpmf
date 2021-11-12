@@ -217,7 +217,6 @@ struct Sys {
 
     //-- hyper params
     HyperParams hp;
-    virtual void sample_hp() { hp.sample(num(), sum, cov); }
 
     // output predictions
     SparseMatrixD T, Torig; // test matrix (input)

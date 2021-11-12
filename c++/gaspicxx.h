@@ -106,9 +106,9 @@ namespace GASPI
         }
     };
 
-    static std::unique_ptr<Context> m_context = 0;
     static Context &context()
     {
+        static std::unique_ptr<Context> m_context = 0;
         if (!m_context) m_context = std::make_unique<Context>();
         return *m_context;
     }
@@ -143,8 +143,22 @@ namespace GASPI
             return m_data[i];
         }
 
+        void share(size_t i)
+        {
+            BPMF_COUNTER("share");
+            auto offset = i * sizeof(T);
+            auto size = sizeof(T);
+            auto seg_id = m_segment_id;
+            for (int k = 0; k < Sys::nprocs; k++)
+            {
+                if (!do_share(i, k)) continue;
+                SUCCESS_OR_RETRY(gaspi_write(seg_id, offset, k, seg_id, offset, size, 0, GASPI_BLOCK));
+            }
+        }
+
         void notify() const
         {
+            BPMF_COUNTER("notify");
             for (int k = 0; k < context()::nprocs; k++)
             {
                 SUCCESS_OR_RETRY(gaspi_notify(m_segment_id, k, Sys::procid, phase, 0, GASPI_BLOCK));
@@ -153,16 +167,17 @@ namespace GASPI
 
         void wait() const
         {
+            BPMF_COUNTER("wait");
             gaspi_notification_id_t id;
             gaspi_notification_t val = 0;
-            for (int k = 0; k < context()::nprocs; k++)
+            for (int k = 0; k < context()::size; k++)
             {
                 SUCCESS_OR_DIE(gaspi_notify_waitsome(m_segment_id, 0, Sys::nprocs, &id, GASPI_BLOCK));
                 SUCCESS_OR_DIE(gaspi_notify_reset(m_segment_id, id, &val));
             }
         }
 
-        virtual bool do_send(size_t, int) = 0;
+        virtual bool do_share(size_t, int) = 0;
 
     };
 
@@ -172,65 +187,31 @@ namespace GASPI
         SharedSegment &m_seg;
         size_t m_elem_id;
 
-        operator=(const T val&)
+        T& operator=(const T val&)
         {
-            m_data[i] = val;
-            auto offset = m_elem_id * sizeof(T);
-            auto size = sizeof(T);
-            auto seg_id = seg.m_segment_id;
-            for (int k = 0; k < Sys::nprocs; k++)
-            {
-                if (!m_seg.do_send(m_elem_id, k)) continue;
-                SUCCESS_OR_RETRY(gaspi_write(seg_id, offset, k, seg_id, offset, size, 0, GASPI_BLOCK));
-            }
+            m_seg.data()[m_elem_id] = val;
+            m_seg.share(m_elem_id)
+            return m_seg.data()[m_element_id];
         }
     };
 }                
 
-
-
-struct GASPI_Sys : public Sys, public GASPI::SharedSegment<VectorNd>
+struct GASPI_Sys : public Sys
 {
     //-- c'tor
-    GASPI_Sys(std::string name, std::string fname, std::string probename)
-        : Sys(name, fname, probename) , GASPI::SharedSegment<VectorNd> {}
-
+    GASPI_Sys(std::string name, std::string fname, std::string probename) : Sys(name, fname, probename) {}
     GASPI_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
-    ~GASPI_Sys();
+    ~GASPI_Sys() = default;
     virtual void alloc_and_init();
 
     virtual void send_item(int);
     virtual void sample(Sys &in);
-    virtual void sample_hp();
 
-    gaspi_segment_id_t items_seg = (gaspi_segment_id_t)-1;
-
-    std::vector<double> sync_time;
-
-    // -- related to gaspi_write throttling
-    double send_prob = 1.0; // probability to actually send
-
-    bool do_comm(int from, int to)
+    bool do_share(size_t el, int to) override
     {
-        if(from == to) return false;
-        if(iter == 0) return true;
-        if(send_prob >= 0.9999) return true;
-        return randu() < send_prob;
+        return (from != Sys::proc_id) && conn(i, k);
     }
-
-    bool do_send(int to)
-    {
-        return do_comm(Sys::procid, to);
-    }
-
 };
-
-GASPI_Sys::~GASPI_Sys()
-{
-    for(int k = 0; k < Sys::nprocs; k++) {
-        Sys::cout() << name << "@" << Sys::procid << ": sync_time from " << k << ": " << sync_time[k] << std::endl;
-    }
-}
 
 void GASPI_Sys::alloc_and_init()
 {
@@ -240,47 +221,19 @@ void GASPI_Sys::alloc_and_init()
 
 void GASPI_Sys::send_item(int i)
 {
-    BPMF_COUNTER("send_item");
-    for (int k = 0; k < Sys::nprocs; k++)
-    {
-        if (!do_send(k)) continue;
-        if (!conn(i, k)) continue;
-        auto offset = i * num_latent * sizeof(double);
-        auto size = num_latent * sizeof(double);
-        SUCCESS_OR_RETRY(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
-    }
+    share(i);
 }
 
 void GASPI_Sys::sample(Sys &in)
 {
-    {
-        BPMF_COUNTER("compute");
-        Sys::sample(in);
-    }
-
-    {
-        BPMF_COUNTER("notify");
-        notify();
-    }
-
+    Sys::sample(in);
+    notify();
     reduce_sum_cov_norm();
-
-    {
-        BPMF_COUNTER("sync");
-        wait();
-    }
+    wait();
 }
-
-void GASPI_Sys::sample_hp()
-{
-    { BPMF_COUNTER("compute"); Sys::sample_hp(); }
-}
-
-
 
 void Sys::Finalize()
 {
-    gaspi_proc_term(GASPI_BLOCK);
     MPI_Finalize();
 }
 

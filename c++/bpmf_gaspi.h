@@ -81,7 +81,6 @@ struct GASPI_Sys : public Sys
 
     virtual void send_item(int);
     virtual void sample(Sys &in);
-    virtual void sample_hp();
 
     gaspi_segment_id_t items_seg = (gaspi_segment_id_t)-1;
 
@@ -178,11 +177,6 @@ void GASPI_Sys::sample(Sys &in)
             sync_time[id] += stop - start;
         }
     }
-}
-
-void GASPI_Sys::sample_hp()
-{
-    { BPMF_COUNTER("compute"); Sys::sample_hp(); }
 }
 
 void Sys::Init()

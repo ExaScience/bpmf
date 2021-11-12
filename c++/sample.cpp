@@ -340,15 +340,14 @@ VectorNd Sys::sample(long idx, Sys &other)
 //
 void Sys::sample(Sys &other) 
 {
+    BPMF_COUNTER("compute");
     iter++;
     thread_vector<VectorNd>  sums(VectorNd::Zero()); // sum
     thread_vector<double>    norms(0.0); // squared norm
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
     rng_set_pos(iter); // make this consistent
-    sample_hp();
-    //SHOW(hp.mu.transpose());
-
+    hp.sample(num(), sum, cov);
 
 #pragma omp parallel for schedule(guided)
     for (int i = from(); i < to(); ++i)
