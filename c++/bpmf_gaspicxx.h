@@ -9,6 +9,7 @@
 #include <GASPI.h>
 #include <GASPI_Ext.h>
 
+#include "counters.h"
 #include "thread_vector.h"
 
 static int gaspi_free(int k = 0) {
@@ -77,7 +78,7 @@ namespace GASPI
             SUCCESS_OR_DIE(gaspi_proc_init(GASPI_BLOCK));
         }
         Context(const Context &) = delete;
-        Contex operator=(const Context &) = delete;
+        Context operator=(const Context &) = delete;
         ~Context()
         {
             gaspi_proc_term(GASPI_BLOCK);
@@ -97,7 +98,7 @@ namespace GASPI
         {
             gaspi_number_t s;
             gaspi_group_size(GASPI_GROUP_ALL, &s);
-            return s
+            return s;
         }
 
         gaspi_segment_id_t next_segment_id()
@@ -114,18 +115,35 @@ namespace GASPI
     }
 
     template<typename T>
+    struct SharedSegment;
+
+    template<typename T> 
+    struct SharedRef 
+    {
+        SharedSegment<T> &m_seg;
+        size_t m_elem_id;
+
+        T& operator=(const T &val)
+        {
+            m_seg.data()[m_elem_id] = val;
+            m_seg.share(m_elem_id);
+            return m_seg.data()[m_elem_id];
+        }
+    };
+
+    template<typename T>
     struct SharedSegment
     {
-        gaspi_segment_id m_segment_id;
+        gaspi_segment_id_t m_segment_id;
         size_t m_num_elem;
         T* m_data;
-        gaspi_notify_value_t phase = 1;
+        gaspi_notification_t phase = 1;
 
         SharedSegment(size_t num_elem)
-        : m_segment_id(contex().next_segment_id())
+        : m_segment_id(context().next_segment_id())
         , m_num_elem(num_elem)
         {
-            m_data = (T *)gaspi_malloc(seg_id_cnt, sizeof(T) * num_elem);
+            m_data = (T *)gaspi_malloc(m_segment_id, sizeof(T) * num_elem);
         }
 
         T* data()
@@ -149,7 +167,7 @@ namespace GASPI
             auto offset = i * sizeof(T);
             auto size = sizeof(T);
             auto seg_id = m_segment_id;
-            for (int k = 0; k < Sys::nprocs; k++)
+            for (int k = 0; k < context().size(); k++)
             {
                 if (!do_share(i, k)) continue;
                 SUCCESS_OR_RETRY(gaspi_write(seg_id, offset, k, seg_id, offset, size, 0, GASPI_BLOCK));
@@ -159,7 +177,7 @@ namespace GASPI
         void notify() const
         {
             BPMF_COUNTER("notify");
-            for (int k = 0; k < context()::nprocs; k++)
+            for (int k = 0; k < context().size(); k++)
             {
                 SUCCESS_OR_RETRY(gaspi_notify(m_segment_id, k, Sys::procid, phase, 0, GASPI_BLOCK));
             }
@@ -170,9 +188,9 @@ namespace GASPI
             BPMF_COUNTER("wait");
             gaspi_notification_id_t id;
             gaspi_notification_t val = 0;
-            for (int k = 0; k < context()::size; k++)
+            for (int k = 0; k < context().size(); k++)
             {
-                SUCCESS_OR_DIE(gaspi_notify_waitsome(m_segment_id, 0, Sys::nprocs, &id, GASPI_BLOCK));
+                SUCCESS_OR_DIE(gaspi_notify_waitsome(m_segment_id, 0, context().size(), &id, GASPI_BLOCK));
                 SUCCESS_OR_DIE(gaspi_notify_reset(m_segment_id, id, &val));
             }
         }
@@ -181,20 +199,9 @@ namespace GASPI
 
     };
 
-    template<typename T> 
-    struct SharedRef 
-    {
-        SharedSegment &m_seg;
-        size_t m_elem_id;
-
-        T& operator=(const T val&)
-        {
-            m_seg.data()[m_elem_id] = val;
-            m_seg.share(m_elem_id)
-            return m_seg.data()[m_element_id];
-        }
-    };
 }                
+
+#define SYS GASPI_Sys
 
 struct GASPI_Sys : public Sys, public GASPI::SharedSegment<VectorNd>
 {
@@ -212,7 +219,7 @@ struct GASPI_Sys : public Sys, public GASPI::SharedSegment<VectorNd>
 
     bool do_share(size_t el, int to) override
     {
-        return (from != Sys::proc_id) && conn(i, k);
+        return (to != procid) && conn(procid, to);
     }
 };
 
@@ -234,6 +241,20 @@ void GASPI_Sys::sample(Sys &in)
     reduce_sum_cov_norm();
     wait();
 }
+
+void Sys::Init()
+{
+    int provided;
+    MPI_Init_thread(0, 0, MPI_THREAD_SERIALIZED, &provided);
+    assert(provided == MPI_THREAD_SERIALIZED);
+    MPI_Comm_rank(MPI_COMM_WORLD, &Sys::procid);
+    MPI_Comm_size(MPI_COMM_WORLD, &Sys::nprocs);
+    MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
+
+    assert(context().rank() == Sys::procid);
+    assert(context().size() == Sys::nprocs);
+}
+
 
 void Sys::Finalize()
 {
