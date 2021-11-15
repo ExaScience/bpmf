@@ -226,6 +226,7 @@ struct GASPI_Sys : public Sys, public GASPI::SharedSegment<VectorNd>
 void GASPI_Sys::alloc_and_init()
 {
     sync();
+    items_ptr = (double *)m_data; // links Sys::items_ptr with SharedSegment::m_data
     init();
 }
 
@@ -251,8 +252,8 @@ void Sys::Init()
     MPI_Comm_size(MPI_COMM_WORLD, &Sys::nprocs);
     MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
 
-    assert(context().rank() == Sys::procid);
-    assert(context().size() == Sys::nprocs);
+    assert(GASPI::context().rank() == Sys::procid);
+    assert(GASPI::context().size() == Sys::nprocs);
 }
 
 
