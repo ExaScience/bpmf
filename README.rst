@@ -105,4 +105,4 @@ Over the course of the last 5 years, this work has been supported by the EU H202
 EPEEC (contract #801051), ExCAPE (contract #671555) and EXA2CT (contract #610741), and the Flemish Exaptation project.
 
 .. |Travis Build Status| image:: https://app.travis-ci.com/ExaScience/bpmf.svg?branch=master
-   :target: https://travis-ci.org/ExaScience/bpmf
+   :target: https://app.travis-ci.com/github/ExaScience/bpmf
