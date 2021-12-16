@@ -8,8 +8,19 @@
 
 #ifndef OMPSS
 #include <cstdlib>
+#include <cassert>
 #endif
 
+void oss_taskwait()
+{
+    #pragma oss taskwait
+}
+
+void oss_reset_stats()
+{
+    nanos6_argo_reset_stats();
+}
+ 
 void *lmalloc(unsigned long size)
 {
 #ifdef OMPSS
@@ -30,27 +41,21 @@ void *dmalloc(unsigned long size)
 
 static void node_chunk(
     int& chunk,
-    int& node_id,
-    const int& to,
-    const int& index,
-    const int& bsize,
-    bool& breaklp
+    const int node_id,
+    const int nodes,
+    const int to,
+    const int index,
+    const int bsize
 )
 {
-    static const int nodes = nanos6_get_num_cluster_nodes();
-    chunk = (to-index >= 2*bsize)
-        ? (breaklp = 0, bsize)
-        : (breaklp = 1, to-index);
-    node_id = (!breaklp)
-        ? index/chunk
-        : nodes-1;
+    chunk = (node_id != nodes-1) ? bsize : to-index;
 }
 
 static void task_chunk(
     int& chunk,
-    const int& to,
-    const int& index,
-    const int& bsize
+    const int to,
+    const int index,
+    const int bsize
 )
 {
     chunk = std::min(bsize, to-index-1);
@@ -75,18 +80,15 @@ void sample_task_scheduler(
     double *this_items_ptr
 )
 {
+    static const int nodes = nanos6_get_num_cluster_nodes();
 
-    const int num_tasks = 100;
-    const int num_items_per_node = to / nanos6_get_num_cluster_nodes();
+    const int num_tasks_per_node = 100;
+    const int num_items_per_node = to / nodes;
 
-    bool outer_dist_finished = 0;
-    for (int i = from; i < to; i += num_items_per_node)
+    for (int node_id = 0; node_id < nodes; ++node_id)
     {
-        if (outer_dist_finished)
-            break;
-
-        int node_id, num_items_this_node;
-        node_chunk(num_items_this_node, node_id, to, i, num_items_per_node, outer_dist_finished);
+        int i = node_id*num_items_per_node, num_items_this_node;
+        node_chunk(num_items_this_node, node_id, nodes, to, i, num_items_per_node);
 
         #pragma oss task                                                          \
             weakin(this_hp_ptr     [0;hp_size])                                   \
@@ -95,23 +97,12 @@ void sample_task_scheduler(
             weakin(this_outer_ptr  [0;outer_size_plus_one])                       \
             weakin(other_ptr       [0;other_num_items*num_latent])                \
             weakout(this_items_ptr [i*num_latent;num_items_this_node*num_latent]) \
+            firstprivate(i, num_tasks_per_node, num_items_this_node)              \
             node(node_id)                                                         \
             label("sample_weak_task")
         {
-            #pragma oss task                                                      \
-                in(this_hp_ptr     [0;hp_size])                                   \
-                in(this_ratings_ptr[0;num_ratings])                               \
-                in(this_inner_ptr  [0;num_ratings])                               \
-                in(this_outer_ptr  [0;outer_size_plus_one])                       \
-                in(other_ptr       [0;other_num_items*num_latent])                \
-                out(this_items_ptr [i*num_latent;num_items_this_node*num_latent]) \
-                node(nanos6_cluster_no_offload)                                   \
-                label("fetch_strong_task")
-            {
-                // this is a fetch task
-            }
-
-            const int num_items_per_task = ((i+num_items_this_node)-i)/num_tasks + 1;
+            const int num_items_per_task = num_items_this_node / num_tasks_per_node;
+            assert(num_items_per_task > 0);
 
             for (int j = i; j < i+num_items_this_node; j += num_items_per_task)
             {
@@ -125,6 +116,7 @@ void sample_task_scheduler(
                     in(this_outer_ptr  [0;outer_size_plus_one])                       \
                     in(other_ptr       [0;other_num_items*num_latent])                \
                     out(this_items_ptr [j*num_latent;num_items_this_task*num_latent]) \
+                    firstprivate(j, num_items_this_task)                              \
                     node(nanos6_cluster_no_offload)                                   \
                     label("sample_strong_task")
                 {
