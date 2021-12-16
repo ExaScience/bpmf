@@ -3,23 +3,16 @@
  * All rights reserved.
  */
 
+/* C   libs */
+#include <cassert>
+/* CXX libs */
 #include <algorithm>
+
 #include "ompss.h"
 
 #ifndef OMPSS
 #include <cstdlib>
-#include <cassert>
 #endif
-
-void oss_taskwait()
-{
-    #pragma oss taskwait
-}
-
-void oss_reset_stats()
-{
-    nanos6_argo_reset_stats();
-}
  
 void *lmalloc(unsigned long size)
 {
@@ -37,6 +30,16 @@ void *dmalloc(unsigned long size)
 #else
     return malloc(size);
 #endif
+}
+
+void oss_taskwait()
+{
+    #pragma oss taskwait
+}
+
+void oss_reset_stats()
+{
+    nanos6_argo_reset_stats();
 }
 
 static void node_chunk(
