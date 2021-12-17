@@ -48,7 +48,7 @@ add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 
 find_package(Eigen3 REQUIRED)
-find_library(z REQUIRED)
+find_package(ZLIB REQUIRED)
 
 if(${ENABLE_PROFILING})
     add_definitions(-DBPMF_PROFILING)
