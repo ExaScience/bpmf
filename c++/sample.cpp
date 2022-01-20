@@ -373,9 +373,12 @@ void Sys::sample(Sys &other)
 
     Sys::dbg() << name << " -- Finished taskwait oss tasks - iter " << iter << std::endl;
 
+    // reduction to compute sum, covariance and norm
+    // ompss-2 does not support parallel reduction
     for (int i = from(); i < to(); ++i)
     {
         const VectorNd r1 = items().col(i);
+#ifdef DEBUG_OMPSS
         const VectorNd r2 = Sys::sample(i, other);
 
         if ((r1-r2).norm() > 0.0001) {
@@ -384,6 +387,7 @@ void Sys::sample(Sys &other)
                 << "\noss     : " << r1.transpose()
                 << std::endl;
         }
+#endif
 
         local_prod += (r1 * r1.transpose());
         local_sum += r1;
