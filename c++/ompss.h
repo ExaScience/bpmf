@@ -2,6 +2,9 @@
 extern "C"
 {
 
+    void oss_taskwait();
+    void oss_reset_stats();
+
     void sample_task(
         long iter,
         long idx,

@@ -112,6 +112,7 @@ struct Sys {
     static void Finalize();
     static void Abort(int);
     static void sync();
+    static void reset();
 
     static std::ostream &cout();
     static std::ostream &dbg();

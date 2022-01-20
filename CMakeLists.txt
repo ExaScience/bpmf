@@ -9,7 +9,7 @@ OPTION(ENABLE_ASAN "Enable address sanitizer" OFF)
 OPTION(ENABLE_TSAN "Enable thread sanitizer" OFF)
 
 OPTION(ENABLE_OPENMP "Enable OpenMP Support" OFF)
-OPTION(ENABLE_OMPSS "Enable OmpSS Support" OFF)
+OPTION(ENABLE_OMPSS "Enable OmpSS Support" ON)
 
 SET(BPMF_NUMLATENT 32 CACHE INT "Number of latent dimensions") 
 set(CMAKE_CXX_STANDARD 11)
@@ -48,10 +48,14 @@ add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 
 find_package(Eigen3 REQUIRED)
-find_library(z REQUIRED)
+find_package(ZLIB REQUIRED)
 
 if(${ENABLE_PROFILING})
     add_definitions(-DBPMF_PROFILING)
+endif()
+
+if(${ENABLE_OMPSS})
+    add_definitions(-DOMPSS)
 endif()
 
 include_directories(c++)

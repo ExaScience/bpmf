@@ -177,7 +177,9 @@ void Sys::Init() { }
 
 void Sys::Finalize() { } 
 
-void Sys::sync() {}
+void Sys::sync() { oss_taskwait(); }
+
+void Sys::reset() { oss_reset_stats(); }
 
 void Sys::Abort(int) { abort();  }
 

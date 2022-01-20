@@ -3,7 +3,11 @@
  * All rights reserved.
  */
 
+/* C   libs */
+#include <cassert>
+/* CXX libs */
 #include <algorithm>
+
 #include "ompss.h"
 
 #ifndef OMPSS
@@ -28,6 +32,38 @@ void *dmalloc(unsigned long size)
 #endif
 }
 
+void oss_taskwait()
+{
+    #pragma oss taskwait
+}
+
+void oss_reset_stats()
+{
+    nanos6_argo_reset_stats();
+}
+
+static void node_chunk(
+    int& chunk,
+    const int node_id,
+    const int nodes,
+    const int to,
+    const int index,
+    const int bsize
+)
+{
+    chunk = (node_id != nodes-1) ? bsize : to-index;
+}
+
+static void task_chunk(
+    int& chunk,
+    const int to,
+    const int index,
+    const int bsize
+)
+{
+    chunk = std::min(bsize, to-index-1);
+}
+
 void sample_task_scheduler(
     int from,
     int to,
@@ -47,26 +83,50 @@ void sample_task_scheduler(
     double *this_items_ptr
 )
 {
+    static const int nodes = nanos6_get_num_cluster_nodes();
 
-    const int num_tasks = 100;
-    const int num_items_per_task = (to - from) / num_tasks + 1;
+    const int num_tasks_per_node = 100;
+    const int num_items_per_node = to / nodes;
 
-    for (int i = from; i < to; i += num_items_per_task)
+    for (int node_id = 0; node_id < nodes; ++node_id)
     {
-        const int num_items_this_task = std::min(num_items_per_task, to-i-1);
+        int i = node_id*num_items_per_node, num_items_this_node;
+        node_chunk(num_items_this_node, node_id, nodes, to, i, num_items_per_node);
 
-        #pragma oss task \
-            in(this_hp_ptr[0;hp_size]) \
-            in(this_ratings_ptr[0;num_ratings]) \
-            in(this_inner_ptr[0;num_ratings]) \
-            in(this_outer_ptr[0;outer_size_plus_one]) \
-            in(other_ptr[0;other_num_items*num_latent]) \
-            out(this_items_ptr[i*num_latent;num_items_this_task*num_latent]) \
-            label("sample_task")
+        #pragma oss task                                                          \
+            weakin(this_hp_ptr     [0;hp_size])                                   \
+            weakin(this_ratings_ptr[0;num_ratings])                               \
+            weakin(this_inner_ptr  [0;num_ratings])                               \
+            weakin(this_outer_ptr  [0;outer_size_plus_one])                       \
+            weakin(other_ptr       [0;other_num_items*num_latent])                \
+            weakout(this_items_ptr [i*num_latent;num_items_this_node*num_latent]) \
+            firstprivate(i, num_tasks_per_node, num_items_this_node)              \
+            node(node_id)                                                         \
+            label("sample_weak_task")
         {
-            for (int j = i; j < i + num_items_this_task; j++)
-                sample_task(this_iter, j, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+            const int num_items_per_task = num_items_this_node / num_tasks_per_node;
+            assert(num_items_per_task > 0);
+
+            for (int j = i; j < i+num_items_this_node; j += num_items_per_task)
+            {
+                int num_items_this_task;
+                task_chunk(num_items_this_task, i+num_items_this_node, j, num_items_per_task);
+
+                #pragma oss task                                                      \
+                    in(this_hp_ptr     [0;hp_size])                                   \
+                    in(this_ratings_ptr[0;num_ratings])                               \
+                    in(this_inner_ptr  [0;num_ratings])                               \
+                    in(this_outer_ptr  [0;outer_size_plus_one])                       \
+                    in(other_ptr       [0;other_num_items*num_latent])                \
+                    out(this_items_ptr [j*num_latent;num_items_this_task*num_latent]) \
+                    firstprivate(j, num_items_this_task)                              \
+                    node(nanos6_cluster_no_offload)                                   \
+                    label("sample_strong_task")
+                {
+                    for (int k = j; k < j+num_items_this_task; k++)
+                        sample_task(this_iter, k, this_hp_ptr, other_ptr, this_ratings_ptr, this_inner_ptr, this_outer_ptr, this_items_ptr);
+                }
+            }
         }
     }
-
 }

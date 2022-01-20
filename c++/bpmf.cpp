@@ -140,19 +140,22 @@ int main(int argc, char *argv[])
 
     long double average_items_sec = .0;
     long double average_ratings_sec = .0;
-    
+
     Sys::cout() << "hostname: " << name << std::endl;
     Sys::cout() << "pid: " << getpid() << std::endl;
     if (getenv("PBS_JOBID")) Sys::cout() << "jobid: " << getenv("PBS_JOBID") << std::endl;
- 
+
     Sys::cout() << "num_latent: " << num_latent<< std::endl;
     Sys::cout() << "nsims: " << Sys::nsims << std::endl;
     Sys::cout() << "burnin: " << Sys::burnin << std::endl;
     Sys::cout() << "alpha: " << Sys::alpha << std::endl;
 
     Sys::sync();
+    Sys::reset();
 
     auto begin = tick();
+
+    std::size_t num_items, num_ratings;
 
     for(int i=0; i<Sys::nsims; ++i) {
         BPMF_COUNTER("main");
@@ -169,7 +172,7 @@ int main(int argc, char *argv[])
             users.sample(movies);
         }
 
-        { 
+        {
             BPMF_COUNTER("eval");
             movies.predict(users); 
             users.predict(movies); 
@@ -181,6 +184,9 @@ int main(int argc, char *argv[])
         movies.print(items_per_sec, ratings_per_sec, sqrt(users.norm), sqrt(movies.norm));
         average_items_sec += items_per_sec;
         average_ratings_sec += ratings_per_sec;
+
+        num_items += users.num() + movies.num();
+        num_ratings += users.nnz();
     }
 
     Sys::sync();
@@ -198,6 +204,8 @@ int main(int argc, char *argv[])
                 << "% of total items in test set)" << std::endl  << std::flush;
     Sys::cout() << "Average items/sec: " << average_items_sec / movies.iter << std::endl  << std::flush;
     Sys::cout() << "Average ratings/sec: " << average_ratings_sec / movies.iter << std::endl  << std::flush;
+    Sys::cout() << "Actual Average items/sec: " << num_items / elapsed << std::endl << std::flush;
+    Sys::cout() << "Actual Average ratings/sec: " << num_ratings / elapsed << std::endl << std::flush;
 
     perf_data_print();
     Sys::Finalize();
