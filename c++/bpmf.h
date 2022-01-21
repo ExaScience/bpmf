@@ -124,8 +124,15 @@ struct Sys {
     static void sync();
 
     static std::ostream *os, *dbgs;
-    static std::ostream &cout() { os->flush(); return *os; }
-    static std::ostream &dbg() { dbgs->flush(); return *dbgs; }
+    static std::ostream &cout() { 
+      if (!os) return std::cout;
+      os->flush(); return *os;
+    }
+
+    static std::ostream &dbg() {
+      if (!dbgs) return std::cerr;
+      dbgs->flush(); return *dbgs;
+    }
     
     //-- c'tor
     std::string name;

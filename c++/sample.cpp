@@ -17,8 +17,8 @@
 
 static const bool measure_perf = false;
 
-std::ostream *Sys::os;
-std::ostream *Sys::dbgs;
+std::ostream *Sys::os = 0;
+std::ostream *Sys::dbgs = 0;
 
 int Sys::procid = -1;
 int Sys::nprocs = -1;
