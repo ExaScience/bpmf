@@ -57,7 +57,21 @@ void ARGO_Sys::commit_index(int i)
 {
 #if defined(ARGO_SELECTIVE_RELEASE)
     auto offset = i * num_latent;
-    if (is_item_local(items_ptr+offset)) return;
+
+    // push to queue only non-local items
+    if (!is_item_local(items_ptr+offset))
+    {
+        bool push = 0;
+        for(int k = 0; k < Sys::nprocs; ++k)
+            // can filter ourselves out?
+            if (conn(i, k)) {
+                push = 1;
+                break;
+            }
+        // if no-one needs it, don't push
+        if (!push) return;
+    } else
+        return;
 
     m.lock(); queue.push_back(i); m.unlock();
 #endif
