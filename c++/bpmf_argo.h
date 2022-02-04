@@ -116,15 +116,22 @@ void ARGO_Sys::process_queue()
 
 void ARGO_Sys::sample(Sys &in)
 {
-    { BPMF_COUNTER("compute"); Sys::sample(in); }
+    {
+        BPMF_COUNTER("compute");
+        Sys::sample(in);
+    }
 
     // send remaining
     process_queue();
 
-    { BPMF_COUNTER("sync_sample"); Sys::sync(); }
-
     // reduce small structs
     reduce_sum_cov_norm();
+
+    // argodsm node-acquire
+    {
+        BPMF_COUNTER("acquire");
+        argo::backend::acquire;
+    }
 }
 
 bool ARGO_Sys::is_item_local(void *addr)
@@ -147,7 +154,8 @@ void ARGO_Sys::pop_front(int elems)
 void Sys::Init()
 {
     // global address space size - 50GiB
-    argo::init(50*1024*1024*1024UL);
+    argo::init(128*1024*1024UL,
+               128*1024*1024UL);
 
     Sys::procid = argo::node_id();
     Sys::nprocs = argo::number_of_nodes();
