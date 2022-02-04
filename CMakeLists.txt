@@ -42,6 +42,11 @@ SET_PROPERTY(CACHE ARGO_RELEASE PROPERTY STRINGS
   NODE_WIDE_RELEASE
   SELECTIVE_RELEASE)
 
+set(ARGO_ACQUIRE "NO_ACQUIRE" CACHE STRING "Acquire implementation used")
+SET_PROPERTY(CACHE ARGO_ACQUIRE PROPERTY STRINGS
+  NODE_WIDE_ACQUIRE
+  SELECTIVE_ACQUIRE)
+
 set(CMAKE_CXX_STANDARD 17)
 
 # suppress some pesky Eigen 3.3.7 warnings
@@ -77,6 +82,7 @@ message(STATUS "comm: ${BPMF_COMM}")
 
 if(BPMF_COMM MATCHES ^ARGO)
   message(STATUS "release implementation: ${ARGO_RELEASE}")
+  message(STATUS "acquire implementation: ${ARGO_ACQUIRE}")
 endif()
 
 if (ONLY_VARIANCE)
@@ -87,6 +93,7 @@ add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 add_definitions(-DBPMF_${BPMF_COMM})
 add_definitions(-DARGO_${ARGO_RELEASE})
+add_definitions(-DARGO_${ARGO_ACQUIRE})
 add_definitions(-DEIGEN_DONT_PARALLELIZE)
 
 if (ENABLE_REDUCE)

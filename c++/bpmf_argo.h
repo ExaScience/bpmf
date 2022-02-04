@@ -27,9 +27,10 @@ struct ARGO_Sys : public Sys
     void commit_index(int);
 
     //-- helpers
-    bool is_item_local(void*);
     bool are_items_adjacent(int, int);
     void pop_front(int);
+    void release();
+    void acquire();
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -58,20 +59,14 @@ void ARGO_Sys::commit_index(int i)
 #if defined(ARGO_SELECTIVE_RELEASE)
     auto offset = i * num_latent;
 
-    // push to queue only non-local items
-    if (!is_item_local(items_ptr+offset))
-    {
-        bool push = 0;
-        for(int k = 0; k < Sys::nprocs; ++k)
-            // can filter ourselves out?
-            if (conn(i, k)) {
-                push = 1;
-                break;
-            }
-        // if no-one needs it, don't push
-        if (!push) return;
-    } else
-        return;
+    bool push = 0;
+    for(int k = 0; k < nprocs; ++k)
+        if (conn(i, k)) {
+            push = 1;
+            break;
+        }
+    // if no-one needs it, don't push
+    if (!push) return;
 
     m.lock(); queue.push_back(i); m.unlock();
 #endif
@@ -83,74 +78,148 @@ void ARGO_Sys::process_queue()
     MPI_Is_thread_main(&main_thread);
     if (!main_thread) return;
 
+    // send items in buffer
     {
-        BPMF_COUNTER("process_queue");
-
-#if   defined(ARGO_NODE_WIDE_RELEASE)
-        argo::backend::release();
-#elif defined(ARGO_SELECTIVE_RELEASE)
-
-#ifdef FINE_GRAINED_SELECTIVE_RELEASE
-        int q = queue.size();
-        while (q--) {
-            auto i = queue.front();
-            m.lock(); queue.pop_front(); m.unlock();
-
-            auto offset = i * num_latent;
-            auto size = num_latent;
-            argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
-        }
-#else
-        m.lock();
-        int q = queue.size();
-        queue.sort();
-        m.unlock();
-
-        while (q) {
-            auto i = queue.front();
-            auto l = queue.begin();
-            auto r = std::next(l);
-
-            int c;
-            for (c = 1; c < q; ++c, ++l, ++r)
-                if (!are_items_adjacent(*l, *r)) break;
-            m.lock(); pop_front(c); m.unlock();
-
-            auto offset = i * num_latent;
-            auto size = c * num_latent;
-            argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
-
-            q -= c;
-        }
-#endif
-
-#endif
+        BPMF_COUNTER("release");
+        release();
     }
 }
 
 void ARGO_Sys::sample(Sys &in)
 {
+    // compute my own chunk
     {
         BPMF_COUNTER("compute");
         Sys::sample(in);
     }
 
-    // send remaining
+    // send remaining items
     process_queue();
 
     // reduce small structs
     reduce_sum_cov_norm();
 
-    // argodsm node-acquire
+    // recv necessary items
     {
         BPMF_COUNTER("acquire");
-        argo::backend::acquire;
+        acquire();
     }
 }
 
-bool ARGO_Sys::is_item_local(void *addr)
+void ARGO_Sys::release()
 {
-    return (argo::get_homenode(addr) == procid);
+#if   defined(ARGO_NODE_WIDE_RELEASE)
+    argo::backend::release();
+#elif defined(ARGO_SELECTIVE_RELEASE)
+
+#ifdef FINE_GRAINED_SELECTIVE_RELEASE
+    int q = queue.size();
+    while (q--) {
+        auto i = queue.front();
+        m.lock(); queue.pop_front(); m.unlock();
+
+        auto offset = i * num_latent;
+        auto size = num_latent;
+        argo::backend::selective_release(
+            items_ptr+offset, size*sizeof(double));
+    }
+#else
+    m.lock();
+    int q = queue.size();
+    queue.sort();
+    m.unlock();
+
+    while (q) {
+        auto i = queue.front();
+        auto l = queue.begin();
+        auto r = std::next(l);
+
+        int c;
+        for (c = 1; c < q; ++c, ++l, ++r)
+            if (!are_items_adjacent(*l, *r))
+                break;
+        m.lock(); pop_front(c); m.unlock();
+
+        auto offset = i * num_latent;
+        auto size = c * num_latent;
+        argo::backend::selective_release(
+            items_ptr+offset, size*sizeof(double));
+
+        q -= c;
+    }
+#endif
+
+#endif
+}
+
+void ARGO_Sys::acquire()
+{
+#if   defined(ARGO_NODE_WIDE_ACQUIRE)
+    argo::backend::acquire();
+#elif defined(ARGO_SELECTIVE_ACQUIRE)
+    std::vector<int> regions(4, 0);
+    int iters;
+
+    if (nprocs == 1) {
+        regions[0] = from(0);
+        regions[1] =   to(0);
+        iters = 1;
+    } else {
+        if (procid == 0) {
+            regions[0] = from(1);
+            regions[1] =   to(nprocs-1);
+            iters = 1;
+        } else if (procid == nprocs-1) {
+            regions[0] = from(0);
+            regions[1] =   to(procid-1);
+            iters = 1;
+        } else {
+            regions[0] = from(0);
+            regions[1] =   to(procid-1);
+            regions[2] = from(procid+1);
+            regions[3] =   to(nprocs-1);
+            iters = 2;
+        }
+    }
+
+#ifdef FINE_GRAINED_SELECTIVE_ACQUIRE
+    for (int it = 0; it < iters; ++it) {
+        int lo = regions[it*2];
+        int hi = regions[it*2+1];
+
+        for(int i = lo; i < hi; ++i) {
+            if (conn(i, procid)) {
+
+                auto offset = i * num_latent;
+                auto size = num_latent;
+                argo::backend::selective_acquire(
+                    items_ptr+offset, size*sizeof(double));
+            }
+        }
+    }
+#else
+    for (int it = 0; it < iters; ++it) {
+        int lo = regions[it*2];
+        int hi = regions[it*2+1];
+
+        for(int i = lo, c; i < hi; i += c) {
+            c = 1;
+            for (int k = i; k < hi-1; ++k, ++c)
+                if (!(conn(k  , procid) &&
+                      conn(k+1, procid)))
+                    break;
+
+            auto offset = i * num_latent;
+            auto size = c * num_latent;
+            argo::backend::selective_acquire(
+                items_ptr+offset, size*sizeof(double));
+        }
+    }
+#endif
+
+#else
+    Sys::sync();
+#endif
 }
 
 bool ARGO_Sys::are_items_adjacent(int l, int r)
@@ -168,8 +237,7 @@ void ARGO_Sys::pop_front(int elems)
 void Sys::Init()
 {
     // global address space size - 50GiB
-    argo::init(128*1024*1024UL,
-               128*1024*1024UL);
+    argo::init(50*1024*1024*1024UL);
 
     Sys::procid = argo::node_id();
     Sys::nprocs = argo::number_of_nodes();
