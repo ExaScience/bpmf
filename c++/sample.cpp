@@ -15,6 +15,10 @@
 #include "bpmf.h"
 #include "io.h"
 
+#ifdef ARGO_LOCALITY
+#include "argo.hpp"
+#endif
+
 static const bool measure_perf = false;
 
 std::ostream *Sys::os = 0;
@@ -347,11 +351,24 @@ void Sys::sample(Sys &other)
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
     rng_set_pos(iter); // make this consistent
-    hp.sample(num(), sum, cov);
+    sample_hp();
+    //SHOW(hp.mu.transpose());
+
+    int lo = from();
+    int hi =   to();
+
+#ifdef ARGO_LOCALITY
+    lo = from(0);
+    hi =   to(nprocs-1);
+#endif
 
 #pragma omp parallel for schedule(guided)
-    for (int i = from(); i < to(); ++i)
+    for (int i = lo; i < hi; ++i)
     {
+#ifdef ARGO_LOCALITY
+        if (argo::get_homenode(
+              items_ptr+i*num_latent) == procid)
+#endif
 #pragma omp task
         {
             auto r = sample(i, other);
