@@ -57,8 +57,6 @@ void ARGO_Sys::send_item(int i)
 void ARGO_Sys::commit_index(int i)
 {
 #if defined(ARGO_SELECTIVE_RELEASE)
-    auto offset = i * num_latent;
-
     bool push = 0;
     for(int k = 0; k < nprocs; ++k)
         if (conn(i, k)) {
@@ -164,7 +162,7 @@ void ARGO_Sys::acquire()
         regions[0] = from(0);
         regions[1] =   to(0);
         iters = 1;
-    } else {
+    } else
         if (procid == 0) {
             regions[0] = from(1);
             regions[1] =   to(nprocs-1);
@@ -180,39 +178,42 @@ void ARGO_Sys::acquire()
             regions[3] =   to(nprocs-1);
             iters = 2;
         }
-    }
 
 #ifdef FINE_GRAINED_SELECTIVE_ACQUIRE
     for (int it = 0; it < iters; ++it) {
         int lo = regions[it*2];
         int hi = regions[it*2+1];
 
-        for(int i = lo; i < hi; ++i) {
+        for(int i = lo; i < hi; ++i)
             if (conn(i, procid)) {
-
                 auto offset = i * num_latent;
                 auto size = num_latent;
                 argo::backend::selective_acquire(
                     items_ptr+offset, size*sizeof(double));
             }
-        }
     }
 #else
     for (int it = 0; it < iters; ++it) {
         int lo = regions[it*2];
         int hi = regions[it*2+1];
 
-        for(int i = lo, c; i < hi; i += c) {
-            c = 1;
-            for (int k = i; k < hi-1; ++k, ++c)
-                if (!(conn(k  , procid) &&
-                      conn(k+1, procid)))
+        for(int i = lo, c, b; i < hi; i += c+b) {
+            c = 0;
+            b = 0;
+            for (int k = i; k < hi; ++k)
+                if (conn(k, procid))
+                    ++c;
+                else {
+                    ++b;
                     break;
+                }
 
-            auto offset = i * num_latent;
-            auto size = c * num_latent;
-            argo::backend::selective_acquire(
-                items_ptr+offset, size*sizeof(double));
+            if (c > 0) {
+                auto offset = i * num_latent;
+                auto size = c * num_latent;
+                argo::backend::selective_acquire(
+                    items_ptr+offset, size*sizeof(double));
+            }
         }
     }
 #endif
