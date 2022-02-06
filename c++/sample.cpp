@@ -366,8 +366,9 @@ void Sys::sample(Sys &other)
     for (int i = lo; i < hi; ++i)
     {
 #ifdef ARGO_LOCALITY
+        // Check if the item page is local to our node
         if (argo::get_homenode(
-              items_ptr+i*num_latent) == procid)
+                    items_ptr+i*num_latent) == procid)
 #endif
 #pragma omp task
         {

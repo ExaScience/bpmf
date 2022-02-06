@@ -28,6 +28,8 @@ struct ARGO_Sys : public Sys
 
     //-- helpers
     bool are_items_adjacent(int, int);
+    bool is_item_to_acquire(int);
+    bool is_item_local(int);
     void pop_front(int);
     void release();
     void acquire();
@@ -119,7 +121,7 @@ void ARGO_Sys::release()
         auto offset = i * num_latent;
         auto size = num_latent;
         argo::backend::selective_release(
-            items_ptr+offset, size*sizeof(double));
+                items_ptr+offset, size*sizeof(double));
     }
 #else
     m.lock();
@@ -141,7 +143,7 @@ void ARGO_Sys::release()
         auto offset = i * num_latent;
         auto size = c * num_latent;
         argo::backend::selective_release(
-            items_ptr+offset, size*sizeof(double));
+                items_ptr+offset, size*sizeof(double));
 
         q -= c;
     }
@@ -158,6 +160,7 @@ void ARGO_Sys::acquire()
     std::vector<int> regions(4, 0);
     int iters;
 
+#ifndef ARGO_LOCALITY
     if (nprocs == 1) {
         regions[0] = from(0);
         regions[1] =   to(0);
@@ -178,6 +181,11 @@ void ARGO_Sys::acquire()
             regions[3] =   to(nprocs-1);
             iters = 2;
         }
+#else
+    regions[0] = from(0);
+    regions[1] =   to(nprocs-1);
+    iters = 1;
+#endif
 
 #ifdef FINE_GRAINED_SELECTIVE_ACQUIRE
     for (int it = 0; it < iters; ++it) {
@@ -185,11 +193,11 @@ void ARGO_Sys::acquire()
         int hi = regions[it*2+1];
 
         for(int i = lo; i < hi; ++i)
-            if (conn(i, procid)) {
+            if (is_item_to_acquire(i)) {
                 auto offset = i * num_latent;
                 auto size = num_latent;
                 argo::backend::selective_acquire(
-                    items_ptr+offset, size*sizeof(double));
+                        items_ptr+offset, size*sizeof(double));
             }
     }
 #else
@@ -201,7 +209,7 @@ void ARGO_Sys::acquire()
             c = 0;
             b = 0;
             for (int k = i; k < hi; ++k)
-                if (conn(k, procid))
+                if (is_item_to_acquire(k))
                     ++c;
                 else {
                     ++b;
@@ -212,7 +220,7 @@ void ARGO_Sys::acquire()
                 auto offset = i * num_latent;
                 auto size = c * num_latent;
                 argo::backend::selective_acquire(
-                    items_ptr+offset, size*sizeof(double));
+                        items_ptr+offset, size*sizeof(double));
             }
         }
     }
@@ -226,6 +234,21 @@ void ARGO_Sys::acquire()
 bool ARGO_Sys::are_items_adjacent(int l, int r)
 {
     return (l == r-1);
+}
+
+bool ARGO_Sys::is_item_to_acquire(int index)
+{
+#ifndef ARGO_LOCALITY
+    return (conn(index, procid));
+#else
+    return (!is_item_local(index));
+#endif
+}
+
+bool ARGO_Sys::is_item_local(int index)
+{
+    return (argo::get_homenode(
+                items_ptr+index*num_latent) == procid);
 }
 
 void ARGO_Sys::pop_front(int elems)
