@@ -17,10 +17,10 @@ mcc_ompss.o: $(ROOT)/ompss.cpp $(TOPDIR)/Makefile.common Makefile $(HRDS)
 %.o: $(ROOT)/%.cpp $(TOPDIR)/Makefile.common Makefile $(HDRS)
 	g++ -c $(CXXFLAGS) $< -o $@
 
-mcc_bpmf: $(OBJS) mcc_ompss.o
+bpmf: $(OBJS) mcc_ompss.o
 	mcxx $^ $(MCXXFLAGS) $(LDFLAGS) -o $@
 
-bpmf: $(OBJS) ompss.o
+plain_bpmf: $(OBJS) ompss.o
 	g++ $^ $(LDFLAGS) -o $@
 
 clean:
