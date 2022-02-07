@@ -10,7 +10,7 @@
 	# Choose whether the runtime runs with debug symbols and internal asserts. Enabling this option
 	# may produce significant overheads, so production or performance executions should disable this
 	# option. Default is false
-	debug = false
+	debug = true
 	# Choose the dependency system implementation. Default is "discrete"
 	# Possible values: "discrete", "regions"
 	dependencies = "regions"
@@ -237,7 +237,7 @@
 
 [loader]
 	# Enable verbose output of the loader, to debug dynamic linking problems. Default is false
-	verbose = false
+	verbose = true
 	# Choose whether to print a warning when there is any invalid NANOS6 environment variables
 	# defined when running a program. Default is true
 	warn_envars = true
