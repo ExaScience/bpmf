@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <mpi.h>
+#include <mutex>
 
 #include <GASPI.h>
 #include <GASPI_Ext.h>
@@ -145,7 +146,7 @@ void GASPI_Sys::send_item(int i)
     process_queue();
 }
 
-void MPI_Sys::process_queue() 
+void GASPI_Sys::process_queue() 
 {
 
     int main_thread;
