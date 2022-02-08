@@ -214,6 +214,18 @@ void Sys::init()
         if (count > breakpoint2) count_larger_bp2++;
     }
 
+#ifdef ARGO_LOCALITY
+    for (int k = 0; k < num(); ++k)
+        if (argo::get_homenode(
+                    items_ptr+k*num_latent) == procid)
+            items_local.push_back(k);
+        else
+            items_remote.push_back(k);
+
+    std::sort(items_local.begin(), items_local.end());
+    std::sort(items_remote.begin(), items_remote.end());
+#endif
+
     Sys::cout() << "mean rating: " << mean_rating << std::endl;
     Sys::cout() << "total number of ratings in train: " << M.nonZeros() << std::endl;
     Sys::cout() << "total number of ratings in test: " << T.nonZeros() << std::endl;
@@ -354,22 +366,14 @@ void Sys::sample(Sys &other)
     sample_hp();
     //SHOW(hp.mu.transpose());
 
-    int lo = from();
-    int hi =   to();
-
-#ifdef ARGO_LOCALITY
-    lo = from(0);
-    hi =   to(nprocs-1);
-#endif
 
 #pragma omp parallel for schedule(guided)
-    for (int i = lo; i < hi; ++i)
-    {
-#ifdef ARGO_LOCALITY
-        // Check if the item page is local to our node
-        if (argo::get_homenode(
-                    items_ptr+i*num_latent) == procid)
+#ifndef ARGO_LOCALITY
+    for (int i = from(); i < to(); ++i)
+#else
+    for (int i : items_local)
 #endif
+    {
 #pragma omp task
         {
             auto r = sample(i, other);

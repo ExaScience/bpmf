@@ -191,6 +191,10 @@ struct Sys {
 
     //-- factors of the MF
     double* items_ptr;
+#ifdef ARGO_LOCALITY
+    std::vector<int> items_local;
+    std::vector<int> items_remote;
+#endif
     MapNXd items() const { return MapNXd(items_ptr, num_latent, num()); }
     VectorNd sample(long idx, Sys &in);
     void preComputeMuLambda(const Sys &other);
