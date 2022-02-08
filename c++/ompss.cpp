@@ -39,7 +39,7 @@ void oss_taskwait()
 
 void oss_reset_stats()
 {
-    nanos6_argo_reset_stats();
+   // nanos6_argo_reset_stats();
 }
 
 static void node_chunk(
