@@ -202,10 +202,10 @@ int main(int argc, char *argv[])
             movies.bcast();
             if (Sys::procid == 0)
             {
-            write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
-            write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
+                write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
+                write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
+            }
         }
-    }
     }
 
     Sys::sync();
