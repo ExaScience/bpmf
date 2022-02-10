@@ -359,13 +359,16 @@ void Sys::sample(Sys &other)
     sample_hp();
     //SHOW(hp.mu.transpose());
 
+    std::vector<int> items_v(to() - from());
+    std::iota(std::begin(items_v), std::end(items_v), from());
+    std::vector<int>* items_p = &items_v;
+#ifdef ARGO_LOCALITY
+    items_p = &items_local;
+#endif
+
 
 #pragma omp parallel for schedule(guided)
-#ifndef ARGO_LOCALITY
-    for (int i = from(); i < to(); ++i)
-#else
-    for (int i : items_local)
-#endif
+    for (int i : *items_p)
     {
 #pragma omp task
         {
