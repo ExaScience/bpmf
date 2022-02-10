@@ -6,6 +6,13 @@
 #include <mpi.h>
 #include "argo.hpp"
 
+#if !defined(ARGO_LOCALITY)   && \
+     defined(ARGO_NO_RELEASE) && \
+    (defined(ARGO_NODE_WIDE_ACQUIRE) || \
+     defined(ARGO_SELECTIVE_ACQUIRE))
+#error This coherence operations combination violates correctness.
+#endif
+
 #define SYS ARGO_Sys
 
 struct ARGO_Sys : public Sys
@@ -28,9 +35,9 @@ struct ARGO_Sys : public Sys
 
     //-- helpers
     bool are_items_adjacent(int, int);
+    void acquire(Sys &in);
     void pop_front(int);
     void release();
-    void acquire();
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -47,8 +54,7 @@ void ARGO_Sys::alloc_and_init()
 
 void ARGO_Sys::send_item(int i)
 {
-#if defined(ARGO_NODE_WIDE_RELEASE) || \
-    defined(ARGO_SELECTIVE_RELEASE)
+#ifdef ARGO_SELECTIVE_RELEASE
     commit_index(i);
     process_queue();
 #endif
@@ -56,7 +62,7 @@ void ARGO_Sys::send_item(int i)
 
 void ARGO_Sys::commit_index(int i)
 {
-#if defined(ARGO_SELECTIVE_RELEASE)
+#ifdef ARGO_SELECTIVE_RELEASE
     bool push = 0;
     for(int k = 0; k < nprocs; ++k)
         if (conn(i, k)) {
@@ -85,6 +91,20 @@ void ARGO_Sys::process_queue()
 
 void ARGO_Sys::sample(Sys &in)
 {
+// because of the order
+// movies.sample(users)
+// users.sample(movies)
+#ifdef ARGO_VERIFICATION
+    if(!name.compare("movs"))
+        MPI_Barrier(MPI_COMM_WORLD);
+#endif
+
+    // recv necessary items
+    {
+        BPMF_COUNTER("acquire");
+        acquire(in);
+    }
+
     // compute my own chunk
     {
         BPMF_COUNTER("compute");
@@ -94,14 +114,19 @@ void ARGO_Sys::sample(Sys &in)
     // send remaining items
     process_queue();
 
+    // w8 release to finish
+    MPI_Barrier(MPI_COMM_WORLD);
+
     // reduce small structs
     reduce_sum_cov_norm();
 
-    // recv necessary items
-    {
-        BPMF_COUNTER("acquire");
-        acquire();
-    }
+// because of the order
+// movies.sample(users)
+// users.sample(movies)
+#ifdef ARGO_VERIFICATION
+    if(!name.compare("users"))
+        acquire(*this);
+#endif
 }
 
 void ARGO_Sys::release()
@@ -150,7 +175,7 @@ void ARGO_Sys::release()
 #endif
 }
 
-void ARGO_Sys::acquire()
+void ARGO_Sys::acquire(Sys &in)
 {
 #if   defined(ARGO_NODE_WIDE_ACQUIRE)
     argo::backend::acquire();
@@ -161,23 +186,23 @@ void ARGO_Sys::acquire()
     int iters;
 
     if (nprocs == 1) {
-        regions.at(0) = from(0);
-        regions.at(1) =   to(0);
+        regions.at(0) = in.from(0);
+        regions.at(1) =   in.to(0);
         iters = 1;
     } else
         if (procid == 0) {
-            regions.at(0) = from(1);
-            regions.at(1) =   to(nprocs-1);
+            regions.at(0) = in.from(1);
+            regions.at(1) =   in.to(nprocs-1);
             iters = 1;
         } else if (procid == nprocs-1) {
-            regions.at(0) = from(0);
-            regions.at(1) =   to(procid-1);
+            regions.at(0) = in.from(0);
+            regions.at(1) =   in.to(procid-1);
             iters = 1;
         } else {
-            regions.at(0) = from(0);
-            regions.at(1) =   to(procid-1);
-            regions.at(2) = from(procid+1);
-            regions.at(3) =   to(nprocs-1);
+            regions.at(0) = in.from(0);
+            regions.at(1) =   in.to(procid-1);
+            regions.at(2) = in.from(procid+1);
+            regions.at(3) =   in.to(nprocs-1);
             iters = 2;
         }
 #endif
@@ -190,19 +215,19 @@ void ARGO_Sys::acquire()
         int hi = regions.at(it*2+1);
 
         for(int i = lo; i < hi; ++i)
-            if (conn(i, procid)) {
+            if (in.conn(i, procid)) {
                 auto offset = i * num_latent;
                 auto size = num_latent;
                 argo::backend::selective_acquire(
-                        items_ptr+offset, size*sizeof(double));
+                        in.items_ptr+offset, size*sizeof(double));
             }
     }
 #else
-    for (int i : items_remote) {
+    for (int i : in.items_remote) {
         auto offset = i * num_latent;
         auto size = num_latent;
         argo::backend::selective_acquire(
-                items_ptr+offset, size*sizeof(double));
+                in.items_ptr+offset, size*sizeof(double));
     }
 #endif
 
@@ -217,7 +242,7 @@ void ARGO_Sys::acquire()
             c = 0;
             b = 0;
             for (int k = i; k < hi; ++k)
-                if (conn(k, procid))
+                if (in.conn(k, procid))
                     ++c;
                 else {
                     ++b;
@@ -228,25 +253,25 @@ void ARGO_Sys::acquire()
                 auto offset = i * num_latent;
                 auto size = c * num_latent;
                 argo::backend::selective_acquire(
-                        items_ptr+offset, size*sizeof(double));
+                        in.items_ptr+offset, size*sizeof(double));
             }
         }
     }
 #else
     int lo = 0;
-    int hi = items_remote.size();
+    int hi = in.items_remote.size();
 
     for (int i = lo, c; i < hi; i += c) {
         c = 1;
         for (int k = i; k < hi-1; ++k, ++c)
             if (!are_items_adjacent(
-                        items_remote.at(k), items_remote.at(k+1)))
+                        in.items_remote.at(k), in.items_remote.at(k+1)))
                 break;
 
-        auto offset = items_remote.at(i) * num_latent;
+        auto offset = in.items_remote.at(i) * num_latent;
         auto size = c * num_latent;
         argo::backend::selective_acquire(
-                items_ptr+offset, size*sizeof(double));
+                in.items_ptr+offset, size*sizeof(double));
     }
 #endif
 
