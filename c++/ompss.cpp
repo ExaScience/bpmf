@@ -39,7 +39,9 @@ void oss_taskwait()
 
 void oss_reset_stats()
 {
-   // nanos6_argo_reset_stats();
+#ifdef CLUSTER_ARGO
+   nanos6_argo_reset_stats();
+#endif
 }
 
 static void node_chunk(
