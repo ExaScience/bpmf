@@ -238,7 +238,7 @@ struct Sys {
     void register_time(int i, double t);
 
     // Argo's locality information
-#ifdef ARGO_LOCALITY
+#ifdef BPMF_ARGO_COMM
     std::vector<int> items_local;
     std::vector<int> items_remote;
 #endif
