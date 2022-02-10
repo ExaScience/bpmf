@@ -45,16 +45,16 @@ struct ARGO_Sys : public Sys
     void ssd_coarse_grained_conn();
 
     //-- acquire
-    void acquire(Sys&);
+    void acquire();
     void node_wide_acquire();
-    void ssi_fine_grained_conn(Sys&);
-    void ssi_coarse_grained_conn(Sys&);
-    void ssi_fine_grained_remote(Sys&);
-    void ssi_coarse_grained_remote(Sys&);
+    void ssi_fine_grained_conn();
+    void ssi_coarse_grained_conn();
+    void ssi_fine_grained_remote();
+    void ssi_coarse_grained_remote();
 
     int region_chunks;
     std::vector<int> regions;
-    void setup_regions(Sys&);
+    void setup_regions();
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -117,12 +117,6 @@ void ARGO_Sys::sample(Sys& in)
         MPI_Barrier(MPI_COMM_WORLD);
 #endif
 
-    // recv necessary items
-    {
-        BPMF_COUNTER("acquire");
-        acquire(in);
-    }
-
     // compute my own chunk
     {
         BPMF_COUNTER("compute");
@@ -138,13 +132,11 @@ void ARGO_Sys::sample(Sys& in)
     // reduce small structs
     reduce_sum_cov_norm();
 
-    // because of the order
-    // movies.sample(users)
-    // users.sample(movies)
-#ifdef ARGO_VERIFICATION
-    if(!name.compare("users"))
-        acquire(*this);
-#endif
+    // recv necessary items
+    {
+        BPMF_COUNTER("acquire");
+        acquire();
+    }
 }
 
 void ARGO_Sys::release()
@@ -162,27 +154,27 @@ void ARGO_Sys::release()
 #endif
 }
 
-void ARGO_Sys::acquire(Sys& in)
+void ARGO_Sys::acquire()
 {
 #if   defined(ARGO_NODE_WIDE_ACQUIRE)
     node_wide_acquire();
 #elif defined(ARGO_SELECTIVE_ACQUIRE)
 
 #ifndef ARGO_LOCALITY
-    setup_regions(in);
+    setup_regions();
 #endif
 
 #ifdef FINE_GRAINED_SELECTIVE_ACQUIRE
 #ifndef ARGO_LOCALITY
-    ssi_fine_grained_conn(in);
+    ssi_fine_grained_conn();
 #else
-    ssi_fine_grained_remote(in);
+    ssi_fine_grained_remote();
 #endif
 #else
 #ifndef ARGO_LOCALITY
-    ssi_coarse_grained_conn(in);
+    ssi_coarse_grained_conn();
 #else
-    ssi_coarse_grained_remote(in);
+    ssi_coarse_grained_remote();
 #endif
 #endif
 
@@ -242,23 +234,23 @@ void ARGO_Sys::node_wide_acquire()
     argo::backend::acquire();
 }
 
-void ARGO_Sys::ssi_fine_grained_conn(Sys& in)
+void ARGO_Sys::ssi_fine_grained_conn()
 {
     for (int it = 0; it < region_chunks; ++it) {
         int lo = regions.at(it*2);
         int hi = regions.at(it*2+1);
 
         for(int i = lo; i < hi; ++i)
-            if (in.conn(i, procid)) {
+            if (conn(i, procid)) {
                 auto offset = i * num_latent;
                 auto size = num_latent;
                 argo::backend::selective_acquire(
-                        in.items_ptr+offset, size*sizeof(double));
+                        items_ptr+offset, size*sizeof(double));
             }
     }
 }
 
-void ARGO_Sys::ssi_coarse_grained_conn(Sys& in)
+void ARGO_Sys::ssi_coarse_grained_conn()
 {
     for (int it = 0; it < region_chunks; ++it) {
         int lo = regions.at(it*2);
@@ -268,7 +260,7 @@ void ARGO_Sys::ssi_coarse_grained_conn(Sys& in)
             c = 0;
             b = 0;
             for (int k = i; k < hi; ++k)
-                if (in.conn(k, procid))
+                if (conn(k, procid))
                     ++c;
                 else {
                     ++b;
@@ -279,66 +271,66 @@ void ARGO_Sys::ssi_coarse_grained_conn(Sys& in)
                 auto offset = i * num_latent;
                 auto size = c * num_latent;
                 argo::backend::selective_acquire(
-                        in.items_ptr+offset, size*sizeof(double));
+                        items_ptr+offset, size*sizeof(double));
             }
         }
     }
 }
 
-void ARGO_Sys::ssi_fine_grained_remote(Sys& in)
+void ARGO_Sys::ssi_fine_grained_remote()
 {
-    for (int i : in.items_remote) {
+    for (int i : items_remote) {
         auto offset = i * num_latent;
         auto size = num_latent;
         argo::backend::selective_acquire(
-                in.items_ptr+offset, size*sizeof(double));
+                items_ptr+offset, size*sizeof(double));
     }
 }
 
-void ARGO_Sys::ssi_coarse_grained_remote(Sys& in)
+void ARGO_Sys::ssi_coarse_grained_remote()
 {
     int lo = 0;
-    int hi = in.items_remote.size();
+    int hi = items_remote.size();
 
     for (int i = lo, c; i < hi; i += c) {
         c = 1;
         for (int k = i; k < hi-1; ++k, ++c)
             if (!are_items_adjacent(
-                        in.items_remote.at(k), in.items_remote.at(k+1)))
+                        items_remote.at(k), items_remote.at(k+1)))
                 break;
 
-        auto offset = in.items_remote.at(i) * num_latent;
+        auto offset = items_remote.at(i) * num_latent;
         auto size = c * num_latent;
         argo::backend::selective_acquire(
-                in.items_ptr+offset, size*sizeof(double));
+                items_ptr+offset, size*sizeof(double));
     }
 }
 
-void ARGO_Sys::setup_regions(Sys& in)
+void ARGO_Sys::setup_regions()
 {
     if (nprocs == 1) {
         region_chunks = 1;
         regions.resize(2*region_chunks);
-        regions.at(0) = in.from(0);
-        regions.at(1) =   in.to(0);
+        regions.at(0) = from(0);
+        regions.at(1) =   to(0);
     } else
         if (procid == 0) {
             region_chunks = 1;
             regions.resize(2*region_chunks);
-            regions.at(0) = in.from(1);
-            regions.at(1) =   in.to(nprocs-1);
+            regions.at(0) = from(1);
+            regions.at(1) =   to(nprocs-1);
         } else if (procid == nprocs-1) {
             region_chunks = 1;
             regions.resize(2*region_chunks);
-            regions.at(0) = in.from(0);
-            regions.at(1) =   in.to(procid-1);
+            regions.at(0) = from(0);
+            regions.at(1) =   to(procid-1);
         } else {
             region_chunks = 2;
             regions.resize(2*region_chunks);
-            regions.at(0) = in.from(0);
-            regions.at(1) =   in.to(procid-1);
-            regions.at(2) = in.from(procid+1);
-            regions.at(3) =   in.to(nprocs-1);
+            regions.at(0) = from(0);
+            regions.at(1) =   to(procid-1);
+            regions.at(2) = from(procid+1);
+            regions.at(3) =   to(nprocs-1);
         }
 }
 
