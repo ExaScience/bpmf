@@ -37,6 +37,7 @@ struct ARGO_Sys : public Sys
     bool are_items_adjacent(int, int);
     void acquire(Sys &in);
     void pop_front(int);
+    void init_vectors();
     void release();
 };
 
@@ -50,6 +51,7 @@ void ARGO_Sys::alloc_and_init()
     items_ptr = argo::conew_array<double>(num_latent * num());
 
     init();
+    init_vectors();
 }
 
 void ARGO_Sys::send_item(int i)
@@ -292,6 +294,21 @@ void ARGO_Sys::pop_front(int elems)
     auto beg = queue.begin();
     auto end = std::next(beg, elems);
     queue.erase(beg, end);
+}
+
+void ARGO_Sys::init_vectors()
+{
+#ifdef ARGO_LOCALITY
+    for (int k = 0; k < num(); ++k)
+        if (argo::get_homenode(
+                    items_ptr+k*num_latent) == procid)
+            items_local.push_back(k);
+        else
+            items_remote.push_back(k);
+
+    std::sort(items_local.begin(), items_local.end());
+    std::sort(items_remote.begin(), items_remote.end());
+#endif
 }
 
 void Sys::Init()
