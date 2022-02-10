@@ -15,10 +15,6 @@
 #include "bpmf.h"
 #include "io.h"
 
-#ifdef ARGO_LOCALITY
-#include "argo.hpp"
-#endif
-
 static const bool measure_perf = false;
 
 std::ostream *Sys::os = 0;
