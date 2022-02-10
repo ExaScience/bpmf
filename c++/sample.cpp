@@ -57,19 +57,24 @@ void Sys::predict(Sys& other, bool all)
     double se_avg(0.0); // squared avg err
     int nump = 0; // number of predictions
 
-    int lo = from();
-    int hi = to();
+    std::vector<int> items_v(to() - from());
+    std::iota(std::begin(items_v), std::end(items_v), from());
+    std::vector<int>* items_p = &items_v;
+#ifdef ARGO_LOCALITY
+    items_p = &items_local;
+#endif
     if (all) {
 #ifdef BPMF_REDUCE
         Sys::cout() << "WARNING: predict all items in test set not available in BPMF_REDUCE mode" << std::endl;
 #else
-        lo = 0;
-        hi = num();
+        items_v.resize(num());
+        std::iota(std::begin(items_v), std::end(items_v), 0);
+        items_p = &items_v;
 #endif
     }
 
     #pragma omp parallel for reduction(+:se,se_avg,nump)
-    for(int k = lo; k<hi; k++) {
+    for(int k : *items_p) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
 #ifdef BPMF_REDUCE
