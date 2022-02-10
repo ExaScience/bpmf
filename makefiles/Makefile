@@ -6,10 +6,14 @@ include $(TOPDIR)/Makefile.common
 
 MCXXFLAGS=-K --ompss-2 -Wno-deprecated-declarations -DOMPSS
 
+ifeq ($(CLUSTER_BACKEND), "ARGO")
+CXXFLAGS += -DCLUSTER_ARGO
+endif
+
 OBJS = mvnormal.o bpmf.o sample.o counters.o io.o gzstream.o 
 HRDS = $(ROOT)/bpmf.h $(ROOT)/counters.h $(ROOT)/error.h $(ROOT)/gzstream.h $(ROOT)/io.h
 
-all: mcc_bpmf bpmf
+all: bpmf
 
 mcc_ompss.o: $(ROOT)/ompss.cpp $(TOPDIR)/Makefile.common Makefile $(HRDS)
 	mcxx -c $(MCXXFLAGS) $(CXXFLAGS) $< -o $@
@@ -19,9 +23,6 @@ mcc_ompss.o: $(ROOT)/ompss.cpp $(TOPDIR)/Makefile.common Makefile $(HRDS)
 
 bpmf: $(OBJS) mcc_ompss.o
 	mcxx $^ $(MCXXFLAGS) $(LDFLAGS) -o $@
-
-plain_bpmf: $(OBJS) ompss.o
-	g++ $^ $(LDFLAGS) -o $@
 
 clean:
 	rm -f */*.o *.o */*.d *.d

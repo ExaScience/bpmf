@@ -6,6 +6,11 @@ CXXFLAGS+=-Wno-unknown-pragmas
 CXXFLAGS+=-Wno-unused-local-typedefs
 CXXFLAGS+=-I/usr/local/include/eigen3
 CXXFLAGS+=-DEIGEN_DONT_PARALLELIZE
+
+ifeq ($(BPMF_NUMLATENT), "")
+$(error "You need to set BPMF_NUMLATENT"
+endif
+
 CXXFLAGS+=-DBPMF_NUMLATENT=$(BPMF_NUMLATENT)
 
 #CXXFLAGS+=-w -O3 -g -DNDEBUG
