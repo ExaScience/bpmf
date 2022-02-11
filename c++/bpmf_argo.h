@@ -60,6 +60,7 @@ struct ARGO_Sys : public Sys
     void coarse_grained_acquire_r();
 
     //-- acquire (remote regions)
+    bool init_once{0};
     int region_chunks;
     std::vector<int> regions;
 };
@@ -232,7 +233,10 @@ void ARGO_Sys::node_wide_acquire()
 void ARGO_Sys::fine_grained_acquire()
 {
 #ifndef ARGO_LOCALITY
-    init_regions();
+    if (!init_once) {
+        init_regions();
+        init_once = 1;
+    }
     fine_grained_acquire_c();
 #else
     fine_grained_acquire_r();
@@ -242,7 +246,10 @@ void ARGO_Sys::fine_grained_acquire()
 void ARGO_Sys::coarse_grained_acquire()
 {
 #ifndef ARGO_LOCALITY
-    init_regions();
+    if (!init_once) {
+        init_regions();
+        init_once = 1;
+    }
     coarse_grained_acquire_c();
 #else
     coarse_grained_acquire_r();
