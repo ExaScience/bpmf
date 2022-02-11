@@ -36,25 +36,32 @@ struct ARGO_Sys : public Sys
     //-- helpers
     bool are_items_adjacent(int, int);
     void pop_front(int);
-    void init_vectors();
 
     //-- release
     void release();
     void node_wide_release();
-    void ssd_fine_grained_conn();
-    void ssd_coarse_grained_conn();
+    void fine_grained_release();
+    void coarse_grained_release();
 
     //-- acquire
     void acquire();
     void node_wide_acquire();
-    void ssi_fine_grained_conn();
-    void ssi_coarse_grained_conn();
-    void ssi_fine_grained_remote();
-    void ssi_coarse_grained_remote();
+    void fine_grained_acquire();
+    void coarse_grained_acquire();
 
+    //-- acquire (by conn matrix)
+    void init_regions();
+    void fine_grained_acquire_c();
+    void coarse_grained_acquire_c();
+
+    //-- acquire (do remote data)
+    void init_vectors();
+    void fine_grained_acquire_r();
+    void coarse_grained_acquire_r();
+
+    //-- acquire (remote regions)
     int region_chunks;
     std::vector<int> regions;
-    void setup_regions();
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -146,9 +153,9 @@ void ARGO_Sys::release()
 #elif defined(ARGO_SELECTIVE_RELEASE)
 
 #ifdef FINE_GRAINED_SELECTIVE_RELEASE
-    ssd_fine_grained_conn();
+    fine_grained_release();
 #else
-    ssd_coarse_grained_conn();
+    coarse_grained_release();
 #endif
 
 #endif
@@ -160,22 +167,10 @@ void ARGO_Sys::acquire()
     node_wide_acquire();
 #elif defined(ARGO_SELECTIVE_ACQUIRE)
 
-#ifndef ARGO_LOCALITY
-    setup_regions();
-#endif
-
 #ifdef FINE_GRAINED_SELECTIVE_ACQUIRE
-#ifndef ARGO_LOCALITY
-    ssi_fine_grained_conn();
+    fine_grained_acquire();
 #else
-    ssi_fine_grained_remote();
-#endif
-#else
-#ifndef ARGO_LOCALITY
-    ssi_coarse_grained_conn();
-#else
-    ssi_coarse_grained_remote();
-#endif
+    coarse_grained_acquire();
 #endif
 
 #else
@@ -188,7 +183,7 @@ void ARGO_Sys::node_wide_release()
     argo::backend::release();
 }
 
-void ARGO_Sys::ssd_fine_grained_conn()
+void ARGO_Sys::fine_grained_release()
 {
     int q = queue.size();
     while (q--) {
@@ -202,7 +197,7 @@ void ARGO_Sys::ssd_fine_grained_conn()
     }
 }
 
-void ARGO_Sys::ssd_coarse_grained_conn()
+void ARGO_Sys::coarse_grained_release()
 {
     m.lock();
     int q = queue.size();
@@ -234,7 +229,57 @@ void ARGO_Sys::node_wide_acquire()
     argo::backend::acquire();
 }
 
-void ARGO_Sys::ssi_fine_grained_conn()
+void ARGO_Sys::fine_grained_acquire()
+{
+#ifndef ARGO_LOCALITY
+    init_regions();
+    fine_grained_acquire_c();
+#else
+    fine_grained_acquire_r();
+#endif
+}
+
+void ARGO_Sys::coarse_grained_acquire()
+{
+#ifndef ARGO_LOCALITY
+    init_regions();
+    coarse_grained_acquire_c();
+#else
+    coarse_grained_acquire_r();
+#endif
+}
+
+void ARGO_Sys::init_regions()
+{
+#ifndef ARGO_LOCALITY
+    if (nprocs == 1) {
+        region_chunks = 1;
+        regions.resize(2*region_chunks);
+        regions.at(0) = from(0);
+        regions.at(1) =   to(0);
+    } else
+        if (procid == 0) {
+            region_chunks = 1;
+            regions.resize(2*region_chunks);
+            regions.at(0) = from(1);
+            regions.at(1) =   to(nprocs-1);
+        } else if (procid == nprocs-1) {
+            region_chunks = 1;
+            regions.resize(2*region_chunks);
+            regions.at(0) = from(0);
+            regions.at(1) =   to(procid-1);
+        } else {
+            region_chunks = 2;
+            regions.resize(2*region_chunks);
+            regions.at(0) = from(0);
+            regions.at(1) =   to(procid-1);
+            regions.at(2) = from(procid+1);
+            regions.at(3) =   to(nprocs-1);
+        }
+#endif
+}
+
+void ARGO_Sys::fine_grained_acquire_c()
 {
     for (int it = 0; it < region_chunks; ++it) {
         int lo = regions.at(it*2);
@@ -250,7 +295,7 @@ void ARGO_Sys::ssi_fine_grained_conn()
     }
 }
 
-void ARGO_Sys::ssi_coarse_grained_conn()
+void ARGO_Sys::coarse_grained_acquire_c()
 {
     for (int it = 0; it < region_chunks; ++it) {
         int lo = regions.at(it*2);
@@ -277,7 +322,22 @@ void ARGO_Sys::ssi_coarse_grained_conn()
     }
 }
 
-void ARGO_Sys::ssi_fine_grained_remote()
+void ARGO_Sys::init_vectors()
+{
+#ifdef ARGO_LOCALITY
+    for (int k = 0; k < num(); ++k)
+        if (argo::get_homenode(
+                    items_ptr+k*num_latent) == procid)
+            items_local.push_back(k);
+        else
+            items_remote.push_back(k);
+
+    std::sort(items_local.begin(), items_local.end());
+    std::sort(items_remote.begin(), items_remote.end());
+#endif
+}
+
+void ARGO_Sys::fine_grained_acquire_r()
 {
     for (int i : items_remote) {
         auto offset = i * num_latent;
@@ -287,7 +347,7 @@ void ARGO_Sys::ssi_fine_grained_remote()
     }
 }
 
-void ARGO_Sys::ssi_coarse_grained_remote()
+void ARGO_Sys::coarse_grained_acquire_r()
 {
     int lo = 0;
     int hi = items_remote.size();
@@ -306,34 +366,6 @@ void ARGO_Sys::ssi_coarse_grained_remote()
     }
 }
 
-void ARGO_Sys::setup_regions()
-{
-    if (nprocs == 1) {
-        region_chunks = 1;
-        regions.resize(2*region_chunks);
-        regions.at(0) = from(0);
-        regions.at(1) =   to(0);
-    } else
-        if (procid == 0) {
-            region_chunks = 1;
-            regions.resize(2*region_chunks);
-            regions.at(0) = from(1);
-            regions.at(1) =   to(nprocs-1);
-        } else if (procid == nprocs-1) {
-            region_chunks = 1;
-            regions.resize(2*region_chunks);
-            regions.at(0) = from(0);
-            regions.at(1) =   to(procid-1);
-        } else {
-            region_chunks = 2;
-            regions.resize(2*region_chunks);
-            regions.at(0) = from(0);
-            regions.at(1) =   to(procid-1);
-            regions.at(2) = from(procid+1);
-            regions.at(3) =   to(nprocs-1);
-        }
-}
-
 bool ARGO_Sys::are_items_adjacent(int l, int r)
 {
     return (l == r-1);
@@ -344,21 +376,6 @@ void ARGO_Sys::pop_front(int elems)
     auto beg = queue.begin();
     auto end = std::next(beg, elems);
     queue.erase(beg, end);
-}
-
-void ARGO_Sys::init_vectors()
-{
-#ifdef ARGO_LOCALITY
-    for (int k = 0; k < num(); ++k)
-        if (argo::get_homenode(
-                    items_ptr+k*num_latent) == procid)
-            items_local.push_back(k);
-        else
-            items_remote.push_back(k);
-
-    std::sort(items_local.begin(), items_local.end());
-    std::sort(items_remote.begin(), items_remote.end());
-#endif
 }
 
 void Sys::Init()
