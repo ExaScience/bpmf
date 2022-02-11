@@ -88,7 +88,6 @@ void ARGO_Sys::send_item(int i)
 
 void ARGO_Sys::commit_index(int i)
 {
-#ifdef ARGO_SELECTIVE_RELEASE
     bool push = 0;
     for(int k = 0; k < nprocs; ++k)
         if (conn(i, k)) {
@@ -99,7 +98,6 @@ void ARGO_Sys::commit_index(int i)
     if (!push) return;
 
     m.lock(); queue.push_back(i); m.unlock();
-#endif
 }
 
 void ARGO_Sys::process_queue()
@@ -258,7 +256,6 @@ void ARGO_Sys::coarse_grained_acquire()
 
 void ARGO_Sys::init_regions()
 {
-#ifndef ARGO_LOCALITY
     if (nprocs == 1) {
         region_chunks = 1;
         regions.resize(2*region_chunks);
@@ -283,7 +280,6 @@ void ARGO_Sys::init_regions()
             regions.at(2) = from(procid+1);
             regions.at(3) =   to(nprocs-1);
         }
-#endif
 }
 
 void ARGO_Sys::fine_grained_acquire_c()
@@ -331,7 +327,6 @@ void ARGO_Sys::coarse_grained_acquire_c()
 
 void ARGO_Sys::init_vectors()
 {
-#ifdef ARGO_LOCALITY
     for (int k = 0; k < num(); ++k)
         if (argo::get_homenode(
                     items_ptr+k*num_latent) == procid)
@@ -341,7 +336,6 @@ void ARGO_Sys::init_vectors()
 
     std::sort(items_local.begin(), items_local.end());
     std::sort(items_remote.begin(), items_remote.end());
-#endif
 }
 
 void ARGO_Sys::fine_grained_acquire_r()
