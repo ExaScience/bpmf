@@ -53,24 +53,19 @@ void Sys::predict(Sys& other, bool all)
     double se_avg(0.0); // squared avg err
     int nump = 0; // number of predictions
 
-    std::vector<int> items_v(to() - from());
-    std::iota(std::begin(items_v), std::end(items_v), from());
-    std::vector<int>* items_p = &items_v;
-#ifdef ARGO_LOCALITY
-    items_p = &items_local;
-#endif
+    int lo = from();
+    int hi = to();
     if (all) {
 #ifdef BPMF_REDUCE
         Sys::cout() << "WARNING: predict all items in test set not available in BPMF_REDUCE mode" << std::endl;
 #else
-        items_v.resize(num());
-        std::iota(std::begin(items_v), std::end(items_v), 0);
-        items_p = &items_v;
+        lo = 0;
+        hi = num();
 #endif
     }
 
     #pragma omp parallel for reduction(+:se,se_avg,nump)
-    for(int k : *items_p) {
+    for(int k = lo; k<hi; k++) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(T,k); it; ++it)
         {
 #ifdef BPMF_REDUCE
@@ -352,19 +347,10 @@ void Sys::sample(Sys &other)
     thread_vector<MatrixNNd> prods(MatrixNNd::Zero()); // outer prod
 
     rng_set_pos(iter); // make this consistent
-    sample_hp();
-    //SHOW(hp.mu.transpose());
-
-    std::vector<int> items_v(to() - from());
-    std::iota(std::begin(items_v), std::end(items_v), from());
-    std::vector<int>* items_p = &items_v;
-#ifdef ARGO_LOCALITY
-    items_p = &items_local;
-#endif
-
+    hp.sample(num(), sum, cov);
 
 #pragma omp parallel for schedule(guided)
-    for (int i : *items_p)
+    for (int i = from(); i < to(); ++i)
     {
 #pragma omp task
         {

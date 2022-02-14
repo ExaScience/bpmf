@@ -6,8 +6,7 @@
 #include <mpi.h>
 #include "argo.hpp"
 
-#if !defined(ARGO_LOCALITY)   && \
-     defined(ARGO_NO_RELEASE) && \
+#if defined(ARGO_NO_RELEASE) && \
     (defined(ARGO_NODE_WIDE_ACQUIRE) || \
      defined(ARGO_SELECTIVE_ACQUIRE))
 #error This coherence operations combination violates correctness.
@@ -49,20 +48,11 @@ struct ARGO_Sys : public Sys
     void fine_grained_acquire();
     void coarse_grained_acquire();
 
-    //-- acquire (by conn matrix)
-    void init_regions();
-    void fine_grained_acquire_c();
-    void coarse_grained_acquire_c();
-
-    //-- acquire (do remote data)
-    void init_vectors();
-    void fine_grained_acquire_r();
-    void coarse_grained_acquire_r();
-
-    //-- acquire (remote regions)
+    //-- acquire
     bool init_once{0};
     int region_chunks;
     std::vector<int> regions;
+    void init_regions();
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -75,7 +65,6 @@ void ARGO_Sys::alloc_and_init()
     items_ptr = argo::conew_array<double>(num_latent * num());
 
     init();
-    init_vectors();
 }
 
 void ARGO_Sys::send_item(int i)
@@ -230,28 +219,55 @@ void ARGO_Sys::node_wide_acquire()
 
 void ARGO_Sys::fine_grained_acquire()
 {
-#ifndef ARGO_LOCALITY
     if (!init_once) {
         init_regions();
         init_once = 1;
     }
-    fine_grained_acquire_c();
-#else
-    fine_grained_acquire_r();
-#endif
+
+    for (int it = 0; it < region_chunks; ++it) {
+        int lo = regions.at(it*2);
+        int hi = regions.at(it*2+1);
+
+        for(int i = lo; i < hi; ++i)
+            if (conn(i, procid)) {
+                auto offset = i * num_latent;
+                auto size = num_latent;
+                argo::backend::selective_acquire(
+                        items_ptr+offset, size*sizeof(double));
+            }
+    }
 }
 
 void ARGO_Sys::coarse_grained_acquire()
 {
-#ifndef ARGO_LOCALITY
     if (!init_once) {
         init_regions();
         init_once = 1;
     }
-    coarse_grained_acquire_c();
-#else
-    coarse_grained_acquire_r();
-#endif
+
+    for (int it = 0; it < region_chunks; ++it) {
+        int lo = regions.at(it*2);
+        int hi = regions.at(it*2+1);
+
+        for(int i = lo, c, b; i < hi; i += c+b) {
+            c = 0;
+            b = 0;
+            for (int k = i; k < hi; ++k)
+                if (conn(k, procid))
+                    ++c;
+                else {
+                    ++b;
+                    break;
+                }
+
+            if (c > 0) {
+                auto offset = i * num_latent;
+                auto size = c * num_latent;
+                argo::backend::selective_acquire(
+                        items_ptr+offset, size*sizeof(double));
+            }
+        }
+    }
 }
 
 void ARGO_Sys::init_regions()
@@ -280,91 +296,6 @@ void ARGO_Sys::init_regions()
             regions.at(2) = from(procid+1);
             regions.at(3) =   to(nprocs-1);
         }
-}
-
-void ARGO_Sys::fine_grained_acquire_c()
-{
-    for (int it = 0; it < region_chunks; ++it) {
-        int lo = regions.at(it*2);
-        int hi = regions.at(it*2+1);
-
-        for(int i = lo; i < hi; ++i)
-            if (conn(i, procid)) {
-                auto offset = i * num_latent;
-                auto size = num_latent;
-                argo::backend::selective_acquire(
-                        items_ptr+offset, size*sizeof(double));
-            }
-    }
-}
-
-void ARGO_Sys::coarse_grained_acquire_c()
-{
-    for (int it = 0; it < region_chunks; ++it) {
-        int lo = regions.at(it*2);
-        int hi = regions.at(it*2+1);
-
-        for(int i = lo, c, b; i < hi; i += c+b) {
-            c = 0;
-            b = 0;
-            for (int k = i; k < hi; ++k)
-                if (conn(k, procid))
-                    ++c;
-                else {
-                    ++b;
-                    break;
-                }
-
-            if (c > 0) {
-                auto offset = i * num_latent;
-                auto size = c * num_latent;
-                argo::backend::selective_acquire(
-                        items_ptr+offset, size*sizeof(double));
-            }
-        }
-    }
-}
-
-void ARGO_Sys::init_vectors()
-{
-    for (int k = 0; k < num(); ++k)
-        if (argo::get_homenode(
-                    items_ptr+k*num_latent) == procid)
-            items_local.push_back(k);
-        else
-            items_remote.push_back(k);
-
-    std::sort(items_local.begin(), items_local.end());
-    std::sort(items_remote.begin(), items_remote.end());
-}
-
-void ARGO_Sys::fine_grained_acquire_r()
-{
-    for (int i : items_remote) {
-        auto offset = i * num_latent;
-        auto size = num_latent;
-        argo::backend::selective_acquire(
-                items_ptr+offset, size*sizeof(double));
-    }
-}
-
-void ARGO_Sys::coarse_grained_acquire_r()
-{
-    int lo = 0;
-    int hi = items_remote.size();
-
-    for (int i = lo, c; i < hi; i += c) {
-        c = 1;
-        for (int k = i; k < hi-1; ++k, ++c)
-            if (!are_items_adjacent(
-                        items_remote.at(k), items_remote.at(k+1)))
-                break;
-
-        auto offset = items_remote.at(i) * num_latent;
-        auto size = c * num_latent;
-        argo::backend::selective_acquire(
-                items_ptr+offset, size*sizeof(double));
-    }
 }
 
 bool ARGO_Sys::are_items_adjacent(int l, int r)

@@ -236,14 +236,20 @@ struct Sys {
     // performance counting
     std::vector<double> sample_time;
     void register_time(int i, double t);
-
-    // Argo's locality information
-#ifdef BPMF_ARGO_COMM
-    std::vector<int> items_local;
-    std::vector<int> items_remote;
-#endif
 };
 
+inline void argo_data_init(Sys& movies, Sys& users)
+{
+#ifdef BPMF_ARGO_COMM
+    VectorNd zz = VectorNd::Zero();
+
+    int i;
+    for (i = movies.from(); i < movies.to(); ++i)
+        movies.items().col(i) = zz;
+    for (i = users.from();  i < users.to();  ++i)
+        users.items().col(i)  = zz;
+#endif
+}
 
 
 const int breakpoint1 = 24; 

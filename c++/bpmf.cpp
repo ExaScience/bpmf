@@ -151,6 +151,7 @@ int main(int argc, char *argv[])
 
     threads::init(nthrds);
     perf_data_init();
+    argo_data_init(movies, users);
 
     long double average_items_sec = .0;
     long double average_ratings_sec = .0;
