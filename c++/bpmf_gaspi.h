@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <mpi.h>
+#include <mutex>
 
 #include <GASPI.h>
 #include <GASPI_Ext.h>
@@ -102,6 +103,11 @@ struct GASPI_Sys : public Sys
         return do_comm(Sys::procid, to);
     }
 
+    //-- process_queue queue with protecting mutex
+    std::mutex m;
+    std::list<int> queue;
+    void process_queue();
+
 };
 
 GASPI_Sys::~GASPI_Sys()
@@ -134,13 +140,39 @@ void GASPI_Sys::alloc_and_init()
 void GASPI_Sys::send_item(int i)
 {
     BPMF_COUNTER("send_item");
-    for (int k = 0; k < Sys::nprocs; k++)
+    m.lock(); queue.push_back(i); m.unlock();
+
+    process_queue();
+}
+
+void GASPI_Sys::process_queue() 
+{
+
+    int main_thread;
+    MPI_Is_thread_main(&main_thread);
+    if (!main_thread) return;
+
     {
-        if (!do_send(k)) continue;
-        if (!conn(i, k)) continue;
-        auto offset = i * num_latent * sizeof(double);
-        auto size = num_latent * sizeof(double);
-        SUCCESS_OR_RETRY(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
+        BPMF_COUNTER("process_queue");
+
+
+        int q = queue.size();
+        while (q--) {
+            m.lock();
+            int i = queue.front();
+            queue.pop_front();
+            m.unlock();
+
+            for (int k = 0; k < Sys::nprocs; k++)
+            {
+                if (!do_send(k)) continue;
+                if (!conn(i, k)) continue;
+
+                auto offset = i * num_latent * sizeof(double);
+                auto size = num_latent * sizeof(double);
+                SUCCESS_OR_RETRY(gaspi_write(items_seg, offset, k, items_seg, offset, size, 0, GASPI_BLOCK));
+            }
+        }
     }
 }
 
@@ -150,6 +182,8 @@ void GASPI_Sys::sample(Sys &in)
         BPMF_COUNTER("compute");
         Sys::sample(in);
     }
+
+    process_queue();
 
     {
         BPMF_COUNTER("notify");
