@@ -21,7 +21,7 @@ struct ARGO_Sys : public Sys
     ARGO_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
     ~ARGO_Sys();
 
-    //-- virtuals
+    //-- virtual functions
     virtual void sample(Sys&);
     virtual void send_item(int);
     virtual void alloc_and_init();
@@ -32,27 +32,21 @@ struct ARGO_Sys : public Sys
     void commit_index(int);
     void process_queue();
 
-    //-- helpers
-    bool are_items_adjacent(int, int);
-    void pop_front(int);
-
-    //-- release
+    //-- release functions
     void release();
     void node_wide_release();
     void fine_grained_release();
     void coarse_grained_release();
 
-    //-- acquire
+    //-- acquire functions
     void acquire();
     void node_wide_acquire();
     void fine_grained_acquire();
     void coarse_grained_acquire();
 
-    //-- acquire
-    bool init_once{0};
-    int region_chunks;
-    std::vector<int> regions;
-    void init_regions();
+    //-- helper functions
+    void pop_front(int);
+    static bool are_items_adjacent(int, int);
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -122,7 +116,10 @@ void ARGO_Sys::sample(Sys& in)
     process_queue();
 
     // w8 release to finish
-    MPI_Barrier(MPI_COMM_WORLD);
+    {
+        BPMF_COUNTER("barrier");
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 
     // reduce small structs
     reduce_sum_cov_norm();
@@ -175,11 +172,11 @@ void ARGO_Sys::fine_grained_release()
 {
     int q = queue.size();
     while (q--) {
-        auto i = queue.front();
+        const auto i = queue.front();
         m.lock(); queue.pop_front(); m.unlock();
 
-        auto offset = i * num_latent;
-        auto size = num_latent;
+        const auto offset = i * num_latent;
+        const auto size = num_latent;
         argo::backend::selective_release(
                 items_ptr+offset, size*sizeof(double));
     }
@@ -193,9 +190,9 @@ void ARGO_Sys::coarse_grained_release()
     m.unlock();
 
     while (q) {
-        auto i = queue.front();
-        auto l = queue.begin();
-        auto r = std::next(l);
+        const auto i = queue.front();
+              auto l = queue.begin();
+              auto r = std::next(l);
 
         int c;
         for (c = 1; c < q; ++c, ++l, ++r)
@@ -203,8 +200,8 @@ void ARGO_Sys::coarse_grained_release()
                 break;
         m.lock(); pop_front(c); m.unlock();
 
-        auto offset = i * num_latent;
-        auto size = c * num_latent;
+        const auto offset = i * num_latent;
+        const auto size = c * num_latent;
         argo::backend::selective_release(
                 items_ptr+offset, size*sizeof(double));
 
@@ -219,83 +216,77 @@ void ARGO_Sys::node_wide_acquire()
 
 void ARGO_Sys::fine_grained_acquire()
 {
-    if (!init_once) {
-        init_regions();
-        init_once = 1;
-    }
+    const int lo = from(0);
+    const int hi =   to(nprocs-1);
+    const int my_lo = from(procid);
+    const int my_hi =   to(procid);
 
-    for (int it = 0; it < region_chunks; ++it) {
-        int lo = regions.at(it*2);
-        int hi = regions.at(it*2+1);
+    for(int i = lo; i < hi; ++i) {
+        // if currently in my region
+        if (i >= my_lo && i < my_hi) {
+            // jump to next region
+            i += my_hi - my_lo - 1;
+            continue;
+        }
 
-        for(int i = lo; i < hi; ++i)
-            if (conn(i, procid)) {
-                auto offset = i * num_latent;
-                auto size = num_latent;
-                argo::backend::selective_acquire(
-                        items_ptr+offset, size*sizeof(double));
-            }
+        if (conn(i, procid)) {
+            const auto offset = i * num_latent;
+            const auto size = num_latent;
+            argo::backend::selective_acquire(
+                    items_ptr+offset, size*sizeof(double));
+        }
     }
 }
 
 void ARGO_Sys::coarse_grained_acquire()
 {
-    if (!init_once) {
-        init_regions();
-        init_once = 1;
-    }
+    const int lo = from(0);
+    const int hi =   to(nprocs-1);
+    const int my_lo = from(procid);
+    const int my_hi =   to(procid);
 
-    for (int it = 0; it < region_chunks; ++it) {
-        int lo = regions.at(it*2);
-        int hi = regions.at(it*2+1);
+    auto ssi = [&](
+            const auto idx, const auto num) {
+        const auto offset = idx * num_latent;
+        const auto size = num * num_latent;
+        argo::backend::selective_acquire(
+                items_ptr+offset, size*sizeof(double));
+    };
 
-        for(int i = lo, c, b; i < hi; i += c+b) {
-            c = 0;
-            b = 0;
-            for (int k = i; k < hi; ++k)
-                if (conn(k, procid))
-                    ++c;
-                else {
-                    ++b;
-                    break;
-                }
-
-            if (c > 0) {
-                auto offset = i * num_latent;
-                auto size = c * num_latent;
-                argo::backend::selective_acquire(
-                        items_ptr+offset, size*sizeof(double));
-            }
+    int s{-1}, c{0};
+    for(int i = lo; i < hi; ++i) {
+        // if currently in my region
+        if (i >= my_lo && i < my_hi) {
+            // ssi leftover items
+            if (c)
+                ssi(s, c);
+            // reset vars
+            s = -1;
+            c =  0;
+            // jump to next region
+            i += my_hi - my_lo - 1;
+            continue;
         }
-    }
-}
 
-void ARGO_Sys::init_regions()
-{
-    if (nprocs == 1) {
-        region_chunks = 1;
-        regions.resize(2*region_chunks);
-        regions.at(0) = from(0);
-        regions.at(1) =   to(0);
-    } else
-        if (procid == 0) {
-            region_chunks = 1;
-            regions.resize(2*region_chunks);
-            regions.at(0) = from(1);
-            regions.at(1) =   to(nprocs-1);
-        } else if (procid == nprocs-1) {
-            region_chunks = 1;
-            regions.resize(2*region_chunks);
-            regions.at(0) = from(0);
-            regions.at(1) =   to(procid-1);
+        // if conn between item-node
+        if (conn(i, procid)) {
+            // set stamp
+            if (s == -1)
+                s = i;
+            // inc count
+            ++c;
+            // corner case
+            if (i == hi-1)
+                ssi(s, c);
         } else {
-            region_chunks = 2;
-            regions.resize(2*region_chunks);
-            regions.at(0) = from(0);
-            regions.at(1) =   to(procid-1);
-            regions.at(2) = from(procid+1);
-            regions.at(3) =   to(nprocs-1);
+            // streak broke
+            if (c > 0)
+                ssi(s, c);
+            // reset vars
+            s = -1;
+            c =  0;
         }
+    }
 }
 
 bool ARGO_Sys::are_items_adjacent(int l, int r)
@@ -305,8 +296,8 @@ bool ARGO_Sys::are_items_adjacent(int l, int r)
 
 void ARGO_Sys::pop_front(int elems)
 {
-    auto beg = queue.begin();
-    auto end = std::next(beg, elems);
+    const auto beg = queue.begin();
+    const auto end = std::next(beg, elems);
     queue.erase(beg, end);
 }
 
