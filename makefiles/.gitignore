@@ -1,4 +1,5 @@
 *.o
 mcxx_*.cpp
+mcc_*.c
 bpmf
 mcc_bpmf

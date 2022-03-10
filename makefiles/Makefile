@@ -4,7 +4,7 @@ ROOT=$(TOPDIR)/c++
 
 include $(TOPDIR)/Makefile.common
 
-MCXXFLAGS=-K --ompss-2 -Wno-deprecated-declarations -DOMPSS
+MCCFLAGS=-K --ompss-2 -Wno-deprecated-declarations -DOMPSS
 
 ifeq ($(CLUSTER_BACKEND), "ARGO")
 CXXFLAGS += -DCLUSTER_ARGO
@@ -15,14 +15,14 @@ HRDS = $(ROOT)/bpmf.h $(ROOT)/counters.h $(ROOT)/error.h $(ROOT)/gzstream.h $(RO
 
 all: bpmf
 
-mcc_ompss.o: $(ROOT)/ompss.cpp $(TOPDIR)/Makefile.common Makefile $(HRDS)
-	mcxx -c $(MCXXFLAGS) $(CXXFLAGS) $< -o $@
+mcc_ompss.o: $(ROOT)/ompss.c $(TOPDIR)/Makefile.common Makefile $(HRDS)
+	mcc -c $(MCCFLAGS) $(CFLAGS) $< -o $@
 
 %.o: $(ROOT)/%.cpp $(TOPDIR)/Makefile.common Makefile $(HDRS)
-	g++ -c $(CXXFLAGS) $< -o $@
+	g++ -c $(CFLAGS) $(CXXFLAGS) $< -o $@
 
 bpmf: $(OBJS) mcc_ompss.o
-	mcxx $^ $(MCXXFLAGS) $(LDFLAGS) -o $@
+	mcxx $^ $(MCCFLAGS) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@
 
 clean:
 	rm -f */*.o *.o */*.d *.d

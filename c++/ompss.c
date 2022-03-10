@@ -4,14 +4,12 @@
  */
 
 /* C   libs */
-#include <cassert>
-/* CXX libs */
-#include <algorithm>
+#include <assert.h>
 
 #include "ompss.h"
 
 #ifndef OMPSS
-#include <cstdlib>
+#include <stdlib.h>
 #endif
  
 void *lmalloc(unsigned long size)
@@ -45,7 +43,7 @@ void oss_reset_stats()
 }
 
 static void node_chunk(
-    int& chunk,
+    int *chunk,
     const int node_id,
     const int nodes,
     const int to,
@@ -53,17 +51,21 @@ static void node_chunk(
     const int bsize
 )
 {
-    chunk = (node_id != nodes-1) ? bsize : to-index;
+    *chunk = (node_id != nodes-1) ? bsize : to-index;
 }
 
 static void task_chunk(
-    int& chunk,
+    int *chunk,
     const int to,
     const int index,
     const int bsize
 )
 {
-    chunk = std::min(bsize, to-index-1);
+#define MIN(a,b) (((a)<(b))?(a):(b))
+
+    *chunk = MIN(bsize, to-index-1);
+
+#undef MIN
 }
 
 void sample_task_scheduler(
@@ -85,7 +87,7 @@ void sample_task_scheduler(
     double *this_items_ptr
 )
 {
-    static const int nodes = nanos6_get_num_cluster_nodes();
+    int nodes = nanos6_get_num_cluster_nodes();
 
     const int num_tasks_per_node = 100;
     const int num_items_per_node = to / nodes;
@@ -93,7 +95,7 @@ void sample_task_scheduler(
     for (int node_id = 0; node_id < nodes; ++node_id)
     {
         int i = node_id*num_items_per_node, num_items_this_node;
-        node_chunk(num_items_this_node, node_id, nodes, to, i, num_items_per_node);
+        node_chunk(&num_items_this_node, node_id, nodes, to, i, num_items_per_node);
 
         #pragma oss task                                                          \
             weakin(this_hp_ptr     [0;hp_size])                                   \
@@ -112,7 +114,7 @@ void sample_task_scheduler(
             for (int j = i; j < i+num_items_this_node; j += num_items_per_task)
             {
                 int num_items_this_task;
-                task_chunk(num_items_this_task, i+num_items_this_node, j, num_items_per_task);
+                task_chunk(&num_items_this_task, i+num_items_this_node, j, num_items_per_task);
 
                 #pragma oss task                                                      \
                     in(this_hp_ptr     [0;hp_size])                                   \

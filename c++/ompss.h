@@ -1,6 +1,8 @@
 
+#ifdef __cplusplus
 extern "C"
 {
+#endif
 
     void oss_taskwait();
     void oss_reset_stats();
@@ -37,4 +39,6 @@ extern "C"
 
     void *dmalloc(unsigned long size);
 
+#ifdef __cplusplus
 } /* extern C */
+#endif
