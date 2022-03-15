@@ -6,6 +6,12 @@
 #include <mpi.h>
 #include "argo.hpp"
 
+#if defined(ARGO_NO_RELEASE) && \
+    (defined(ARGO_NODE_WIDE_ACQUIRE) || \
+     defined(ARGO_SELECTIVE_ACQUIRE))
+#error This coherence operations combination violates correctness.
+#endif
+
 #define SYS ARGO_Sys
 
 struct ARGO_Sys : public Sys
@@ -15,21 +21,32 @@ struct ARGO_Sys : public Sys
     ARGO_Sys(std::string name, const SparseMatrixD &M, const SparseMatrixD &P) : Sys(name, M, P) {}
     ~ARGO_Sys();
 
-    //-- virtuals
+    //-- virtual functions
+    virtual void sample(Sys&);
     virtual void send_item(int);
-    virtual void sample(Sys &in);
     virtual void alloc_and_init();
 
     //-- process_queue queue with protecting mutex
     std::mutex m;
     std::list<int> queue;
-    void process_queue();
     void commit_index(int);
+    void process_queue();
 
-    //-- helpers
-    bool is_item_local(void*);
-    bool are_items_adjacent(int, int);
+    //-- release functions
+    void release();
+    void node_wide_release();
+    void fine_grained_release();
+    void coarse_grained_release();
+
+    //-- acquire functions
+    void acquire();
+    void node_wide_acquire();
+    void fine_grained_acquire();
+    void coarse_grained_acquire();
+
+    //-- helper functions
     void pop_front(int);
+    static bool are_items_adjacent(int, int);
 };
 
 ARGO_Sys::~ARGO_Sys()
@@ -46,8 +63,7 @@ void ARGO_Sys::alloc_and_init()
 
 void ARGO_Sys::send_item(int i)
 {
-#if defined(ARGO_NODE_WIDE_RELEASE) || \
-    defined(ARGO_SELECTIVE_RELEASE)
+#ifdef ARGO_SELECTIVE_RELEASE
     commit_index(i);
     process_queue();
 #endif
@@ -55,12 +71,16 @@ void ARGO_Sys::send_item(int i)
 
 void ARGO_Sys::commit_index(int i)
 {
-#if defined(ARGO_SELECTIVE_RELEASE)
-    auto offset = i * num_latent;
-    if (is_item_local(items_ptr+offset)) return;
+    bool push = 0;
+    for(int k = 0; k < nprocs; ++k)
+        if (conn(i, k)) {
+            push = 1;
+            break;
+        }
+    // if no-one needs it, don't push
+    if (!push) return;
 
     m.lock(); queue.push_back(i); m.unlock();
-#endif
 }
 
 void ARGO_Sys::process_queue()
@@ -69,67 +89,204 @@ void ARGO_Sys::process_queue()
     MPI_Is_thread_main(&main_thread);
     if (!main_thread) return;
 
+    // send items in buffer
     {
-        BPMF_COUNTER("process_queue");
-
-#if   defined(ARGO_NODE_WIDE_RELEASE)
-        argo::backend::release();
-#elif defined(ARGO_SELECTIVE_RELEASE)
-
-#ifdef FINE_GRAINED_SELECTIVE_RELEASE
-        int q = queue.size();
-        while (q--) {
-            auto i = queue.front();
-            m.lock(); queue.pop_front(); m.unlock();
-
-            auto offset = i * num_latent;
-            auto size = num_latent;
-            argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
-        }
-#else
-        m.lock();
-        int q = queue.size();
-        queue.sort();
-        m.unlock();
-
-        while (q) {
-            auto i = queue.front();
-            auto l = queue.begin();
-            auto r = std::next(l);
-
-            int c;
-            for (c = 1; c < q; ++c, ++l, ++r)
-                if (!are_items_adjacent(*l, *r)) break;
-            m.lock(); pop_front(c); m.unlock();
-
-            auto offset = i * num_latent;
-            auto size = c * num_latent;
-            argo::backend::selective_release(items_ptr+offset, size*sizeof(double));
-
-            q -= c;
-        }
-#endif
-
-#endif
+        BPMF_COUNTER("release");
+        release();
     }
 }
 
-void ARGO_Sys::sample(Sys &in)
+void ARGO_Sys::sample(Sys& in)
 {
-    { BPMF_COUNTER("compute"); Sys::sample(in); }
+    // because of the order
+    // movies.sample(users)
+    // users.sample(movies)
+#ifdef ARGO_VERIFICATION
+    if(!name.compare("movs"))
+        MPI_Barrier(MPI_COMM_WORLD);
+#endif
 
-    // send remaining
+    // compute my own chunk
+    {
+        BPMF_COUNTER("compute");
+        Sys::sample(in);
+    }
+
+    // send remaining items
     process_queue();
 
-    { BPMF_COUNTER("sync_sample"); Sys::sync(); }
+    // w8 release to finish
+    {
+        BPMF_COUNTER("barrier");
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 
     // reduce small structs
     reduce_sum_cov_norm();
+
+    // recv necessary items
+    {
+        BPMF_COUNTER("acquire");
+        acquire();
+    }
 }
 
-bool ARGO_Sys::is_item_local(void *addr)
+void ARGO_Sys::release()
 {
-    return (argo::get_homenode(addr) == procid);
+#if   defined(ARGO_NODE_WIDE_RELEASE)
+    node_wide_release();
+#elif defined(ARGO_SELECTIVE_RELEASE)
+
+#ifdef FINE_GRAINED_SELECTIVE_RELEASE
+    fine_grained_release();
+#else
+    coarse_grained_release();
+#endif
+
+#endif
+}
+
+void ARGO_Sys::acquire()
+{
+#if   defined(ARGO_NODE_WIDE_ACQUIRE)
+    node_wide_acquire();
+#elif defined(ARGO_SELECTIVE_ACQUIRE)
+
+#ifdef FINE_GRAINED_SELECTIVE_ACQUIRE
+    fine_grained_acquire();
+#else
+    coarse_grained_acquire();
+#endif
+
+#else
+    Sys::sync();
+#endif
+}
+
+void ARGO_Sys::node_wide_release()
+{
+    argo::backend::release();
+}
+
+void ARGO_Sys::fine_grained_release()
+{
+    int q = queue.size();
+    while (q--) {
+        const auto i = queue.front();
+        m.lock(); queue.pop_front(); m.unlock();
+
+        const auto offset = i * num_latent;
+        const auto size = num_latent;
+        argo::backend::selective_release(
+                items_ptr+offset, size*sizeof(double));
+    }
+}
+
+void ARGO_Sys::coarse_grained_release()
+{
+    m.lock();
+    int q = queue.size();
+    queue.sort();
+    m.unlock();
+
+    while (q) {
+        const auto i = queue.front();
+              auto l = queue.begin();
+              auto r = std::next(l);
+
+        int c;
+        for (c = 1; c < q; ++c, ++l, ++r)
+            if (!are_items_adjacent(*l, *r))
+                break;
+        m.lock(); pop_front(c); m.unlock();
+
+        const auto offset = i * num_latent;
+        const auto size = c * num_latent;
+        argo::backend::selective_release(
+                items_ptr+offset, size*sizeof(double));
+
+        q -= c;
+    }
+}
+
+void ARGO_Sys::node_wide_acquire()
+{
+    argo::backend::acquire();
+}
+
+void ARGO_Sys::fine_grained_acquire()
+{
+    const int lo = from(0);
+    const int hi =   to(nprocs-1);
+    const int my_lo = from(procid);
+    const int my_hi =   to(procid);
+
+    for(int i = lo; i < hi; ++i) {
+        // if currently in my region
+        if (i >= my_lo && i < my_hi) {
+            // jump to next region
+            i += my_hi - my_lo - 1;
+            continue;
+        }
+
+        if (conn(i, procid)) {
+            const auto offset = i * num_latent;
+            const auto size = num_latent;
+            argo::backend::selective_acquire(
+                    items_ptr+offset, size*sizeof(double));
+        }
+    }
+}
+
+void ARGO_Sys::coarse_grained_acquire()
+{
+    const int lo = from(0);
+    const int hi =   to(nprocs-1);
+    const int my_lo = from(procid);
+    const int my_hi =   to(procid);
+
+    auto ssi = [&](
+            const auto idx, const auto num) {
+        const auto offset = idx * num_latent;
+        const auto size = num * num_latent;
+        argo::backend::selective_acquire(
+                items_ptr+offset, size*sizeof(double));
+    };
+
+    int s{-1}, c{0};
+    for(int i = lo; i < hi; ++i) {
+        // if currently in my region
+        if (i >= my_lo && i < my_hi) {
+            // ssi leftover items
+            if (c)
+                ssi(s, c);
+            // reset vars
+            s = -1;
+            c =  0;
+            // jump to next region
+            i += my_hi - my_lo - 1;
+            continue;
+        }
+
+        // if conn between item-node
+        if (conn(i, procid)) {
+            // set stamp
+            if (s == -1)
+                s = i;
+            // inc count
+            ++c;
+            // corner case
+            if (i == hi-1)
+                ssi(s, c);
+        } else {
+            // streak broke
+            if (c > 0)
+                ssi(s, c);
+            // reset vars
+            s = -1;
+            c =  0;
+        }
+    }
 }
 
 bool ARGO_Sys::are_items_adjacent(int l, int r)
@@ -139,8 +296,8 @@ bool ARGO_Sys::are_items_adjacent(int l, int r)
 
 void ARGO_Sys::pop_front(int elems)
 {
-    auto beg = queue.begin();
-    auto end = std::next(beg, elems);
+    const auto beg = queue.begin();
+    const auto end = std::next(beg, elems);
     queue.erase(beg, end);
 }
 

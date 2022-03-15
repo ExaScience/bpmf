@@ -151,6 +151,7 @@ int main(int argc, char *argv[])
 
     threads::init(nthrds);
     perf_data_init();
+    argo_data_init(movies, users);
 
     long double average_items_sec = .0;
     long double average_ratings_sec = .0;
@@ -202,10 +203,10 @@ int main(int argc, char *argv[])
             movies.bcast();
             if (Sys::procid == 0)
             {
-            write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
-            write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
+                write_matrix(Sys::odirname + "/U-" + std::to_string(i) + ".ddm", users.items());
+                write_matrix(Sys::odirname + "/V-" + std::to_string(i) + ".ddm", movies.items());
+            }
         }
-    }
     }
 
     Sys::sync();

@@ -238,6 +238,18 @@ struct Sys {
     void register_time(int i, double t);
 };
 
+inline void argo_data_init(Sys& movies, Sys& users)
+{
+#ifdef BPMF_ARGO_COMM
+    VectorNd zz = VectorNd::Zero();
+
+    int i;
+    for (i = movies.from(); i < movies.to(); ++i)
+        movies.items().col(i) = zz;
+    for (i = users.from();  i < users.to();  ++i)
+        users.items().col(i)  = zz;
+#endif
+}
 
 
 const int breakpoint1 = 24; 

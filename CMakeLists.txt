@@ -25,6 +25,8 @@ OPTION(ENABLE_REDUCE "Reduce Mu/Lambda version" OFF)
 SET(BPMF_NUMLATENT 32 CACHE STRING "Number of latent dimensions") 
 OPTION(ONLY_VARIANCE "Only compute variance, not covariance" OFF)
 
+OPTION(ENABLE_VERIFICATION "Enable verification for ArgoDSM" ON)
+
 SET(BPMF_COMM "NO_COMM" CACHE STRING "Communication library used")
 SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS 
   GPI_COMM 
@@ -37,10 +39,17 @@ SET_PROPERTY(CACHE BPMF_COMM PROPERTY STRINGS
   ARGO_COMM 
   NO_COMM)
 
-set(ARGO_RELEASE "NO_RELEASE" CACHE STRING "Release implementation used")
+set(ARGO_RELEASE "NODE_WIDE_RELEASE" CACHE STRING "Release implementation used")
 SET_PROPERTY(CACHE ARGO_RELEASE PROPERTY STRINGS
+  NO_RELEASE
   NODE_WIDE_RELEASE
   SELECTIVE_RELEASE)
+
+set(ARGO_ACQUIRE "NODE_WIDE_ACQUIRE" CACHE STRING "Acquire implementation used")
+SET_PROPERTY(CACHE ARGO_ACQUIRE PROPERTY STRINGS
+  NO_ACQUIRE
+  NODE_WIDE_ACQUIRE
+  SELECTIVE_ACQUIRE)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -77,6 +86,8 @@ message(STATUS "comm: ${BPMF_COMM}")
 
 if(BPMF_COMM MATCHES ^ARGO)
   message(STATUS "release implementation: ${ARGO_RELEASE}")
+  message(STATUS "acquire implementation: ${ARGO_ACQUIRE}")
+  message(STATUS "verify implementation: ${ENABLE_VERIFICATION}")
 endif()
 
 if (ONLY_VARIANCE)
@@ -86,8 +97,15 @@ endif()
 add_definitions(-DBPMF_VERSION=\"${BPMF_VERSION}\")
 add_definitions(-DBPMF_NUMLATENT=${BPMF_NUMLATENT})
 add_definitions(-DBPMF_${BPMF_COMM})
-add_definitions(-DARGO_${ARGO_RELEASE})
 add_definitions(-DEIGEN_DONT_PARALLELIZE)
+
+if(BPMF_COMM MATCHES ^ARGO)
+  add_definitions(-DARGO_${ARGO_RELEASE})
+  add_definitions(-DARGO_${ARGO_ACQUIRE})
+  if (ENABLE_VERIFICATION)
+    add_definitions(-DARGO_VERIFICATION)
+  endif()
+endif()
 
 if (ENABLE_REDUCE)
   add_definitions(-DBPMF_REDUCE)
