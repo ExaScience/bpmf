@@ -13,8 +13,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      OMPI_MCA_btl: tcp,self
     strategy:
       matrix:
         flags: 
