@@ -1,7 +1,7 @@
 BPMF
 ====
 
-|Travis Build Status| 
+|GitHub Actions Build Status| 
 
 Julia and C++ implementations of Bayesian Probabilistic Matrix Factorization
 using Markov Chain Monte Carlo. BPMF is a recommender method that allows to
@@ -104,5 +104,5 @@ Acknowledgements
 Over the course of the last 5 years, this work has been supported by the EU H2020 FET-HPC projects
 EPEEC (contract #801051), ExCAPE (contract #671555) and EXA2CT (contract #610741), and the Flemish Exaptation project.
 
-.. |Travis Build Status| image:: https://app.travis-ci.com/ExaScience/bpmf.svg?branch=master
-   :target: https://app.travis-ci.com/github/ExaScience/bpmf
+.. |GitHub Actions Build Status| image:: https://github.com/ExaScience/bpmf/actions/workflows/cmake.yml/badge.svg
+   :target: https://github.com/ExaScience/bpmf/actions
