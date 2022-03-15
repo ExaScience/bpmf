@@ -12,18 +12,31 @@ env:
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        flags: 
+          - "-DBPMF_COMM=NO_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=OFF"
+          - "-DBPMF_COMM=NO_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=OFF"
+          - "-DBPMF_COMM=NO_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=ON"
+          - "-DBPMF_COMM=NO_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=ON"
+          - "-DBPMF_COMM=MPI_ISEND_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=OFF"
+          - "-DBPMF_COMM=MPI_ISEND_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=OFF"
+          - "-DBPMF_COMM=MPI_BCAST_COMM -DENABLE_OPENMP=OFF -DENABLE_REDUCE=OFF"
+          - "-DBPMF_COMM=MPI_BCAST_COMM -DENABLE_OPENMP=ON -DENABLE_REDUCE=OFF"
 
     steps:
     - uses: actions/checkout@v2
 
+    - name: Install needed packages
+      run: |
+        sudo apt-get update
+        sudo apt install -y cmake libblas-dev liblapack-dev liblapacke-dev libopenmpi-dev openmpi-bin libeigen3-dev librandom123-dev
+
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      run: cmake -B ${{github.workspace}}/build -DRANDOM123_INCLUDE_DIRS=/usr/include -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{matrix.flags}}
 
     - name: Build
       # Build your program with the given configuration
