@@ -35,6 +35,15 @@ jobs:
         sudo apt-get update
         sudo apt install -y cmake libblas-dev liblapack-dev liblapacke-dev libopenmpi-dev openmpi-bin libeigen3-dev librandom123-dev
 
+    - name: Configure OpenMPI
+      run: |
+        openmpi_mca_params=$HOME/.openmpi/mca-params.conf
+        mkdir -p $(dirname $openmpi_mca_params)
+        echo plm=isolated >> $openmpi_mca_params
+        echo rmaps_base_oversubscribe=true >> $openmpi_mca_params
+        echo btl_base_warn_component_unused=false >> $openmpi_mca_params
+        echo btl_vader_single_copy_mechanism=none >> $openmpi_mca_params
+
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DRANDOM123_INCLUDE_DIRS=/usr/include -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{matrix.flags}}
 
