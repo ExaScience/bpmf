@@ -10,6 +10,9 @@ predict for example movie ratings. The BPMF method is described here: http://www
 The implementation in this repo is described in:
 "Distributed Matrix Factorization using Asynchrounous Communication", Tom Vander Aa, Imen Chakroun, Tom Haber, https://arxiv.org/pdf/1705.10633
 
+.. figure:: https://raw.githubusercontent.com/ExaScience/smurff/master/docs/_static/matrix_factorization.svg?sanitize=true
+   :alt: Matrix Factorizaion
+   
 Input is in the form of a sparse matrix of values (e.g. movie ratings) ``R``.
 The outputs are two smaller matrices ``U`` and ``V`` such that ``U * V``
 forms a prediction matrix.
