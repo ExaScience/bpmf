@@ -13,6 +13,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      - OMPI_MCA_btl=tcp,self
     strategy:
       matrix:
         flags: 
@@ -34,17 +36,12 @@ jobs:
         sudo apt install -y cmake libblas-dev liblapack-dev liblapacke-dev libopenmpi-dev openmpi-bin libeigen3-dev librandom123-dev
 
     - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: cmake -B ${{github.workspace}}/build -DRANDOM123_INCLUDE_DIRS=/usr/include -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{matrix.flags}}
 
     - name: Build
-      # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      # Execute tests defined by the CMake configuration.  
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest -C ${{env.BUILD_TYPE}}
+      run: ctest -V -C ${{env.BUILD_TYPE}}
       
