@@ -76,26 +76,38 @@ void sample_task_scheduler(
     int outer_size_plus_one,
     int num_items,
     int other_num_items,
+
     const double *other_ptr,
 
     const int this_iter,
+
+    /* hyperparams -- constant per iter */
     const void *this_hp_ptr,
     const int hp_size,
+    /* ratings matrix -- constant */
     const int *this_inner_ptr,
     const int *this_outer_ptr,
     const double *this_ratings_ptr,
+
     double *this_items_ptr
 )
 {
     int nodes = nanos6_get_num_cluster_nodes();
+    int node_tasks = nodes * 32;
 
-    const int num_tasks_per_node = 100;
-    const int num_items_per_node = to / nodes;
+    const int num_tasks_per_node = 5;
+    const int num_items_per_node_task = to / node_tasks;
 
-    for (int node_id = 0; node_id < nodes; ++node_id)
+    printf("%d items per node_task\n", num_items_per_node_task);
+
+    for (int node_task_id = 0; node_task_id < node_tasks; ++node_task_id)
     {
-        int i = node_id*num_items_per_node, num_items_this_node;
-        node_chunk(&num_items_this_node, node_id, nodes, to, i, num_items_per_node);
+        int i = node_task_id*num_items_per_node_task, num_items_this_node;
+        node_chunk(&num_items_this_node, node_task_id, node_tasks, to, i, num_items_per_node_task);
+        int node_id = node_task_id % nodes;
+            
+        const int num_items_per_thread_task = num_items_this_node / num_tasks_per_node;
+        printf("%d items per thread task\n", num_items_per_thread_task);
 
         #pragma oss task                                                          \
             weakin(this_hp_ptr     [0;hp_size])                                   \
@@ -108,13 +120,10 @@ void sample_task_scheduler(
             node(node_id)                                                         \
             label("sample_weak_task")
         {
-            const int num_items_per_task = num_items_this_node / num_tasks_per_node;
-            assert(num_items_per_task > 0);
-
-            for (int j = i; j < i+num_items_this_node; j += num_items_per_task)
+            for (int j = i; j < i+num_items_this_node; j += num_items_per_thread_task)
             {
                 int num_items_this_task;
-                task_chunk(&num_items_this_task, i+num_items_this_node, j, num_items_per_task);
+                task_chunk(&num_items_this_task, i+num_items_this_node, j, num_items_per_thread_task);
 
                 #pragma oss task                                                      \
                     in(this_hp_ptr     [0;hp_size])                                   \
